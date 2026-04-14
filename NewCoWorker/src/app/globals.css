@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+:root {
+  --color-deep-blue: #003366;
+  --color-deep-blue-muted: #0a4870;
+  --color-surface: #ffffff;
+  --color-text-on-dark: #f8fafc;
+  --color-text-on-light: #0f172a;
+  --focus-ring: 2px solid #38bdf8;
+  --focus-offset: 2px;
+  --content-max-width: 75rem; /* 1200px */
+  /* 데스크톱은 우측 목차가 기본 숨김(핸들만 노출)이라 안전 여백 최소화 */
+  --deck-safe-right: 1rem;
+  --deck-safe-left: 1rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --deck-safe-right: 2.75rem;
+    --deck-safe-left: 1.75rem;
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-padding-top: 5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  overflow: hidden;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-text-on-light);
+}
+
+/* 공통 슬라이드 규격: 균형 배치 */
+.deck-page {
+  min-height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.deck-container {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 768px) {
+  .deck-page {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+}
+
+/* Print: lecture summary */
+@media print {
+  .no-print,
+  nav[aria-label="Section navigation"],
+  button[data-print-hide] {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  section {
+    break-inside: avoid;
+  }
+}

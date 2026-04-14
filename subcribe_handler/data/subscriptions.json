@@ -1,0 +1,71 @@
+[
+  {
+    "user_id": "user_001",
+    "service_name": "네이버플러스",
+    "amount": 4900,
+    "currency": "KRW",
+    "next_billing_date": "2026-02-18",
+    "cycle": "monthly",
+    "status": "active",
+    "tags": [],
+    "id": "022123d8-72c3-4105-9457-14a5cc74716d",
+    "created_at": "2026-02-13T05:46:34.316Z",
+    "updated_at": "2026-02-13T05:46:34.316Z"
+  },
+  {
+    "user_id": "user_001",
+    "service_name": "CURSOR",
+    "amount": 20,
+    "currency": "USD",
+    "next_billing_date": "2026-02-19",
+    "cycle": "monthly",
+    "billing_email": null,
+    "status": "active",
+    "tags": [],
+    "id": "7d2db81e-da8b-4745-aa2b-4f84f167f70e",
+    "created_at": "2026-02-13T05:48:25.917Z",
+    "updated_at": "2026-02-13T05:48:44.452Z"
+  },
+  {
+    "user_id": "user_001",
+    "service_name": "TRAE",
+    "amount": 10,
+    "currency": "USD",
+    "next_billing_date": "2026-03-02",
+    "cycle": "monthly",
+    "billing_email": "chengren1026@gmail.com",
+    "status": "active",
+    "tags": [],
+    "id": "92099343-2bff-4cbb-acc4-4e019fd29edf",
+    "created_at": "2026-02-13T05:52:15.713Z",
+    "updated_at": "2026-02-13T05:56:17.673Z"
+  },
+  {
+    "user_id": "user_001",
+    "service_name": "Google One",
+    "amount": 2400,
+    "currency": "KRW",
+    "next_billing_date": "2026-02-15",
+    "cycle": "monthly",
+    "billing_email": "st****@naver.com",
+    "status": "active",
+    "tags": [],
+    "id": "8d361565-3dd5-4a75-8cf0-17382abb61b5",
+    "created_at": "2026-02-13T05:55:07.178Z",
+    "updated_at": "2026-02-13T05:55:07.178Z"
+  },
+  {
+    "user_id": "user_001",
+    "service_name": "EXPRESSVPN",
+    "amount": 13.99,
+    "currency": "USD",
+    "next_billing_date": "2026-03-16",
+    "cycle": "monthly",
+    "billing_email": "sti60val@gmail.com",
+    "status": "active",
+    "tags": [],
+    "id": "9821d034-f1ad-4911-90be-314626ea0526",
+    "created_at": "2026-02-13T05:59:20.130Z",
+    "updated_at": "2026-02-13T05:59:20.130Z"
+  }
+]

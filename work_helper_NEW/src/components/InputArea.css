@@ -1,0 +1,209 @@
+.input-area-container {
+    padding: 0.5rem 1.5rem 1.5rem;
+    /* Reduced padding for compact feel */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 50;
+}
+
+.faq-categories {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.faq-categories::-webkit-scrollbar {
+    display: none;
+}
+
+.category-chip {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    color: #636e72;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.category-chip:hover:not(:disabled) {
+    background: rgba(108, 92, 231, 0.1);
+    color: #6c5ce7;
+}
+
+.category-chip.active {
+    background: #6c5ce7;
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3);
+}
+
+.category-chip:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.faq-suggestions {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+}
+
+.faq-suggestions::-webkit-scrollbar {
+    display: none;
+}
+
+.faq-badge {
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.08), rgba(162, 155, 254, 0.08));
+    border: 1.5px solid rgba(108, 92, 231, 0.2);
+    color: #6c5ce7;
+    padding: 8px 16px;
+    border-radius: 22px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(108, 92, 231, 0.08);
+}
+
+.faq-badge:hover:not(:disabled) {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: white;
+    border-color: #6c5ce7;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(108, 92, 231, 0.25);
+}
+
+.faq-badge:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(108, 92, 231, 0.15);
+}
+
+.faq-badge:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.input-card {
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 24px;
+    padding: 6px 10px;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.input-flex {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.tool-btn,
+.magic-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.3rem;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 18px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #636e72;
+}
+
+.tool-btn:hover,
+.magic-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #6c5ce7;
+    transform: scale(1.1);
+}
+
+.message-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: #2d3436;
+    outline: none;
+    resize: none;
+    max-height: 180px;
+    line-height: 1.4;
+}
+
+.send-btn {
+    width: 44px;
+    height: 44px;
+    background: #dfe6e9;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    margin-bottom: 3px;
+    flex-shrink: 0;
+}
+
+.send-btn.active {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    box-shadow: 0 8px 20px rgba(108, 92, 231, 0.3);
+}
+
+.send-btn:hover.active {
+    transform: translateY(-3px) rotate(5deg);
+}
+
+.send-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.image-preview-overlay {
+    position: absolute;
+    top: -85px;
+    left: 20px;
+    background: white;
+    padding: 6px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.preview-thumbnail {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.remove-image-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ff4757;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}

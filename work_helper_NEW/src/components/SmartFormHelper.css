@@ -1,0 +1,237 @@
+
+/* Smart Form Container - Full Page Layout */
+.smart-form-container {
+    flex: 1;
+    height: 100%;
+    overflow-y: auto;
+    padding: 4rem 2rem 4rem 2rem;
+    background-color: #f5f7fb;
+    box-sizing: border-box;
+}
+
+.smart-form-header {
+    margin-bottom: 2rem;
+    text-align: center;
+    background: white;
+    padding: 2.5rem 2rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+}
+
+.smart-form-header h2 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.8rem;
+    color: #2d3436;
+}
+
+.helper-description {
+    color: #636e72;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.mode-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.mode-tab {
+    padding: 0.8rem 2rem;
+    border: 2px solid #dfe6e9;
+    border-radius: 30px;
+    background: white;
+    color: #636e72;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1rem;
+}
+
+.mode-tab:hover {
+    background: #f8f9fa;
+    border-color: #b2bec3;
+}
+
+.mode-tab.active {
+    background: #6c5ce7;
+    color: white;
+    border-color: #6c5ce7;
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+}
+
+.feature-examples {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 12px;
+    text-align: left;
+    max-width: 600px;
+    margin: 0 auto;
+    border: 1px solid #e9ecef;
+}
+
+.feature-examples h4 {
+    margin: 0 0 1rem 0;
+    color: #2d3436;
+    font-size: 1rem;
+}
+
+.feature-examples ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #636e72;
+    font-size: 0.95rem;
+}
+
+.feature-examples li {
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+/* Example Buttons for better UX */
+.example-btn {
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    color: #0984e3;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    transition: color 0.2s;
+    width: 100%;
+}
+
+.example-btn:hover {
+    color: #6c5ce7;
+    background-color: rgba(108, 92, 231, 0.05);
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+.audit-hint {
+    color: #636e72;
+    cursor: default;
+}
+
+.smart-form-content {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.file-upload-area {
+    border: 2px dashed #dfe6e9;
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.file-upload-area:hover, .file-upload-area.active {
+    border-color: #6c5ce7;
+    background: #f8f9fa;
+}
+
+.upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    color: #636e72;
+}
+
+.upload-icon {
+    font-size: 3rem;
+}
+
+.context-input-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.context-input-area label {
+    font-weight: 600;
+    color: #2d3436;
+}
+
+.context-textarea {
+    width: 100%;
+    height: 120px;
+    padding: 1rem;
+    border: 1px solid #dfe6e9;
+    border-radius: 8px;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    box-sizing: border-box;
+}
+
+.context-textarea:focus {
+    outline: none;
+    border-color: #6c5ce7;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+}
+
+.generate-btn {
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+.generate-btn:disabled {
+    background: #b2bec3;
+    cursor: not-allowed;
+}
+
+.generate-btn.write {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+}
+
+.generate-btn.audit {
+    background: linear-gradient(135deg, #00b894, #55efc4);
+}
+
+.generate-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.result-area {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    margin-top: 1rem;
+}
+
+.result-area h3 {
+    margin-top: 0;
+    color: #2d3436;
+    border-bottom: 2px solid #f1f2f6;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.animate-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

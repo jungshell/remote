@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+apps/web/node_modules/
+apps/desktop/node_modules/
+services/api/storage/
+services/api/openai_key.txt
+services/api/gemini_key.txt

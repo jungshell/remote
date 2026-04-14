@@ -1,0 +1,12 @@
+[
+  {
+    "user_id": "test_user_1",
+    "subscription_id": "59bc42ae-64e9-4c47-9914-6e0c2b08f2fd",
+    "payment_date": "2024-02-01",
+    "amount": 10000,
+    "currency": "KRW",
+    "status": "paid",
+    "id": "59b55a0c-2c7e-4be1-8da8-14fc76336349",
+    "created_at": "2026-02-13T04:50:06.818Z"
+  }
+]

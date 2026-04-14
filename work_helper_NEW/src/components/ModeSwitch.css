@@ -1,0 +1,63 @@
+.mode-switch-container {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    z-index: 100;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+    border-radius: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    transition: all 0.3s ease;
+    width: fit-content;
+    margin-bottom: 0.5rem;
+}
+
+.mode-switch-container:hover {
+    background: rgba(255, 255, 255, 0.6);
+    transform: translateY(-1px);
+}
+
+.switch-track {
+    width: 44px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 30px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.switch-track.character {
+    background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+    box-shadow: 0 0 10px rgba(108, 92, 231, 0.2);
+}
+
+.switch-thumb {
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.7rem;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.switch-track.character .switch-thumb {
+    transform: translateX(20px);
+}
+
+.mode-label {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #4a4a4a;
+    user-select: none;
+    letter-spacing: -0.02em;
+}

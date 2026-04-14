@@ -1,0 +1,29 @@
+:root {
+  /* Colors */
+  --color-primary: #005BAA;
+  /* Chungnam Blue */
+  --color-primary-light: #4D91D6;
+  --color-secondary: #FFD100;
+  /* Use as accent if needed, standard complementary */
+  --color-text-main: #1F2937;
+  --color-text-secondary: #6B7280;
+
+  /* Glassmorphism Tokens */
+  --bg-glass: rgba(255, 255, 255, 0.4);
+  --bg-glass-heavy: rgba(255, 255, 255, 0.7);
+  --bg-bot-bubble: rgba(255, 255, 255, 0.8);
+  --glass-blur: 24px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.4);
+  --glass-shadow: 0 10px 40px 0 rgba(31, 38, 135, 0.1);
+  --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 100%);
+
+  /* Spacing */
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+
+  /* Radius */
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 8px;
+}

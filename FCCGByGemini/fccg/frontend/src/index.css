@@ -1,0 +1,246 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* 새로운 게임정보 컨테이너 - CSS Grid 방식 */
+.game-info-container {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: grid !important;
+  grid-template-rows: auto 1fr !important;
+  grid-template-columns: 1fr !important;
+  gap: 2px !important;
+  padding: 4px !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+/* 게임 타입 뱃지 */
+.game-info-container::before {
+  content: var(--game-type);
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: start;
+  align-self: start;
+  background-color: #3b82f6;
+  color: white;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  z-index: 1;
+  transform: translateY(-8px);
+}
+
+/* 게임 정보 박스 */
+.game-info-container::after {
+  content: '';
+  grid-row: 2;
+  grid-column: 1;
+  width: 100%;
+  height: 100%;
+  background-color: white;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* 게임 정보 내용 */
+.game-info-container {
+  position: relative;
+}
+
+.game-info-container::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: black;
+  text-align: center;
+}
+
+/* 게임 정보 텍스트 */
+.game-info-container::after {
+  content: '⚽ ' var(--game-count) '\A🕐 ' var(--game-time) '\A📍 ' var(--game-location);
+  white-space: pre-line;
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: black;
+  text-align: center;
+}
+
+/* 강제로 셀 전체 덮기 - 최고 우선순위 */
+.game-info-perfect-fit {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+  box-sizing: border-box !important;
+  z-index: 999 !important;
+}
+
+/* FullCalendar 셀 강제 덮기 */
+.fc-daygrid-day-frame {
+  position: relative !important;
+}
+
+.fc-daygrid-day {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* 직접 삽입된 경기정보 강제 스타일링 */
+.direct-game-info {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+  box-sizing: border-box !important;
+  z-index: 999 !important;
+  
+  /* 강제로 셀 전체 덮기 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: inherit;
+    border: inherit;
+    border-radius: inherit;
+    z-index: -1;
+  }
+}
+
+/* 강제 게임정보 스타일링 - ref callback으로 DOM 직접 조작 */
+.force-game-info {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+  box-sizing: border-box !important;
+  z-index: 999 !important;
+  
+  /* 강제로 셀 전체 덮기 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: inherit;
+    border: inherit;
+    border-radius: inherit;
+    z-index: -1;
+  }
+}
+
+/* CSS 변수로 강제 스타일링 */
+.force-game-info[style*="--force-width"] {
+  width: var(--force-width) !important;
+  height: var(--force-height) !important;
+  position: var(--force-position) !important;
+}
+
+/* 추가 강제 스타일링 */
+.force-game-info {
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: transparent;
+    border: 2px solid #3b82f6;
+    border-radius: 12px;
+    z-index: -2;
+    pointer-events: none;
+  }
+}

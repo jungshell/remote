@@ -1,0 +1,26 @@
+cookie:
+  expiry_days: 1
+  key: chungnam_content_agency_secret_key
+  name: cca_auth_cookie
+credentials:
+  usernames:
+    '1111':
+      email: admin@example.com
+      name: "\uC815\uC131\uC778"
+      password: $2b$12$nUDv72j4RsvrquZZ/aPPLOUPbppXo0tZ8TJTrh1kN6DukfIeD0UdS
+      roles:
+      - admin
+    '2222':
+      email: manager@example.com
+      name: "\uAC15\uBCD1\uC6B0"
+      password: $2b$12$vsrlY7bOdg4jIS2eksDO4O8i21xddW5XXoOwtRO6K6pPKWo2umQ42
+      roles:
+      - manager
+    '9999':
+      email: user@example.com
+      name: "\uC77C\uBC18"
+      password: $2b$12$myGK2TBVH65IV7XqWkwahuyBNeAKA7tnWFY7rtdCa6ww7syt0Sj7K
+      roles:
+      - user
+pre-authorized:
+  emails: []

@@ -1,0 +1,29 @@
+{
+  "name": "desktop",
+  "description": "CNCI 업무 자동화 데스크톱 포털",
+  "author": "CNCI",
+  "private": true,
+  "version": "0.1.0",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "electron .",
+    "pack:win": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "37.3.1",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "kr.cnci.portal",
+    "productName": "CNCI 업무포털",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

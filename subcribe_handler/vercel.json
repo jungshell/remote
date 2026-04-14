@@ -1,0 +1,10 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-notifications",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}
+
+

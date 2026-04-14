@@ -1,0 +1,17 @@
+{
+  "name": "cnci-portal",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web",
+    "apps/desktop",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w apps/web",
+    "dev:desktop": "npm run dev -w apps/desktop",
+    "dev:api": "php -S 127.0.0.1:8080 -t services/api/public services/api/public/router.php",
+    "build:web": "npm run build -w apps/web",
+    "pack:win": "npm run build:web && npm run pack:win -w apps/desktop"
+  }
+}

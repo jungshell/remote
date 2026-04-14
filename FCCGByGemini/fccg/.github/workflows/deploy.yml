@@ -1,0 +1,41 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:  # 수동 트리거만 허용
+    inputs:
+      confirm:
+        description: '배포를 확인했습니다 (yes 입력)'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    if: github.event.inputs.confirm == 'yes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+      
+      - name: Build
+        run: |
+          cd frontend
+          npm run build
+      
+      - name: Type check
+        run: |
+          cd frontend
+          npx tsc --noEmit
+      
+      - name: Lint
+        run: |
+          cd frontend
+          npm run lint || true

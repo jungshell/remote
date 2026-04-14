@@ -1,0 +1,545 @@
+.portal {
+  width: min(1180px, 92vw);
+  margin: 0 auto;
+  padding: 40px 0 52px;
+}
+
+.hero {
+  margin-bottom: 22px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.heroText {
+  max-width: 760px;
+  margin: 0;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-soft);
+  padding: 20px;
+  margin-top: 16px;
+}
+
+.tabs {
+  display: inline-flex;
+  gap: 6px;
+  border-radius: 12px;
+  padding: 5px;
+  background: var(--surface);
+  margin-bottom: 18px;
+}
+
+.moduleTabs {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.tab {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab.active {
+  color: var(--text-strong);
+  background: var(--panel);
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+textarea {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-main);
+  padding: 12px 14px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+input,
+select {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-main);
+  padding: 10px 12px;
+}
+
+textarea:focus {
+  outline: 2px solid var(--ring);
+  border-color: transparent;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.span2 {
+  grid-column: span 2;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+button[type='submit'] {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  cursor: pointer;
+}
+
+button[disabled] {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.output h2 {
+  margin: 0 0 8px;
+}
+
+.placeholder {
+  color: var(--muted);
+}
+
+.error {
+  color: #f43f5e;
+  font-weight: 600;
+}
+
+.success {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+  margin: 0;
+  padding: 14px;
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.card.overdue {
+  border-color: #c45c5c;
+}
+
+.card.dueToday {
+  border-color: #c9a227;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+.hint {
+  color: var(--muted);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ragLayout {
+  align-items: start;
+}
+
+.ragBanner {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.ragBannerTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ragBannerMeta {
+  color: var(--muted);
+}
+
+.ragBannerMeta code {
+  font-size: 12px;
+}
+
+.ragBannerMeta strong {
+  color: var(--text-strong);
+}
+
+.ragBannerSep {
+  margin: 0 6px;
+  opacity: 0.45;
+}
+
+.ragBannerToggle {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--panel);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.ragBannerToggle:hover {
+  border-color: var(--ring);
+}
+
+.ragBannerHint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.ragBannerStatus {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ragBannerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ragBannerSecondary {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ragBannerSecondary:hover {
+  color: var(--text-strong);
+  border-color: var(--ring);
+}
+
+.ragChatShell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: min(58vh, 560px);
+}
+
+.ragChatStream {
+  flex: 1;
+  max-height: min(62vh, 640px);
+  overflow-y: auto;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.ragChatPlaceholder {
+  margin: 0;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ragChatPlaceholder code {
+  font-size: 12px;
+}
+
+.ragChatTurn {
+  display: flex;
+  flex-direction: column;
+  max-width: min(720px, 94%);
+}
+
+.ragChatTurn.user {
+  align-self: flex-end;
+}
+
+.ragChatTurn.assistant {
+  align-self: flex-start;
+}
+
+.ragChatMeta {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 6px 4px;
+  text-transform: uppercase;
+}
+
+.ragChatBubble {
+  border-radius: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+}
+
+.ragChatTurn.user .ragChatBubble {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.38), rgba(37, 99, 235, 0.3));
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+.ragChatTurn.assistant .ragChatBubble {
+  background: var(--surface);
+}
+
+.ragChatBubbleText {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-main);
+}
+
+.ragChatTyping {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.ragChatCitations {
+  margin-top: 10px;
+  padding: 0 4px;
+}
+
+.ragChatCitations summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.ragChatCiteHint {
+  margin: 8px 0 4px;
+  font-size: 12px;
+}
+
+.ragChatEnd {
+  height: 1px;
+}
+
+.ragChatComposer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.ragChatInput {
+  flex: 1;
+  margin: 0;
+  min-height: 76px;
+  resize: vertical;
+}
+
+.ragChatSend {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 22px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  cursor: pointer;
+}
+
+.ragChatSend:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ragAdminActions {
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ragDedupeBtn {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--panel);
+  color: var(--text-main);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ragDedupeBtn:hover {
+  border-color: var(--ring);
+}
+
+.ragQnaPanel {
+  margin-top: 4px;
+}
+
+.ragQnaTitle {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+  color: var(--text-strong);
+}
+
+.ragQnaLabel {
+  margin: 0;
+}
+
+.ragQuestionArea {
+  min-height: 120px;
+  font-size: 15px;
+}
+
+.ragQnaActions {
+  margin-top: 10px;
+}
+
+.ragAnswerHeading {
+  margin: 22px 0 10px;
+  color: var(--text-strong);
+}
+
+.ragCitationsBlock h3 {
+  margin: 20px 0 8px;
+  color: var(--text-strong);
+}
+
+.ragAdminPanel {
+  margin-top: 8px;
+  padding: 14px 16px 18px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.ragAdminHint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ragAdminGrid {
+  margin-bottom: 8px;
+}
+
+.ragDocList h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.ragAnswer {
+  max-height: 420px;
+  overflow: auto;
+}
+
+pre.ragAnswer.ragAnswerMain {
+  max-height: min(58vh, 560px);
+  min-height: 200px;
+}
+
+.citationList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.citationCard pre.citationSnippet {
+  margin-top: 8px;
+  font-size: 13px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.loginPanel {
+  max-width: 460px;
+  margin: 56px auto;
+}
+
+.footerActions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.logout {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 14px;
+  background: var(--panel);
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+  .span2 {
+    grid-column: span 1;
+  }
+}

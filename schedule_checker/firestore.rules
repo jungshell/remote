@@ -1,0 +1,52 @@
+rules_version = '2';
+// AutoFlow: 업무(tasks)는 ownerId 기준으로만 접근 허용.
+// 연락처(contacts), 알림(alerts), 템플릿(templates)은 Step 4 이후 ownerId 적용 시 동일하게 제한할 수 있습니다.
+// 현재 앱은 Next.js API를 통해 Admin SDK로만 Firestore에 접근하므로,
+// 이 규칙은 클라이언트에서 Firebase SDK를 직접 쓰는 경우를 막기 위한 이중 보안용입니다.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 업무: 로그인 사용자만 자신의 문서(ownerId == uid) 읽기/쓰기
+    match /tasks/{taskId} {
+      allow read, write: if request.auth != null
+        && (resource == null || resource.data.ownerId == request.auth.uid)
+        && (request.resource == null || request.resource.data.ownerId == request.auth.uid);
+    }
+
+    // 연락처·알림·템플릿: Step 4에서 ownerId 적용 후 아래 주석을 해제하고 사용
+    // match /contacts/{contactId} {
+    //   allow read, write: if request.auth != null
+    //     && (resource == null || resource.data.ownerId == request.auth.uid)
+    //     && (request.resource == null || request.resource.data.ownerId == request.auth.uid);
+    // }
+    // match /alerts/{alertId} { ... }
+    // match /templates/{templateId} { ... }
+
+    // 연락처·알림·템플릿: ownerId 기준으로 본인 문서만 접근
+    match /contacts/{id} {
+      allow read, write: if request.auth != null
+        && (resource == null || resource.data.ownerId == request.auth.uid)
+        && (request.resource == null || request.resource.data.ownerId == request.auth.uid);
+    }
+    match /alerts/{id} {
+      allow read, write: if request.auth != null
+        && (resource == null || resource.data.ownerId == request.auth.uid)
+        && (request.resource == null || request.resource.data.ownerId == request.auth.uid);
+    }
+    match /templates/{id} {
+      allow read, write: if request.auth != null
+        && (resource == null || resource.data.ownerId == request.auth.uid)
+        && (request.resource == null || request.resource.data.ownerId == request.auth.uid);
+    }
+    match /work_logs/{id} {
+      allow read, write: if request.auth != null
+        && (resource == null || resource.data.ownerId == request.auth.uid)
+        && (request.resource == null || request.resource.data.ownerId == request.auth.uid);
+    }
+    // Google Calendar 연동 토큰 (문서 ID = uid)
+    match /calendar_tokens/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

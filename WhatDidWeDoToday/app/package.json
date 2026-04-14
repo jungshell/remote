@@ -1,0 +1,41 @@
+{
+  "name": "app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3005",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 3005",
+    "lint": "eslint",
+    "regenerate-4cut-all": "node scripts/regenerate-4cut-all.mjs",
+    "regenerate-4cut-all-except-date": "node scripts/regenerate-4cut-all-except-date.mjs",
+    "migrate:firebase-to-mongodb": "node scripts/migrate-firebase-to-mongodb.mjs"
+  },
+  "dependencies": {
+    "@types/leaflet": "^1.9.21",
+    "@types/uuid": "^10.0.0",
+    "browser-image-compression": "^2.0.2",
+    "dotenv": "^17.2.3",
+    "exif-reader": "^2.0.3",
+    "firebase": "^11.1.0",
+    "firebase-admin": "^12.5.0",
+    "lamejs": "^1.2.1",
+    "leaflet": "^1.9.4",
+    "mongodb": "^6.3.0",
+    "next": "16.1.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "sharp": "^0.34.5",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

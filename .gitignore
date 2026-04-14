@@ -1,0 +1,57 @@
+# Workspace-level ignore rules (cross-device safe)
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Node / web build artifacts
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/release/
+**/coverage/
+**/.turbo/
+**/.cache/
+**/.vercel/
+
+# Python
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.venv/
+**/venv/
+*.pyc
+
+# Environment / secrets
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local temporary archives and generated reports
+_merge_archive/
+_gitdir_archive/
+PROJECT_INVENTORY.pdf
+PROJECT_INVENTORY.txt
+pdf-tools/
+scripts/
+
+# Drive temp folders found in root
+.tmp.drivedownload/
+.tmp.driveupload/
+*.lnk
