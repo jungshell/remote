@@ -28,6 +28,8 @@ import {
   Alert,
   AlertTitle,
   AlertDescription,
+  Link,
+  SlideFade,
 } from '@chakra-ui/react';
 import NewCalendarV2 from '../components/NewCalendarV2';
 import { ArrowUpIcon, SmallCloseIcon } from '@chakra-ui/icons';
@@ -42,9 +44,11 @@ import { CalendarSkeleton, VoteSectionSkeleton } from '../components/common/Skel
 import { shareKakaoText } from '../utils/kakaoShare';
 import {
   buildGameDetailShareText,
-  buildKakaoMapSearchUrl,
+  buildKakaoMapSearchUrlFromGame,
   buildVoteRosterShareCard,
   buildVoteSelfConfirmationCard,
+  getVenueMapDisplayLabel,
+  resolvePrimaryVenueName,
 } from '../utils/kakaoShareCard';
 
 // 타입 정의
@@ -3117,42 +3121,44 @@ export default function SchedulePageV2() {
                     </Tooltip>
                 </Flex>
 
-                {voteFeedbackCard && (
-                  <Alert status="success" variant="subtle" borderRadius="md" mt={2} flexDirection="column" alignItems="stretch">
-                    <Flex justify="space-between" align="flex-start" gap={2}>
-                      <Box flex={1}>
-                        <AlertTitle fontSize="sm">내 투표 반영됨</AlertTitle>
-                        <AlertDescription fontSize="xs" whiteSpace="pre-wrap" mt={1} color="gray.700">
-                          {voteFeedbackCard}
-                        </AlertDescription>
-                      </Box>
-                      <HStack spacing={1}>
-                        <Button size="xs" variant="outline" onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(voteFeedbackCard);
-                            toast({ title: '복사 완료', description: '카카오톡에 붙여넣기 할 수 있어요.', status: 'success', duration: 2000, isClosable: true });
-                          } catch {
-                            toast({ title: '복사 실패', status: 'error', duration: 2000, isClosable: true });
-                          }
-                        }}>
-                          복사
-                        </Button>
-                        <IconButton
-                          size="xs"
-                          aria-label="투표 확인 닫기"
-                          icon={<SmallCloseIcon />}
-                          variant="ghost"
-                          onClick={() => {
-                            setVoteFeedbackCard(null);
+                <SlideFade in={!!voteFeedbackCard} offsetY="10px" style={{ width: '100%' }}>
+                  {voteFeedbackCard && (
+                    <Alert status="success" variant="subtle" borderRadius="md" mt={2} flexDirection="column" alignItems="stretch">
+                      <Flex justify="space-between" align="flex-start" gap={2}>
+                        <Box flex={1}>
+                          <AlertTitle fontSize="sm">내 투표 반영됨</AlertTitle>
+                          <AlertDescription fontSize="xs" whiteSpace="pre-wrap" mt={1} color="gray.700">
+                            {voteFeedbackCard}
+                          </AlertDescription>
+                        </Box>
+                        <HStack spacing={1}>
+                          <Button size="xs" variant="outline" onClick={async () => {
                             try {
-                              localStorage.removeItem(VOTE_FEEDBACK_STORAGE_KEY);
-                            } catch { /* ignore */ }
-                          }}
-                        />
-                      </HStack>
-                    </Flex>
-                  </Alert>
-                )}
+                              await navigator.clipboard.writeText(voteFeedbackCard);
+                              toast({ title: '복사 완료', description: '카카오톡에 붙여넣기 할 수 있어요.', status: 'success', duration: 2000, isClosable: true });
+                            } catch {
+                              toast({ title: '복사 실패', status: 'error', duration: 2000, isClosable: true });
+                            }
+                          }}>
+                            복사
+                          </Button>
+                          <IconButton
+                            size="xs"
+                            aria-label="투표 확인 닫기"
+                            icon={<SmallCloseIcon />}
+                            variant="ghost"
+                            onClick={() => {
+                              setVoteFeedbackCard(null);
+                              try {
+                                localStorage.removeItem(VOTE_FEEDBACK_STORAGE_KEY);
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                        </HStack>
+                      </Flex>
+                    </Alert>
+                  )}
+                </SlideFade>
 
           <VStack spacing={{ base: 0, md: 0 }} align="stretch" mb={{ base: 1, md: 1 }}>
                   {(() => {
@@ -3729,6 +3735,7 @@ export default function SchedulePageV2() {
         isOpen={showVoteStatus} 
         onClose={() => setShowVoteStatus(false)} 
         size={{ base: "full", md: "lg" }}
+        motionPreset="slideInBottom"
         aria-labelledby="vote-status-modal-title"
         aria-describedby="vote-status-modal-description"
       >
@@ -4410,6 +4417,7 @@ export default function SchedulePageV2() {
         onClose={handleCloseGameModal} 
         size="xs" 
         isCentered
+        motionPreset="slideInBottom"
         aria-labelledby="game-detail-modal-title"
         aria-describedby="game-detail-modal-description"
       >
@@ -4475,7 +4483,7 @@ export default function SchedulePageV2() {
                       </Text>
                     )}
                   </Flex>
-                  <HStack spacing={1}>
+                  <HStack spacing={1} align="center">
                     <Button
                       size="xs"
                       height="22px"
@@ -4485,26 +4493,27 @@ export default function SchedulePageV2() {
                       bg="yellow.400"
                       color="blue.600"
                       onClick={handleCopyGameDetails}
+                      transition="transform 0.15s ease"
+                      _hover={{ transform: 'scale(1.06)' }}
+                      _active={{ transform: 'scale(0.96)' }}
                     >
                       K
                     </Button>
-                    <Button
-                      size="xs"
-                      height="22px"
-                      minW="22px"
-                      fontSize="11px"
-                      p={0}
-                      bg="yellow.400"
-                      color="blue.600"
-                      onClick={() => {
-                        window.open(
-                          buildKakaoMapSearchUrl(selectedGameData.location, selectedGameData.locationAddress),
-                          '_blank'
-                        );
-                      }}
+                    <Link
+                      href={buildKakaoMapSearchUrlFromGame(selectedGameData)}
+                      isExternal
+                      fontSize="xs"
+                      fontWeight="bold"
+                      color="blue.700"
+                      textDecoration="underline"
+                      px={1}
+                      py={0.5}
+                      borderRadius="md"
+                      transition="color 0.15s ease, transform 0.15s ease"
+                      _hover={{ color: 'blue.900', transform: 'translateY(-1px)' }}
                     >
-                      맵
-                    </Button>
+                      {getVenueMapDisplayLabel(resolvePrimaryVenueName(selectedGameData) || selectedGameData.location)} 지도
+                    </Link>
                   </HStack>
                 </Flex>
 
@@ -4672,6 +4681,7 @@ export default function SchedulePageV2() {
       <Modal 
         isOpen={showSuspensionRequestModal} 
         onClose={() => setShowSuspensionRequestModal(false)}
+        motionPreset="slideInBottom"
         aria-labelledby="suspension-request-modal-title"
         aria-describedby="suspension-request-modal-description"
       >
@@ -4720,7 +4730,8 @@ export default function SchedulePageV2() {
       </Modal>
 
       {/* 투표 완료 공유 안내 */}
-      {isAdmin && showVoteSharePrompt && (
+      <SlideFade in={isAdmin && showVoteSharePrompt} offsetY="20px" style={{ zIndex: 2000 }}>
+        {isAdmin && showVoteSharePrompt && (
         <Box
           position="fixed"
           right={{ base: 4, md: 6 }}
@@ -4734,6 +4745,8 @@ export default function SchedulePageV2() {
           py={3}
           zIndex={2000}
           maxW={{ base: 'calc(100% - 32px)', md: '360px' }}
+          transition="box-shadow 0.2s ease, transform 0.2s ease"
+          _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
         >
           <HStack justify="space-between" align="start" spacing={3}>
             <VStack align="start" spacing={1}>
@@ -4759,7 +4772,8 @@ export default function SchedulePageV2() {
               size="sm"
               bg="#FEE500"
               color="black"
-              _hover={{ bg: '#F7D600' }}
+              transition="transform 0.15s ease, background 0.15s ease"
+              _hover={{ bg: '#F7D600', transform: 'scale(1.02)' }}
               onClick={handleKakaoShare}
             >
               카카오톡 공유
@@ -4768,14 +4782,16 @@ export default function SchedulePageV2() {
               size="sm"
               bg="white"
               color="#0B63CE"
-              _hover={{ bg: 'blue.50' }}
+              _hover={{ bg: 'blue.50', transform: 'scale(1.02)' }}
+              transition="transform 0.15s ease"
               onClick={handleCopyShareText}
             >
               메시지 복사
             </Button>
           </HStack>
         </Box>
-      )}
+        )}
+      </SlideFade>
     </Box>
 );
 }
