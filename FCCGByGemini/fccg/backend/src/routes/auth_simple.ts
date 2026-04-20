@@ -11,7 +11,9 @@ import {
   getNextWeekMonday, 
   getWeekFriday,
   parseVoteDays,
-  convertKoreanDateToDayCode
+  convertKoreanDateToDayCode,
+  aggregateVotesByWeekday,
+  type WeekdayKey
 } from '../utils/voteUtils';
 import {
   deactivateExpiredSessions,
@@ -2030,34 +2032,14 @@ router.post('/votes/aggregate/save', async (req, res) => {
     console.log('🧹 자동생성일정 정리:', deleted.count, '개 삭제');
     
     // 최신 투표 결과로 재생성
-    type DayKey = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
-    const counts: Record<DayKey, number> = { MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 };
-    const participantsByDay: Record<DayKey, string[]> = { MON: [], TUE: [], WED: [], THU: [], FRI: [], SAT: [], SUN: [] };
-    
-    for (const v of session.votes) {
-      try {
-        const selected: string[] = v.selectedDays ? JSON.parse(v.selectedDays as unknown as string) : [];
-        selected.forEach((d) => {
-          const key = d as DayKey;
-          if (counts[key] !== undefined) {
-            counts[key] += 1;
-            const participantName = (v as any).user?.name;
-            if (participantName && !participantsByDay[key].includes(participantName)) {
-              participantsByDay[key].push(participantName);
-            }
-          }
-        });
-      } catch (e) {
-        console.warn('⚠️ 투표 파싱 오류:', e);
-      }
-    }
+    const { counts, participantsByDay } = aggregateVotesByWeekday(session.votes);
     
     const max = Math.max(...Object.values(counts));
     console.log('📊 득표 집계:', counts, '최다득표:', max);
     
     if (max > 0) {
-      const topDays = (Object.keys(counts) as DayKey[]).filter((k) => counts[k] === max);
-      const dayOffset: Record<DayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
+      const topDays = (Object.keys(counts) as WeekdayKey[]).filter((k) => counts[k] === max);
+      const dayOffset: Record<WeekdayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
       const creatorId = session.votes[0]?.userId ?? 1;
       
       for (const day of topDays) {
@@ -2255,34 +2237,14 @@ router.post('/vote-sessions/:id/close', authenticateToken, async (req, res) => {
         where: { voteSessionId: sessionId },
         include: { user: { select: { name: true } } }
       });
-      type DayKey = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
-      const counts: Record<DayKey, number> = { MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 };
-      const participantsByDay: Record<DayKey, string[]> = { MON: [], TUE: [], WED: [], THU: [], FRI: [], SAT: [], SUN: [] };
-
-      for (const v of votes) {
-        try {
-          const selected: string[] = v.selectedDays ? JSON.parse(v.selectedDays as unknown as string) : [];
-          selected.forEach((d) => {
-            const key = d as DayKey;
-            if (counts[key] !== undefined) {
-              counts[key] += 1;
-              const participantName = (v as any).user?.name;
-              if (participantName && !participantsByDay[key].includes(participantName)) {
-                participantsByDay[key].push(participantName);
-              }
-            }
-          });
-        } catch (e) {
-          console.warn('⚠️ 투표 파싱 오류:', e);
-        }
-      }
+      const { counts, participantsByDay } = aggregateVotesByWeekday(votes);
 
       const max = Math.max(...Object.values(counts));
       console.log('📊 득표 집계:', counts, '최다득표:', max);
 
       if (max > 0) {
-        const topDays = (Object.keys(counts) as DayKey[]).filter((k) => counts[k] === max);
-        const dayOffset: Record<DayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
+        const topDays = (Object.keys(counts) as WeekdayKey[]).filter((k) => counts[k] === max);
+        const dayOffset: Record<WeekdayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
         const creatorId = votes[0]?.userId ?? 1; // 첫 투표자나 기본 관리자 ID로 설정
 
         for (const day of topDays) {

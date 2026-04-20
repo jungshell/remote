@@ -122,3 +122,53 @@ export function convertKoreanDateToDayCode(koreanDate: string): string {
   return koreanDate; // 이미 영어 코드인 경우 그대로 반환
 }
 
+export type WeekdayKey = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
+
+function normalizeVoteDayToWeekdayKey(day: string): WeekdayKey | null {
+  const t = String(day).trim();
+  if (!t || t === '불참') return null;
+  const c = convertKoreanDateToDayCode(t);
+  const u = c.toUpperCase();
+  const keys: WeekdayKey[] = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  return keys.includes(u as WeekdayKey) ? (u as WeekdayKey) : null;
+}
+
+/** 투표 행(JSON selectedDays)을 요일별 득표·참가자 이름으로 집계 (한글 날짜/영문 코드 혼용 지원) */
+export function aggregateVotesByWeekday(
+  votes: Array<{ selectedDays: string; user?: { name: string } | null }>
+): { counts: Record<WeekdayKey, number>; participantsByDay: Record<WeekdayKey, string[]> } {
+  const counts: Record<WeekdayKey, number> = {
+    MON: 0,
+    TUE: 0,
+    WED: 0,
+    THU: 0,
+    FRI: 0,
+    SAT: 0,
+    SUN: 0
+  };
+  const participantsByDay: Record<WeekdayKey, string[]> = {
+    MON: [],
+    TUE: [],
+    WED: [],
+    THU: [],
+    FRI: [],
+    SAT: [],
+    SUN: []
+  };
+
+  for (const vote of votes) {
+    const days = parseVoteDays(vote.selectedDays);
+    const name = vote.user?.name;
+    for (const day of days) {
+      const key = normalizeVoteDayToWeekdayKey(day);
+      if (!key) continue;
+      counts[key] += 1;
+      if (name && !participantsByDay[key].includes(name)) {
+        participantsByDay[key].push(name);
+      }
+    }
+  }
+
+  return { counts, participantsByDay };
+}
+

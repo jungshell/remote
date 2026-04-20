@@ -13,6 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import nodemailer from 'nodemailer';
 import { securityHeaders, apiLimiter } from './middlewares/security';
 import { monitoring } from './utils/monitoring';
+import { aggregateVotesByWeekday, type WeekdayKey } from './utils/voteUtils';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1372,35 +1373,14 @@ async function runWeeklyScheduler() {
       });
       console.log('🧹 지난주 자동생성일정 정리:', deleted.count, '개 삭제');
       
-      // 투표 결과 집계
-      type DayKey = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
-      const counts: Record<DayKey, number> = { MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 };
-      const participantsByDay: Record<DayKey, string[]> = { MON: [], TUE: [], WED: [], THU: [], FRI: [], SAT: [], SUN: [] };
-      
-      for (const v of lastWeekSession.votes) {
-        try {
-          const selected: string[] = v.selectedDays ? JSON.parse(v.selectedDays as unknown as string) : [];
-          selected.forEach((d) => {
-            const key = d as DayKey;
-            if (counts[key] !== undefined) {
-              counts[key] += 1;
-              const participantName = (v as any).user?.name;
-              if (participantName && !participantsByDay[key].includes(participantName)) {
-                participantsByDay[key].push(participantName);
-              }
-            }
-          });
-        } catch (e) {
-          console.warn('⚠️ 투표 파싱 오류:', e);
-        }
-      }
+      const { counts, participantsByDay } = aggregateVotesByWeekday(lastWeekSession.votes);
       
       const max = Math.max(...Object.values(counts));
       
       if (max > 0) {
-        const topDays = (Object.keys(counts) as DayKey[]).filter((k) => counts[k] === max);
+        const topDays = (Object.keys(counts) as WeekdayKey[]).filter((k) => counts[k] === max);
         gamesCreatedCount = topDays.length;
-        const dayOffset: Record<DayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
+        const dayOffset: Record<WeekdayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
         const creatorId = lastWeekSession.votes[0]?.userId ?? 1;
         
         for (const day of topDays) {
@@ -1461,6 +1441,19 @@ cron.schedule('1 0 * * 1', async () => {
 });
 
 console.log('✅ 매주 월요일 00:01 자동 작업 스케줄러 설정 완료');
+
+// 매시간 투표 마감·자동경기 반영 (요청이 없을 때도 만료 세션 처리)
+cron.schedule('15 * * * *', async () => {
+  try {
+    const { validateAndFixSessionState } = await import('./utils/voteSessionManager');
+    await validateAndFixSessionState();
+  } catch (e) {
+    console.error('⏰ 투표세션 자동 검증 오류:', e);
+  }
+}, {
+  timezone: 'Asia/Seoul'
+});
+console.log('✅ 매시간 투표세션 검증 스케줄러 설정 완료 (매시 15분 KST)');
 
 // 경기 자동 알림 (한국시간 기준): 당일 10시, 전날 15시
 cron.schedule('0 10,15 * * *', async () => {

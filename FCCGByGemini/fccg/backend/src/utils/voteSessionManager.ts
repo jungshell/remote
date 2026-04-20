@@ -4,17 +4,11 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { getKoreaTime, getThisWeekMonday, getNextWeekMonday, getWeekFriday, isSessionExpired } from './voteUtils';
+import { getKoreaTime, getThisWeekMonday, getNextWeekMonday, getWeekFriday, isSessionExpired, aggregateVotesByWeekday, type WeekdayKey } from './voteUtils';
 
 const prisma = new PrismaClient();
 
 async function regenerateAutoGamesForSession(sessionId: number, weekStartDate: Date): Promise<void> {
-  type DayKey = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
-  const counts: Record<DayKey, number> = { MON: 0, TUE: 0, WED: 0, THU: 0, FRI: 0, SAT: 0, SUN: 0 };
-  const participantsByDay: Record<DayKey, string[]> = {
-    MON: [], TUE: [], WED: [], THU: [], FRI: [], SAT: [], SUN: []
-  };
-
   const weekStart = new Date(weekStartDate);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
@@ -31,31 +25,16 @@ async function regenerateAutoGamesForSession(sessionId: number, weekStartDate: D
     include: { user: { select: { name: true } } }
   });
 
-  for (const vote of votes) {
-    try {
-      const selectedDays: string[] = vote.selectedDays ? JSON.parse(vote.selectedDays as unknown as string) : [];
-      selectedDays.forEach((day) => {
-        const key = day as DayKey;
-        if (counts[key] !== undefined) {
-          counts[key] += 1;
-          const participantName = (vote as any).user?.name;
-          if (participantName && !participantsByDay[key].includes(participantName)) {
-            participantsByDay[key].push(participantName);
-          }
-        }
-      });
-    } catch (error) {
-      console.warn('⚠️ 투표 파싱 오류(자동생성):', error);
-    }
-  }
+  const { counts, participantsByDay } = aggregateVotesByWeekday(votes);
 
   const maxVotes = Math.max(...Object.values(counts));
   if (maxVotes <= 0) {
+    console.log('ℹ️ 자동경기 생성 생략: 유효 요일 득표 없음', { sessionId });
     return;
   }
 
-  const topDays = (Object.keys(counts) as DayKey[]).filter((day) => counts[day] === maxVotes);
-  const dayOffset: Record<DayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
+  const topDays = (Object.keys(counts) as WeekdayKey[]).filter((day) => counts[day] === maxVotes);
+  const dayOffset: Record<WeekdayKey, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4, SAT: 5, SUN: 6 };
   const creatorId = votes[0]?.userId ?? 1;
 
   for (const day of topDays) {
