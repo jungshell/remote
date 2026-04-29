@@ -32,6 +32,16 @@ export async function getApiBaseUrl(): Promise<string> {
     return cachedApiBaseUrl;
   }
 
+  // 0. Vite가 주입하는 VITE_API_BASE_URL (.env.local 등) — 상단 const보다 먼저 반영
+  const viteEnvUrl = typeof import.meta !== 'undefined' && (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_BASE_URL
+    ? String((import.meta as ImportMeta & { env?: Record<string, string> }).env!.VITE_API_BASE_URL).trim()
+    : '';
+  if (viteEnvUrl) {
+    cachedApiBaseUrl = normalizeBaseUrl(viteEnvUrl);
+    console.log('🔧 API BASE URL (VITE_):', cachedApiBaseUrl);
+    return cachedApiBaseUrl;
+  }
+
   // 1. 빌드 타임 환경 변수 우선 (프로덕션 배포 시)
   if (buildTimeBaseNormalized) {
     cachedApiBaseUrl = buildTimeBaseNormalized;
@@ -52,7 +62,7 @@ export async function getApiBaseUrl(): Promise<string> {
   }
 
   // 3. 로컬 개발 기본값 (Vite 프록시 사용)
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     cachedApiBaseUrl = '/api/auth';
     console.log('🔧 API BASE URL (로컬 기본값):', cachedApiBaseUrl);
     return cachedApiBaseUrl;

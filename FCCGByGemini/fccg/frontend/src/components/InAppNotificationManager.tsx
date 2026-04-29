@@ -46,11 +46,11 @@ const InAppNotificationManager: React.FC<InAppNotificationManagerProps> = ({ use
           timestamp: notification.sentAt
         };
 
-        setNotifications(prev => [newNotification, ...prev]);
-        
-        // localStorage에 저장
-        const updatedNotifications = [newNotification, ...notifications];
-        localStorage.setItem(`userNotifications_${userId}`, JSON.stringify(updatedNotifications));
+        setNotifications(prev => {
+          const updatedNotifications = [newNotification, ...prev];
+          localStorage.setItem(`userNotifications_${userId}`, JSON.stringify(updatedNotifications));
+          return updatedNotifications;
+        });
       }
     };
 
@@ -66,11 +66,11 @@ const InAppNotificationManager: React.FC<InAppNotificationManagerProps> = ({ use
   }, [userId]);
 
   const handleCloseNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-    
-    // localStorage 업데이트
-    const updatedNotifications = notifications.filter(n => n.id !== id);
-    localStorage.setItem(`userNotifications_${userId}`, JSON.stringify(updatedNotifications));
+    setNotifications(prev => {
+      const updatedNotifications = prev.filter(n => n.id !== id);
+      localStorage.setItem(`userNotifications_${userId}`, JSON.stringify(updatedNotifications));
+      return updatedNotifications;
+    });
   };
 
   // 최대 3개까지만 표시

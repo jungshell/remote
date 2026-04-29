@@ -4,7 +4,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { getKoreaTime, getThisWeekMonday, getNextWeekMonday, getWeekFriday, isSessionExpired, aggregateVotesByWeekday, type WeekdayKey } from './voteUtils';
+import { getKoreaTime, getThisWeekMonday, getNextWeekMonday, getVoteSessionSundayDeadline, getKstDateKey, isSessionExpired, aggregateVotesByWeekday, type WeekdayKey } from './voteUtils';
 
 const prisma = new PrismaClient();
 
@@ -73,10 +73,16 @@ export async function deactivateExpiredSessions(): Promise<number> {
     let deactivatedCount = 0;
     
     for (const session of activeSessions) {
-      if (isSessionExpired(session)) {
+      const sessionStart = new Date(session.weekStartDate);
+      const shouldCloseByWeekStart = koreaTime >= sessionStart;
+      if (isSessionExpired(session) || shouldCloseByWeekStart) {
         await prisma.voteSession.update({
           where: { id: session.id },
-          data: { isActive: false, isCompleted: true }
+          data: {
+            isActive: false,
+            isCompleted: true,
+            endTime: session.endTime ?? getVoteSessionSundayDeadline(sessionStart)
+          }
         });
         await regenerateAutoGamesForSession(session.id, new Date(session.weekStartDate));
         console.log(`✅ 만료된 세션 비활성화: ${session.id}`);
@@ -161,12 +167,31 @@ export async function createNextWeekSession(): Promise<any> {
     const koreaTime = getKoreaTime();
     const thisWeekMonday = getThisWeekMonday(koreaTime);
     const nextWeekMonday = getNextWeekMonday(koreaTime);
-    const nextWeekFriday = getWeekFriday(nextWeekMonday);
+    const nextWeekSundayDeadline = getVoteSessionSundayDeadline(nextWeekMonday);
     
     // 의견수렴기간 시작일은 이번주 월요일 00:01
     const discussionStartTime = new Date(thisWeekMonday);
     discussionStartTime.setHours(0, 1, 0, 0);
     
+    const targetWeekKey = getKstDateKey(nextWeekMonday);
+    const aroundStart = new Date(nextWeekMonday.getTime() - 36 * 60 * 60 * 1000);
+    const aroundEnd = new Date(nextWeekMonday.getTime() + 36 * 60 * 60 * 1000);
+    const candidates = await prisma.voteSession.findMany({
+      where: {
+        weekStartDate: {
+          gte: aroundStart,
+          lte: aroundEnd
+        }
+      },
+      orderBy: { id: 'desc' }
+    });
+    const existingNextWeekSession = candidates.find((s) => getKstDateKey(new Date(s.weekStartDate)) === targetWeekKey);
+    
+    if (existingNextWeekSession) {
+      console.log(`ℹ️ 다음주 세션이 이미 존재합니다: ${existingNextWeekSession.id}`);
+      return existingNextWeekSession;
+    }
+
     // 기존 활성 세션이 있는지 확인
     const activeSession = await prisma.voteSession.findFirst({
       where: {
@@ -174,47 +199,20 @@ export async function createNextWeekSession(): Promise<any> {
         isCompleted: false,
       },
     });
-    
-    if (activeSession) {
-      console.log(`⚠️ 기존 활성 세션이 있습니다: ${activeSession.id}. 새로운 세션을 생성하지 않습니다.`);
-      return activeSession;
-    }
-    
-    // 비활성 세션 중 다음주 월요일에 해당하는 세션이 있는지 확인
-    const existingInactiveSession = await prisma.voteSession.findFirst({
-      where: {
-        isActive: false,
-        isCompleted: false,
-        weekStartDate: nextWeekMonday,
-      },
-    });
-    
-    if (existingInactiveSession) {
-      // 비활성 세션이 있으면 활성화
-      const updatedSession = await prisma.voteSession.update({
-        where: { id: existingInactiveSession.id },
-        data: {
-          isActive: true,
-          startTime: discussionStartTime,
-          endTime: nextWeekFriday,
-        },
-      });
-      console.log(`✅ 기존 비활성 세션 ${existingInactiveSession.id}를 활성화했습니다.`);
-      return updatedSession;
-    }
-    
+
     // 새로운 투표 세션 생성
+    // 이미 다른 활성 세션이 있으면 "대기(비활성)"로 생성하여 누락을 방지한다.
     const newSession = await prisma.voteSession.create({
       data: {
         weekStartDate: nextWeekMonday,
         startTime: discussionStartTime,
-        endTime: nextWeekFriday,
-        isActive: true,
+        endTime: nextWeekSundayDeadline,
+        isActive: !activeSession,
         isCompleted: false,
       },
     });
     
-    console.log(`🎉 새로운 투표 세션 생성 완료: ${newSession.id} (${newSession.weekStartDate.toLocaleDateString('ko-KR')})`);
+    console.log(`🎉 새로운 투표 세션 생성 완료: ${newSession.id} (${newSession.weekStartDate.toLocaleDateString('ko-KR')}) isActive=${newSession.isActive}`);
     
     return newSession;
   } catch (error) {

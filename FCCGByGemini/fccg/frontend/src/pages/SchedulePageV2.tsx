@@ -25,9 +25,6 @@ import {
   FormControl,
   FormLabel,
   Textarea,
-  Alert,
-  AlertTitle,
-  AlertDescription,
   Link,
   SlideFade,
 } from '@chakra-ui/react';
@@ -47,7 +44,7 @@ import {
   buildKakaoMapSearchUrlFromGame,
   buildVoteRosterShareCard,
   buildVoteSelfConfirmationCard,
-  getVenueMapDisplayLabel,
+  enrichGameDataForMapAndShare,
   resolvePrimaryVenueName,
 } from '../utils/kakaoShareCard';
 
@@ -144,8 +141,7 @@ export default function SchedulePageV2() {
   const [showVoteSharePrompt, setShowVoteSharePrompt] = useState(false);
   const [voteShareDays, setVoteShareDays] = useState<string[]>([]);
   const [isShareAbsentVote, setIsShareAbsentVote] = useState(false);
-  /** 투표 직후 고정 요약 카드(복사용 텍스트) */
-  const [voteFeedbackCard, setVoteFeedbackCard] = useState<string | null>(null);
+  const [, setVoteFeedbackCard] = useState<string | null>(null);
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const [nextWeekVoteData, setNextWeekVoteData] = useState<VoteData[]>([]);
@@ -354,6 +350,33 @@ export default function SchedulePageV2() {
     
     return { disabled: false, reason: null };
   }, [unifiedVoteData]);
+
+  const getWeekdayMaxVoteCountFromSessionResults = useCallback((results: any): number => {
+    if (!results || typeof results !== 'object') return 0;
+    return Math.max(
+      Number(results.MON?.count || 0),
+      Number(results.TUE?.count || 0),
+      Number(results.WED?.count || 0),
+      Number(results.THU?.count || 0),
+      Number(results.FRI?.count || 0),
+      0
+    );
+  }, []);
+
+  const getWeekdayMaxFromVoteMap = useCallback((voteMap: Record<string, number>) => {
+    if (!voteMap || typeof voteMap !== 'object') {
+      return { maxVoteDate: null as string | null, maxVoteCount: 0 };
+    }
+
+    const weekdayEntries = Object.entries(voteMap).filter(([key, val]) => key !== '불참' && typeof val === 'number');
+    if (weekdayEntries.length === 0) {
+      return { maxVoteDate: null as string | null, maxVoteCount: 0 };
+    }
+
+    const maxVoteCount = Math.max(...weekdayEntries.map(([, val]) => Number(val || 0)), 0);
+    const maxVoteDate = weekdayEntries.find(([, val]) => Number(val || 0) === maxVoteCount)?.[0] || null;
+    return { maxVoteDate, maxVoteCount };
+  }, []);
 
   // disabledDays 디버깅
   useEffect(() => {
@@ -873,26 +896,22 @@ export default function SchedulePageV2() {
         voteResults: voteResultsData
         };
         
-        // 다음주 투표 데이터를 실제 데이터로 업데이트 (요일만 포함, '불참' 제외)
-        localNextWeekVoteData = Object.entries(activeSession.results)
-          .filter(([day]) => day !== '불참') // '불참' 키 제외
-          .map(([day, data]: [string, any]) => {
-          const dayNames = { MON: '월', TUE: '화', WED: '수', THU: '목', FRI: '금' };
-          const dayName = dayNames[day as keyof typeof dayNames];
-          
-          // 기준 월요일에서 해당 요일 날짜 계산
-          const baseMonday = new Date(activeSession.weekStartDate);
-          const dayIndex = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 }[day as keyof typeof dayNames];
-          const targetDate = new Date(baseMonday.getTime() + dayIndex * 24 * 60 * 60 * 1000);
-          
+        // 활성 세션 기준 날짜로 고정해 렌더링 정합성을 맞춘다.
+        const dayNames = { MON: '월', TUE: '화', WED: '수', THU: '목', FRI: '금' };
+        const dayIndexes = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
+        const orderedWeekdays: Array<keyof typeof dayNames> = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+        const baseMonday = new Date(activeSession.weekStartDate);
+        localNextWeekVoteData = orderedWeekdays.map((dayKey) => {
+          const targetDate = new Date(baseMonday.getTime() + dayIndexes[dayKey] * 24 * 60 * 60 * 1000);
           const month = targetDate.getMonth() + 1;
           const dayNum = targetDate.getDate();
-          
+          const data = activeSession.results?.[dayKey];
+          const count = (data && typeof data === 'object' && 'count' in data) ? data.count : 0;
           return {
-            date: `${month}월 ${dayNum}일(${dayName})`,
-            count: data.count,
+            date: `${month}월 ${dayNum}일(${dayNames[dayKey]})`,
+            count,
             max: false,
-            dayName,
+            dayName: dayNames[dayKey],
             voteDate: targetDate
           };
         });
@@ -959,29 +978,21 @@ export default function SchedulePageV2() {
         voteResults: voteResultsData
         };
         
-        // 다음주 투표 데이터를 실제 데이터로 업데이트 (요일만 포함, '불참' 제외)
-        localNextWeekVoteData = Object.entries(activeSession.results)
-          .filter(([day]) => day !== '불참') // '불참' 키 제외
-          .map(([day, data]: [string, any]) => {
-          const dayNames = { MON: '월', TUE: '화', WED: '수', THU: '목', FRI: '금' };
-          const dayName = dayNames[day as keyof typeof dayNames];
-          
-          // 기준 월요일에서 해당 요일 날짜 계산
-          const baseMonday = new Date(activeSession.weekStartDate);
-          const dayIndex = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 }[day as keyof typeof dayNames];
-          const targetDate = new Date(baseMonday.getTime() + dayIndex * 24 * 60 * 60 * 1000);
-          
+        const dayNames = { MON: '월', TUE: '화', WED: '수', THU: '목', FRI: '금' };
+        const dayIndexes = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
+        const orderedWeekdays: Array<keyof typeof dayNames> = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+        const baseMonday = new Date(activeSession.weekStartDate);
+        localNextWeekVoteData = orderedWeekdays.map((dayKey) => {
+          const targetDate = new Date(baseMonday.getTime() + dayIndexes[dayKey] * 24 * 60 * 60 * 1000);
           const month = targetDate.getMonth() + 1;
           const dayNum = targetDate.getDate();
-          
-          // data가 객체인 경우 count 속성 사용
-          const count = (data && typeof data === 'object' && 'count' in data) ? data.count : (typeof data === 'number' ? data : 0);
-          
+          const data = activeSession.results?.[dayKey];
+          const count = (data && typeof data === 'object' && 'count' in data) ? data.count : 0;
           return {
-            date: `${month}월 ${dayNum}일(${dayName})`,
-            count: count,
+            date: `${month}월 ${dayNum}일(${dayNames[dayKey]})`,
+            count,
             max: false,
-            dayName,
+            dayName: dayNames[dayKey],
             voteDate: targetDate
           };
         });
@@ -1011,6 +1022,26 @@ export default function SchedulePageV2() {
       }
       
       console.log('🔍 voteResults 최종 확인:', voteResults ? '있음' : 'null');
+
+      // 필수 데이터(투표/세션/회원)는 먼저 반영하여 초기 스켈레톤 시간을 줄인다.
+      const unifiedVoteDataToSet = {
+        activeSession: activeSession || null,
+        allMembers: allMembers,
+        lastWeekResults: unifiedData.lastWeekResults || null
+      };
+      setAllMembers(allMembers);
+      setVoteResults(voteResults);
+      setNextWeekVoteData(localNextWeekVoteData);
+      setUnifiedVoteData(unifiedVoteDataToSet);
+      setAppData(prev => ({
+        ...prev,
+        voteResults,
+        nextWeekVoteData: localNextWeekVoteData,
+        allMembers,
+        isLoading: false,
+        error: null,
+        lastUpdated: new Date()
+      }));
       
       // 3. 게임 데이터 로드 (별도 try-catch로 감싸서 실패해도 투표 데이터는 유지)
       let games: any[] = [];
@@ -1022,9 +1053,13 @@ export default function SchedulePageV2() {
         const token = localStorage.getItem('token') || localStorage.getItem('auth_token_backup') || '';
         const gamesUrl = await getApiUrl('/members');
         console.log('🔍 게임 데이터 API URL:', gamesUrl);
+        const gamesController = new AbortController();
+        const gamesTimeout = setTimeout(() => gamesController.abort(), 7000);
         const gamesResponse = await fetch(gamesUrl, {
+          signal: gamesController.signal,
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        clearTimeout(gamesTimeout);
       
       if (gamesResponse.ok) {
         const unifiedData = await gamesResponse.json();
@@ -1145,7 +1180,14 @@ export default function SchedulePageV2() {
         }
         
         setGameDataForCalendar(validCalendarGameData);
+        setGames(games);
         console.log('📅 달력용 게임 데이터 설정 완료:', Object.keys(validCalendarGameData).length, '개 (유효한 데이터)');
+        setAppData(prev => ({
+          ...prev,
+          games,
+          gameDataForCalendar: validCalendarGameData,
+          lastUpdated: new Date()
+        }));
       } else {
         console.error('❌ 게임 데이터 로드 실패:', gamesResponse.status);
       }
@@ -1155,96 +1197,6 @@ export default function SchedulePageV2() {
         console.warn('⚠️ 게임 데이터는 로드하지 못했지만, 투표 데이터는 정상적으로 설정되었습니다.');
         // games는 이미 빈 배열로 초기화되어 있음
       }
-      
-      // 4. 이번주 일정 로드 (통합 API에서 가져옴)
-      console.log('📅 이번주 일정 로딩...');
-      // const thisWeekResponse = await getThisWeekSchedules();
-      // const thisWeekSchedules = thisWeekResponse?.schedules || [];
-      
-      // 5. 통합 데이터 설정
-      console.log('📊 통합 데이터 설정 중...');
-      console.log('🔍 상태 설정 전 데이터 확인:', {
-        voteResults: voteResults ? '있음' : 'null',
-        localNextWeekVoteData: localNextWeekVoteData.length,
-        games: games.length,
-        allMembers: allMembers.length
-      });
-      
-      // 다음주 투표 데이터 상태 반영 (달력/우하단 섹션 표시용)
-      console.log('🔍 setNextWeekVoteData 호출 전...');
-      setNextWeekVoteData(localNextWeekVoteData);
-      console.log('✅ setNextWeekVoteData 호출 완료');
-      
-      console.log('🔍 setAppData 호출 전...');
-      setAppData({
-        games,
-        gameDataForCalendar: validCalendarGameData, // validCalendarGameData 사용 (NaN 제거된 데이터)
-        voteResults,
-        nextWeekVoteData: localNextWeekVoteData,
-        allMembers,
-        isLoading: false,
-        error: null,
-        lastUpdated: new Date()
-      });
-      console.log('✅ setAppData 호출 완료');
-      
-      // 6. 개별 상태도 설정 (기존 코드 호환성)
-      console.log('📊 개별 상태 설정 시작...');
-      console.log('📊 상태 설정 전 확인:', {
-        voteResults: voteResults ? {
-          voteSessionId: voteResults.voteSession?.id,
-          voteSessionSessionId: voteResults.voteSession?.sessionId,
-          isActive: voteResults.voteSession?.isActive,
-          isCompleted: voteResults.voteSession?.isCompleted,
-          endTime: voteResults.voteSession?.endTime
-        } : null,
-        activeSession: activeSession ? {
-          sessionId: activeSession.sessionId,
-          id: activeSession.id,
-          isActive: activeSession.isActive,
-          isCompleted: activeSession.isCompleted,
-          endTime: activeSession.endTime
-        } : null
-      });
-      
-      console.log('📊 상태 설정 직전 최종 확인:', {
-        voteResults: voteResults ? {
-          voteSessionId: voteResults.voteSession?.id,
-          voteSessionSessionId: voteResults.voteSession?.sessionId,
-          isActive: voteResults.voteSession?.isActive,
-          isCompleted: voteResults.voteSession?.isCompleted
-        } : 'null',
-        activeSession: activeSession ? {
-          sessionId: activeSession.sessionId,
-          id: activeSession.id,
-          isActive: activeSession.isActive,
-          isCompleted: activeSession.isCompleted
-        } : 'null'
-      });
-      
-      setAllMembers(allMembers);
-      setVoteResults(voteResults);
-      setGames(games);
-      setNextWeekVoteData(localNextWeekVoteData);
-      
-      // 7. 통합 데이터 설정 — 이번주 패널은 항상 백엔드 lastWeekResults만 사용
-      const unifiedVoteDataToSet = {
-        activeSession: activeSession || null,
-        allMembers: allMembers,
-        lastWeekResults: unifiedData.lastWeekResults || null
-      };
-      console.log('📊 unifiedVoteData 설정:', unifiedVoteDataToSet);
-      console.log('📊 unifiedVoteData.activeSession 확인:', unifiedVoteDataToSet.activeSession);
-      console.log('📊 unifiedVoteData.lastWeekResults 확인:', unifiedVoteDataToSet.lastWeekResults);
-      setUnifiedVoteData(unifiedVoteDataToSet);
-      
-      // 상태 설정 후 즉시 확인 (다음 렌더링 사이클에서 확인됨)
-      setTimeout(() => {
-        console.log('📊 상태 설정 후 확인 (다음 사이클):', {
-          unifiedVoteDataActiveSession: unifiedVoteDataToSet.activeSession ? '있음' : '없음',
-          voteResultsSession: voteResults?.voteSession ? '있음' : '없음'
-        });
-      }, 100);
       
       console.log('✅ loadAllData 성공적으로 완료');
       
@@ -1734,8 +1686,19 @@ export default function SchedulePageV2() {
 
   const handleCopyGameDetails = async () => {
     try {
-      const text = buildGameDetailShareText(selectedGameData);
+      const payload = gameDetailResolved || selectedGameData;
+      let text = buildGameDetailShareText(payload);
       if (!text) return;
+      if (exactMapUrl) {
+        const lines = text.split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+          if (lines[i].startsWith('http://') || lines[i].startsWith('https://')) {
+            lines[i] = exactMapUrl;
+            break;
+          }
+        }
+        text = lines.join('\n');
+      }
       await navigator.clipboard.writeText(text);
       toast({
         title: '일정 정보 복사 완료',
@@ -2350,10 +2313,7 @@ export default function SchedulePageV2() {
     
     // 투표 결과에서 최다 투표를 받은 날짜 찾기
     if (voteResults && voteResults.voteResults) {
-      const maxVoteCount = Math.max(...Object.values(voteResults.voteResults));
-      const maxVoteDate = Object.keys(voteResults.voteResults).find(
-        date => voteResults.voteResults[date] === maxVoteCount
-      );
+      const { maxVoteDate, maxVoteCount } = getWeekdayMaxFromVoteMap(voteResults.voteResults);
       
       if (maxVoteDate && maxVoteCount > 0) {
         console.log(`✅ 최다 투표 날짜: ${maxVoteDate}, 인원수: ${maxVoteCount}명`);
@@ -2427,10 +2387,7 @@ export default function SchedulePageV2() {
     
     // 투표 결과에서 최다 투표를 받은 날짜의 정보
     if (voteResults && voteResults.voteResults) {
-      const maxVoteCount = Math.max(...Object.values(voteResults.voteResults));
-      const maxVoteDate = Object.keys(voteResults.voteResults).find(
-        date => voteResults.voteResults[date] === maxVoteCount
-      );
+      const { maxVoteDate, maxVoteCount } = getWeekdayMaxFromVoteMap(voteResults.voteResults);
       
       if (maxVoteDate && maxVoteCount > 0) {
         // 투표한 인원 목록 가져오기
@@ -2891,6 +2848,7 @@ export default function SchedulePageV2() {
   // 경기정보 모달 상태
   const [showGameModal, setShowGameModal] = useState(false);
   const [selectedGameData, setSelectedGameData] = useState<any>(null);
+  const [exactMapUrl, setExactMapUrl] = useState<string>('');
 
   // 경기정보 모달 표시
   const handleShowGameModal = (gameData: any) => {
@@ -2903,6 +2861,82 @@ export default function SchedulePageV2() {
     setShowGameModal(false);
     setSelectedGameData(null);
   };
+
+  /** 캘린더 요약 객체 + API games 병합 (장소/주소가 비어 지도만 주소로 나가는 경우 방지) */
+  const gameDetailResolved = useMemo(() => {
+    if (!selectedGameData) return null;
+    const merged = enrichGameDataForMapAndShare(
+      selectedGameData as Record<string, unknown>,
+      games as unknown as Record<string, unknown>[]
+    );
+    return merged as typeof selectedGameData;
+  }, [selectedGameData, games]);
+
+  // 카카오 검색 결과에서 선택한 장소와 최대한 일치하는 1개 장소 URL(좌표 포함) 생성
+  const resolveExactMapUrl = useCallback(async (gameData: any): Promise<string> => {
+    if (!gameData) return '';
+    const fallbackUrl = buildKakaoMapSearchUrlFromGame(gameData);
+    const venueName = resolvePrimaryVenueName(gameData);
+    if (!venueName) return fallbackUrl;
+
+    try {
+      const searchUrl = await getApiUrl(`/search-location?query=${encodeURIComponent(venueName)}`);
+      const response = await fetch(searchUrl);
+      if (!response.ok) return fallbackUrl;
+      const data = await response.json();
+      const docs: any[] = Array.isArray(data?.documents) ? data.documents : [];
+      if (docs.length === 0) return fallbackUrl;
+
+      const rawAddress = String(gameData.locationAddress || '').trim();
+      const addressTokens = rawAddress
+        .split(' ')
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 2 && !/^\d/.test(t));
+
+      const scored = docs.map((d) => {
+        let score = 0;
+        const placeName = String(d.place_name || '');
+        const road = String(d.road_address_name || '');
+        const jibun = String(d.address_name || '');
+        const wholeAddress = `${road} ${jibun}`;
+
+        if (placeName === venueName) score += 12;
+        else if (placeName.startsWith(venueName)) score += 9;
+        else if (placeName.includes(venueName)) score += 6;
+
+        if (rawAddress && (road === rawAddress || jibun === rawAddress)) score += 10;
+        for (const token of addressTokens) {
+          if (wholeAddress.includes(token)) score += 2;
+        }
+        return { d, score };
+      });
+
+      scored.sort((a, b) => b.score - a.score);
+      const best = scored[0]?.d;
+      if (!best?.x || !best?.y) return fallbackUrl;
+      return `https://map.kakao.com/link/map/${encodeURIComponent(best.place_name || venueName)},${best.y},${best.x}`;
+    } catch {
+      return fallbackUrl;
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!gameDetailResolved) {
+      setExactMapUrl('');
+      return;
+    }
+
+    setExactMapUrl('');
+    (async () => {
+      const url = await resolveExactMapUrl(gameDetailResolved);
+      if (!cancelled) setExactMapUrl(url || buildKakaoMapSearchUrlFromGame(gameDetailResolved));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameDetailResolved, resolveExactMapUrl]);
 
   return (
     <Box minH="100vh" bg="white" pt="80px">
@@ -3121,45 +3155,6 @@ export default function SchedulePageV2() {
                     </Tooltip>
                 </Flex>
 
-                <SlideFade in={!!voteFeedbackCard} offsetY="10px" style={{ width: '100%' }}>
-                  {voteFeedbackCard && (
-                    <Alert status="success" variant="subtle" borderRadius="md" mt={2} flexDirection="column" alignItems="stretch">
-                      <Flex justify="space-between" align="flex-start" gap={2}>
-                        <Box flex={1}>
-                          <AlertTitle fontSize="sm">내 투표 반영됨</AlertTitle>
-                          <AlertDescription fontSize="xs" whiteSpace="pre-wrap" mt={1} color="gray.700">
-                            {voteFeedbackCard}
-                          </AlertDescription>
-                        </Box>
-                        <HStack spacing={1}>
-                          <Button size="xs" variant="outline" onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(voteFeedbackCard);
-                              toast({ title: '복사 완료', description: '카카오톡에 붙여넣기 할 수 있어요.', status: 'success', duration: 2000, isClosable: true });
-                            } catch {
-                              toast({ title: '복사 실패', status: 'error', duration: 2000, isClosable: true });
-                            }
-                          }}>
-                            복사
-                          </Button>
-                          <IconButton
-                            size="xs"
-                            aria-label="투표 확인 닫기"
-                            icon={<SmallCloseIcon />}
-                            variant="ghost"
-                            onClick={() => {
-                              setVoteFeedbackCard(null);
-                              try {
-                                localStorage.removeItem(VOTE_FEEDBACK_STORAGE_KEY);
-                              } catch { /* ignore */ }
-                            }}
-                          />
-                        </HStack>
-                      </Flex>
-                    </Alert>
-                  )}
-                </SlideFade>
-
           <VStack spacing={{ base: 0, md: 0 }} align="stretch" mb={{ base: 1, md: 1 }}>
                   {(() => {
                     // 로딩 상태일 때 스켈레톤 표시
@@ -3182,7 +3177,7 @@ export default function SchedulePageV2() {
                     if (!unifiedVoteData?.activeSession) {
                     return (
                       <>
-                        {getScheduleData.nextWeekVoteData.map((vote, index) => {
+                        {(nextWeekVoteData.length > 0 ? nextWeekVoteData : getScheduleData.nextWeekVoteData).map((vote, index) => {
                         // 날짜에서 요일 추출하여 dayKey로 변환
                         const dayMatch = vote.date.match(/\((.+)\)/);
                         const dayName = dayMatch ? dayMatch[1] : '';
@@ -3205,7 +3200,9 @@ export default function SchedulePageV2() {
                           );
                         } else if (voteResults?.voteResults && voteResults.voteResults[vote.date]) {
                           voteCount = voteResults.voteResults[vote.date];
-                          maxVoteCount = voteResults?.voteResults ? Math.max(...Object.values(voteResults.voteResults).map((v: any) => typeof v === 'number' ? v : 0), 0) : 0;
+                          maxVoteCount = voteResults?.voteResults
+                            ? getWeekdayMaxFromVoteMap(voteResults.voteResults as Record<string, number>).maxVoteCount
+                            : 0;
                         }
                         const isMaxVote = voteCount === maxVoteCount && voteCount > 0;
                         const isHoliday = isHolidayDate(vote.date);
@@ -3312,14 +3309,14 @@ export default function SchedulePageV2() {
                               whiteSpace="normal"
                             >
                               <Badge
-                                  colorScheme={isMaxVote ? 'purple' : (voteCount === 0 ? 'gray' : 'blackAlpha')}
+                                  colorScheme="purple"
                                 variant="solid"
                                 borderRadius="full"
                                 px={3}
                                 py={1}
                                 fontSize="xs"
-                                  bg={isMaxVote ? 'purple.600' : (voteCount === 0 ? 'gray.200' : 'black')}
-                                  color={isMaxVote ? 'white' : (voteCount === 0 ? 'gray.600' : 'white')}
+                                  bg={isMaxVote ? 'purple.600' : 'purple.100'}
+                                  color={isMaxVote ? 'white' : 'purple.700'}
                                 w="45px"
                                 h="22px"
                                 display="flex"
@@ -3368,7 +3365,7 @@ export default function SchedulePageV2() {
                       const dayName = dayNames[dayIndex];
                       const dateString = `${month}월 ${day}일(${dayName})`;
                       const voteCount = results[dayKey]?.count || 0;
-                      const maxVoteCount = Math.max(...Object.values(results).map((r: any) => r.count || 0), 0);
+                      const maxVoteCount = getWeekdayMaxVoteCountFromSessionResults(results);
                       const isMaxVote = voteCount === maxVoteCount && voteCount > 0;
                       const isHoliday = isHolidayDate(dateString);
                       const holidayName = getHolidayName(dateString);
@@ -3485,14 +3482,14 @@ export default function SchedulePageV2() {
                             whiteSpace="normal"
                           >
                             <Badge
-                                colorScheme={isMaxVote ? 'purple' : (voteCount === 0 ? 'gray' : 'blackAlpha')}
+                                colorScheme="purple"
                               variant="solid"
                               borderRadius="full"
                               px={3}
                               py={1}
                               fontSize="xs"
-                                bg={isMaxVote ? 'purple.600' : (voteCount === 0 ? 'gray.200' : 'black')}
-                                color={isMaxVote ? 'white' : (voteCount === 0 ? 'gray.600' : 'white')}
+                                bg={isMaxVote ? 'purple.600' : 'purple.100'}
+                                color={isMaxVote ? 'white' : 'purple.700'}
                               w="45px"
                               h="22px"
                               display="flex"
@@ -3644,7 +3641,16 @@ export default function SchedulePageV2() {
                       </Text>
                     )}
                     
-                    <Flex gap={{ base: 1, md: 2 }} w={{ base: "100%", sm: "auto" }} wrap="nowrap">
+                    <Grid
+                      gap={{ base: 1, md: 2 }}
+                      w={{ base: "100%", sm: "auto" }}
+                      templateColumns={
+                        isAdmin
+                          ? { base: "minmax(0,1fr) minmax(0,1fr) 24px", md: "minmax(0,1fr) minmax(0,1fr) 28px" }
+                          : "minmax(0,1fr) minmax(0,1fr)"
+                      }
+                      alignItems="center"
+                    >
                       <Button
                         size={{ base: "xs", md: "sm" }}
                         colorScheme="purple"
@@ -3652,7 +3658,7 @@ export default function SchedulePageV2() {
                         fontSize={{ base: "2xs", md: "xs" }}
                         px={{ base: 1, md: 2 }}
                         h={{ base: "20px", md: "22px" }}
-                        flex="1"
+                        w="100%"
                         _hover={{
                           transform: "translateY(-1px)",
                           boxShadow: "md"
@@ -3672,7 +3678,7 @@ export default function SchedulePageV2() {
                           px={{ base: 1, md: 2 }}
                           h={{ base: "20px", md: "22px" }}
                           isDisabled={isVoteClosed}
-                          flex="1"
+                          w="100%"
                           _hover={{
                             bg: "#E55A2B",
                             transform: "translateY(-1px)",
@@ -3692,7 +3698,7 @@ export default function SchedulePageV2() {
                           px={{ base: 1, md: 2 }}
                           h={{ base: "20px", md: "22px" }}
                           isDisabled={isVoteClosed || !user}
-                          flex="1"
+                          w="100%"
                           _hover={{
                             bg: isVoteClosed || !user ? "gray.400" : (selectedDays.length > 0 ? "purple.700" : "purple.600"),
                             transform: isVoteClosed || !user ? "none" : (selectedDays.length > 0 ? "translateY(-1px)" : "none"),
@@ -3715,12 +3721,14 @@ export default function SchedulePageV2() {
                           minW={{ base: "24px", md: "28px" }}
                           h={{ base: "20px", md: "22px" }}
                           px={0}
+                          justifySelf="center"
+                          alignSelf="center"
                           _hover={{ bg: "#F7D600" }}
                         >
                           K
                         </Button>
                       )}
-                    </Flex>
+                    </Grid>
                   </Flex>
                 </VStack>
               </Box>
@@ -3744,7 +3752,7 @@ export default function SchedulePageV2() {
           <ModalHeader fontSize={{ base: "lg", md: "xl" }} id="vote-status-modal-title">
             📊 투표 현황 [
             <Text as="span" color="purple.600" fontWeight="bold">
-              {getScheduleData.nextWeekVoteData[0]?.date} ~ {getScheduleData.nextWeekVoteData[4]?.date}
+              {(nextWeekVoteData.length > 0 ? nextWeekVoteData[0]?.date : getScheduleData.nextWeekVoteData[0]?.date)} ~ {(nextWeekVoteData.length > 0 ? nextWeekVoteData[4]?.date : getScheduleData.nextWeekVoteData[4]?.date)}
             </Text>
             ]
           </ModalHeader>
@@ -3861,7 +3869,7 @@ export default function SchedulePageV2() {
 
                 {/* 투표 목록 및 불참 */}
                 <VStack spacing="5.7px" align="stretch">
-                  {getScheduleData.nextWeekVoteData.map((vote, index) => {
+                  {(nextWeekVoteData.length > 0 ? nextWeekVoteData : getScheduleData.nextWeekVoteData).map((vote, index) => {
                     // 통합 API에서 투표 수 가져오기
                     const voteCount = (() => {
                       if (!unifiedVoteData?.activeSession?.results) return 0;
@@ -4047,11 +4055,7 @@ export default function SchedulePageV2() {
                       justifyContent="center"
                       flexShrink={0}
                       textAlign="center"
-                      fontWeight={(() => {
-                        const absentCount = voteResults.voteResults['불참'] || 0;
-                        const maxVoteCount = Math.max(...Object.values(voteResults.voteResults).filter(val => val > 0), 0);
-                        return absentCount === maxVoteCount && absentCount > 0 ? "bold" : "normal";
-                      })()}
+                      fontWeight="normal"
                     >
                       {voteResults.voteResults['불참'] || 0}명
                     </Badge>
@@ -4263,7 +4267,7 @@ export default function SchedulePageV2() {
 
                 {/* 투표 목록 */}
                 <VStack spacing={0.5} align="stretch">
-                  {getScheduleData.nextWeekVoteData.map((vote, index) => (
+                  {(nextWeekVoteData.length > 0 ? nextWeekVoteData : getScheduleData.nextWeekVoteData).map((vote, index) => (
                     <Flex 
                       key={index} 
                       justify="space-between" 
@@ -4428,14 +4432,14 @@ export default function SchedulePageV2() {
           </ModalHeader>
           <ModalCloseButton size="sm" aria-label="경기 상세정보 모달 닫기" />
           <ModalBody pb={4} id="game-detail-modal-description">
-            {selectedGameData ? (
+            {gameDetailResolved ? (
               <VStack spacing={1.5} align="stretch">
                 {/* 유형 */}
                 <Flex align="center" gap={2}>
                   <Box as="span" fontSize="md">⚽</Box>
                   <Text fontSize="sm" fontWeight="medium">
                     유형: {(() => {
-                      const eventType = selectedGameData.eventType || '자체';
+                      const eventType = gameDetailResolved.eventType || '자체';
                       // 비규격 값 정규화
                       if (['풋살', 'FRIENDLY', 'FRIENDLY_MATCH'].includes(eventType)) return '매치';
                       if (!['매치', '자체', '회식', '기타'].includes(eventType)) return '기타';
@@ -4449,14 +4453,14 @@ export default function SchedulePageV2() {
                   <Box as="span" fontSize="md">🕐</Box>
                   <Text fontSize="sm" fontWeight="medium">
                     일시: {(() => {
-                      if (selectedGameData.date && selectedGameData.time) {
-                        const date = new Date(selectedGameData.date);
+                      if (gameDetailResolved.date && gameDetailResolved.time) {
+                        const date = new Date(gameDetailResolved.date);
                         const month = date.getMonth() + 1;
                         const day = date.getDate();
                         const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
-                        return `${month}월 ${day}일(${dayOfWeek}) ${selectedGameData.time}`;
-                      } else if (selectedGameData.date) {
-                        const date = new Date(selectedGameData.date);
+                        return `${month}월 ${day}일(${dayOfWeek}) ${gameDetailResolved.time}`;
+                      } else if (gameDetailResolved.date) {
+                        const date = new Date(gameDetailResolved.date);
                         const month = date.getMonth() + 1;
                         const day = date.getDate();
                         const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
@@ -4473,13 +4477,13 @@ export default function SchedulePageV2() {
                     <Flex align="center" gap={2}>
                       <Box as="span" fontSize="md">📍</Box>
                       <Text fontSize="sm" fontWeight="medium">
-                        장소: {selectedGameData.location || '장소 미정'}
+                        장소: {gameDetailResolved.location || '장소 미정'}
                       </Text>
                     </Flex>
                     {/* 주소 표시 */}
-                    {selectedGameData.locationAddress && (
+                    {gameDetailResolved.locationAddress && (
                       <Text fontSize="xs" color="gray.600" pl={6} mt="-21px">
-                        {selectedGameData.locationAddress}
+                        {gameDetailResolved.locationAddress}
                       </Text>
                     )}
                   </Flex>
@@ -4487,33 +4491,37 @@ export default function SchedulePageV2() {
                     <Button
                       size="xs"
                       height="22px"
-                      minW="22px"
-                      fontSize="11px"
-                      p={0}
-                      bg="yellow.400"
-                      color="blue.600"
+                      minW="36px"
+                      fontSize="10px"
+                      px={2}
+                      bg="gray.100"
+                      color="gray.700"
                       onClick={handleCopyGameDetails}
                       transition="transform 0.15s ease"
                       _hover={{ transform: 'scale(1.06)' }}
                       _active={{ transform: 'scale(0.96)' }}
                     >
-                      K
+                      복사
                     </Button>
-                    <Link
-                      href={buildKakaoMapSearchUrlFromGame(selectedGameData)}
+                    <Button
+                      as={Link}
+                      href={exactMapUrl || buildKakaoMapSearchUrlFromGame(gameDetailResolved)}
                       isExternal
-                      fontSize="xs"
-                      fontWeight="bold"
+                      size="xs"
+                      height="22px"
+                      minW="28px"
+                      fontSize="10px"
+                      p={0}
+                      bg="yellow.400"
                       color="blue.700"
-                      textDecoration="underline"
-                      px={1}
-                      py={0.5}
+                      fontWeight="bold"
                       borderRadius="md"
-                      transition="color 0.15s ease, transform 0.15s ease"
-                      _hover={{ color: 'blue.900', transform: 'translateY(-1px)' }}
+                      transition="transform 0.15s ease, background 0.15s ease"
+                      _hover={{ bg: 'yellow.300', transform: 'scale(1.06)' }}
+                      _active={{ transform: 'scale(0.96)' }}
                     >
-                      {getVenueMapDisplayLabel(resolvePrimaryVenueName(selectedGameData) || selectedGameData.location)} 지도
-                    </Link>
+                      맵
+                    </Button>
                   </HStack>
                 </Flex>
 
@@ -4522,14 +4530,14 @@ export default function SchedulePageV2() {
                   <Box as="span" fontSize="md">👥</Box>
                   <Text fontSize="sm" fontWeight="medium">
                     참석자 : {(() => {
-                      const rawMemberNames = Array.isArray(selectedGameData.memberNames) ? 
-                        selectedGameData.memberNames : 
-                        (typeof selectedGameData.memberNames === 'string' ? 
-                          JSON.parse(selectedGameData.memberNames) : []);
-                      const rawSelectedMembers = Array.isArray(selectedGameData.selectedMembers) ? 
-                        selectedGameData.selectedMembers : 
-                        (typeof selectedGameData.selectedMembers === 'string' ? 
-                          JSON.parse(selectedGameData.selectedMembers) : []);
+                      const rawMemberNames = Array.isArray(gameDetailResolved.memberNames) ? 
+                        gameDetailResolved.memberNames : 
+                        (typeof gameDetailResolved.memberNames === 'string' ? 
+                          JSON.parse(gameDetailResolved.memberNames) : []);
+                      const rawSelectedMembers = Array.isArray(gameDetailResolved.selectedMembers) ? 
+                        gameDetailResolved.selectedMembers : 
+                        (typeof gameDetailResolved.selectedMembers === 'string' ? 
+                          JSON.parse(gameDetailResolved.selectedMembers) : []);
 
                       // 실제 존재하는 회원만 필터링
                       const validSelectedMembers = rawSelectedMembers.filter((name: string) => {
@@ -4540,7 +4548,7 @@ export default function SchedulePageV2() {
                       const namesSet = new Set<string>(rawMemberNames as string[]);
 
                       const memberCount = validSelectedMembers.length; // 유효한 회원만 계산
-                      const mercenaryCount = selectedGameData.mercenaryCount || 0;
+                      const mercenaryCount = gameDetailResolved.mercenaryCount || 0;
                       // 기타: 수기 입력 이름들(회원/용병 제외)
                       let otherCount = 0;
                       namesSet.forEach((name) => {
@@ -4557,14 +4565,14 @@ export default function SchedulePageV2() {
                   </Text>
                   <Text fontSize="xs" whiteSpace="nowrap">
                     ({(() => {
-                      const rawMemberNames = Array.isArray(selectedGameData.memberNames) ? 
-                        selectedGameData.memberNames : 
-                        (typeof selectedGameData.memberNames === 'string' ? 
-                          JSON.parse(selectedGameData.memberNames) : []);
-                      const rawSelectedMembers = Array.isArray(selectedGameData.selectedMembers) ? 
-                        selectedGameData.selectedMembers : 
-                        (typeof selectedGameData.selectedMembers === 'string' ? 
-                          JSON.parse(selectedGameData.selectedMembers) : []);
+                      const rawMemberNames = Array.isArray(gameDetailResolved.memberNames) ? 
+                        gameDetailResolved.memberNames : 
+                        (typeof gameDetailResolved.memberNames === 'string' ? 
+                          JSON.parse(gameDetailResolved.memberNames) : []);
+                      const rawSelectedMembers = Array.isArray(gameDetailResolved.selectedMembers) ? 
+                        gameDetailResolved.selectedMembers : 
+                        (typeof gameDetailResolved.selectedMembers === 'string' ? 
+                          JSON.parse(gameDetailResolved.selectedMembers) : []);
 
                       // 실제 존재하는 회원만 필터링
                       const validSelectedMembers = rawSelectedMembers.filter((name: string) => {
@@ -4575,7 +4583,7 @@ export default function SchedulePageV2() {
                       const namesSet = new Set<string>(rawMemberNames as string[]);
 
                       const memberCount = validSelectedMembers.length; // 유효한 회원만 계산
-                      const mercenaryCount = selectedGameData.mercenaryCount || 0;
+                      const mercenaryCount = gameDetailResolved.mercenaryCount || 0;
                       // 기타: 수기 입력 이름들(회원/용병 제외)
                       let otherCount = 0;
                       namesSet.forEach((name) => {
@@ -4610,14 +4618,14 @@ export default function SchedulePageV2() {
 
                 {/* 참석자 목록 */}
                 {(() => {
-                  const rawMemberNames = Array.isArray(selectedGameData.memberNames) ? 
-                    selectedGameData.memberNames : 
-                    (typeof selectedGameData.memberNames === 'string' ? 
-                      JSON.parse(selectedGameData.memberNames) : []);
-                  const rawSelectedMembers = Array.isArray(selectedGameData.selectedMembers) ? 
-                    selectedGameData.selectedMembers : 
-                    (typeof selectedGameData.selectedMembers === 'string' ? 
-                      JSON.parse(selectedGameData.selectedMembers) : []);
+                  const rawMemberNames = Array.isArray(gameDetailResolved.memberNames) ? 
+                    gameDetailResolved.memberNames : 
+                    (typeof gameDetailResolved.memberNames === 'string' ? 
+                      JSON.parse(gameDetailResolved.memberNames) : []);
+                  const rawSelectedMembers = Array.isArray(gameDetailResolved.selectedMembers) ? 
+                    gameDetailResolved.selectedMembers : 
+                    (typeof gameDetailResolved.selectedMembers === 'string' ? 
+                      JSON.parse(gameDetailResolved.selectedMembers) : []);
 
                   const participants: Array<{name: string, type: 'member' | 'mercenary' | 'other'}> = [];
                   
@@ -4635,7 +4643,7 @@ export default function SchedulePageV2() {
                   });
 
                   // 용병 배지: 묶음으로 1개 배지
-                  const mercenaryCount = selectedGameData.mercenaryCount || 0;
+                  const mercenaryCount = gameDetailResolved.mercenaryCount || 0;
                   if (mercenaryCount > 0) participants.push({ name: `용병 ${mercenaryCount}명`, type: 'mercenary' });
 
                   // 기타 배지: 수기 입력 이름들(회원/용병 제외)
@@ -4669,6 +4677,9 @@ export default function SchedulePageV2() {
                     </Flex>
                   ) : null;
                 })()}
+                <Text fontSize="10px" color="gray.400" textAlign="center" mt={2} userSelect="all">
+                  빌드 {__BUILD_STAMP__}
+                </Text>
               </VStack>
             ) : (
               <Text>데이터를 불러오는 중...</Text>

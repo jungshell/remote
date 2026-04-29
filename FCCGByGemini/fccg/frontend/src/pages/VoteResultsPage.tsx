@@ -106,20 +106,32 @@ export default function VoteResultsPage() {
       
       console.log('투표 세션 데이터 로드 시작...');
       
-      // 투표 세션 요약 데이터 로드
-      let summaryData;
+      // 1) 통합 데이터 로드 (일정 페이지와 동일한 데이터 소스)
+      let unifiedDataFromApi: any = null;
       try {
-        summaryData = await getAdminVoteSessionsSummary();
-      console.log('투표 세션 요약 데이터:', summaryData);
+        unifiedDataFromApi = await getUnifiedVoteDataNew();
+        setUnifiedData(unifiedDataFromApi);
+        console.log('통합 투표 데이터:', unifiedDataFromApi);
       } catch (apiError: any) {
-        console.error('API 호출 실패:', apiError);
-        throw new Error(`투표 세션 데이터를 불러오는데 실패했습니다: ${apiError.message || '알 수 없는 오류'}`);
+        console.warn('통합 데이터 로드 실패(summary fallback 사용):', apiError);
+      }
+
+      // 2) fallback: 투표 세션 요약 데이터 로드
+      let summaryData: any = null;
+      if (!Array.isArray(unifiedDataFromApi?.allSessions)) {
+        try {
+          summaryData = await getAdminVoteSessionsSummary();
+          console.log('투표 세션 요약 데이터:', summaryData);
+        } catch (apiError: any) {
+          console.error('API 호출 실패:', apiError);
+          throw new Error(`투표 세션 데이터를 불러오는데 실패했습니다: ${apiError.message || '알 수 없는 오류'}`);
+        }
       }
       
-      // 백엔드 응답 형태: { success: true, data: { sessions: [...] } }
-      // 또는 직접 sessions 배열이 올 수도 있음 (호환성 유지)
+      // 백엔드 응답 형태 통합
       const allSessions: VoteSession[] = (
-        summaryData?.data?.sessions
+        unifiedDataFromApi?.allSessions
+        || summaryData?.data?.sessions
         || summaryData?.sessions
         || []
       ) as VoteSession[];
@@ -141,15 +153,6 @@ export default function VoteResultsPage() {
       });
       
       setAllVoteSessions(sessions);
-
-      // 통합 데이터도 로드 (활성 세션 정보용)
-      try {
-        const unifiedData = await getUnifiedVoteDataNew();
-        setUnifiedData(unifiedData);
-      } catch (error) {
-        console.warn('통합 데이터 로드 실패:', error);
-        setUnifiedData(null);
-      }
 
       // 활성 세션 또는 첫 세션 자동 선택
       const activeSession = sessions.find((s: VoteSession) => s.isActive) || sessions[0];

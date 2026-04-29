@@ -10,6 +10,8 @@ import {
   getThisWeekMonday, 
   getNextWeekMonday, 
   getWeekFriday,
+  getVoteSessionSundayDeadline,
+  getKstDateKey,
   parseVoteDays,
   convertKoreanDateToDayCode,
   aggregateVotesByWeekday,
@@ -18,11 +20,44 @@ import {
 import {
   deactivateExpiredSessions,
   ensureSingleActiveSession,
+  createNextWeekSession,
   getActiveSession,
   validateAndFixSessionState
 } from '../utils/voteSessionManager';
+import { renderGameReminderMailPng, type GameMailImageInput } from '../utils/gameReminderImage';
 
 const prisma = new PrismaClient();
+
+async function ensureNextWeekVoteSessionExists() {
+  const koreaTime = getKoreaTime();
+  const nextWeekMonday = getNextWeekMonday(koreaTime);
+  const targetWeekKey = getKstDateKey(nextWeekMonday);
+  const aroundStart = new Date(nextWeekMonday.getTime() - 36 * 60 * 60 * 1000);
+  const aroundEnd = new Date(nextWeekMonday.getTime() + 36 * 60 * 60 * 1000);
+  const candidates = await prisma.voteSession.findMany({
+    where: {
+      weekStartDate: {
+        gte: aroundStart,
+        lte: aroundEnd
+      }
+    },
+    select: { id: true, isActive: true, isCompleted: true, weekStartDate: true },
+    orderBy: { id: 'desc' }
+  });
+  const existing = candidates.find((s) => getKstDateKey(new Date(s.weekStartDate)) === targetWeekKey);
+
+  if (existing) {
+    return existing;
+  }
+
+  const created = await createNextWeekSession();
+  return {
+    id: created.id,
+    isActive: created.isActive,
+    isCompleted: created.isCompleted,
+    weekStartDate: created.weekStartDate
+  };
+}
 
 // 공통 에러 핸들링 함수
 const handleError = (error: any, res: any, operation: string) => {
@@ -2186,15 +2221,12 @@ router.post('/vote-sessions/:id/close', authenticateToken, async (req, res) => {
       });
     }
 
-    // 세션 마감 처리 (현재 시간을 endTime으로 설정 - 순수 UTC로 저장)
-    const currentTime = new Date();
-    const utcTime = new Date(currentTime.getTime() - (9 * 60 * 60 * 1000)); // 한국 시간에서 9시간 빼서 순수 UTC로 저장
+    // 세션 마감 처리 (DB에는 UTC 타임스탬프 그대로 저장)
+    const closedAt = new Date();
     
     console.log('🔍 투표 마감 처리:', {
       sessionId,
-      currentTime: currentTime.toISOString(),
-      currentTimeKST: new Date(currentTime.getTime() + (9 * 60 * 60 * 1000)).toISOString(),
-      utcTime: utcTime.toISOString()
+      closedAtUTC: closedAt.toISOString()
     });
     
     await prisma.voteSession.update({
@@ -2202,7 +2234,7 @@ router.post('/vote-sessions/:id/close', authenticateToken, async (req, res) => {
       data: { 
         isActive: false,
         isCompleted: true,
-        endTime: utcTime // 순수 UTC 시간으로 실제 투표 마감 시간 설정
+        endTime: closedAt
       }
     });
 
@@ -2522,10 +2554,8 @@ router.post('/vote-sessions/:id/resume', authenticateToken, async (req, res) => 
       });
     }
 
-    // 세션 재개 처리 (endTime을 원래 투표 마감일로 복원)
-    const originalEndTime = new Date(existingSession.weekStartDate);
-    originalEndTime.setDate(originalEndTime.getDate() + 4); // 금요일
-    originalEndTime.setHours(17, 0, 0, 0); // 17:00
+    // 세션 재개 처리 (원래 마감 규칙: 대상 주차 직전 일요일 23:59로 복원)
+    const originalEndTime = getVoteSessionSundayDeadline(new Date(existingSession.weekStartDate));
     
     await prisma.voteSession.update({
       where: { id: sessionId },
@@ -2573,6 +2603,8 @@ router.get('/unified-vote-data', async (req, res) => {
   try {
     // 세션 상태 검증 및 자동 수정
     await validateAndFixSessionState();
+    // 자동 생성 누락 방지: 조회 시점에 다음주 세션 존재 보장
+    await ensureNextWeekVoteSessionExists();
     
     // 날짜 계산 (유틸리티 함수 사용)
     const koreaTime = getKoreaTime();
@@ -2837,10 +2869,8 @@ router.post('/start-weekly-vote', async (req, res) => {
     }
     nextMonday.setHours(0, 1, 0, 0); // 월요일 00:01
 
-    // 투표 종료일을 금요일로 설정 (월-금)
-    const endTime = new Date(nextMonday);
-    endTime.setDate(nextMonday.getDate() + 4); // 금요일
-    endTime.setHours(17, 0, 0, 0); // 17:00
+    // 세션 마감일: 대상 주차 시작 직전 일요일 23:59
+    const endTime = getVoteSessionSundayDeadline(nextMonday);
 
     // 중복 체크 - 정확한 주간(월요일) 비교
     const nextMondayDateOnly = new Date(
@@ -2981,9 +3011,7 @@ router.post('/admin/vote-sessions/create', authenticateToken, async (req, res) =
     defaultStartTime.setDate(weekStart.getDate() - 7); // 이번주 월요일
     defaultStartTime.setHours(0, 1, 0, 0); // 00:01
 
-    const defaultEndTime = new Date(weekStart);
-    defaultEndTime.setDate(weekStart.getDate() + 4); // 금요일
-    defaultEndTime.setHours(17, 0, 0, 0); // 17:00
+    const defaultEndTime = getVoteSessionSundayDeadline(weekStart);
 
     const voteSession = await prisma.voteSession.create({
       data: {
@@ -3119,10 +3147,8 @@ const scheduleWeeklyVoteSession = () => {
       thisWeekMonday.setDate(nextMonday.getDate() - 7);
       thisWeekMonday.setHours(0, 1, 0, 0); // 00:01
 
-      // 투표 종료일을 다음주 금요일 17:00으로 설정 (월-금)
-      const endTime = new Date(nextWeekMonday);
-      endTime.setDate(nextWeekMonday.getDate() + 4); // 금요일
-      endTime.setHours(17, 0, 0, 0); // 17:00
+      // 세션 마감일: 대상 주차 시작 직전 일요일 23:59
+      const endTime = getVoteSessionSundayDeadline(nextWeekMonday);
 
       const voteSession = await prisma.voteSession.create({
         data: {
@@ -3784,6 +3810,8 @@ router.get('/votes/sessions/summary', async (req, res) => {
   try {
     // 세션 상태 검증 및 자동 수정
     await validateAndFixSessionState();
+    // 세션 목록 조회 시에도 다음주 세션 누락 보정
+    await ensureNextWeekVoteSessionExists();
     
     // 전체 회원 목록 조회
     const allUsers = await prisma.user.findMany({
@@ -4400,8 +4428,68 @@ router.post('/send-test-notification', authenticateToken, async (req, res) => {
     
     // 이메일 발송
     const useRaw = req.body.useRaw || false;
+    const gameMailImage = req.body.gameMailImage as GameMailImageInput | undefined;
+
+    let emailExtras: {
+      mailHtml?: string;
+      textBody?: string;
+      attachments?: any[];
+    } = {};
+
+    const shouldTryImageCard =
+      Boolean(gameMailImage) &&
+      Array.isArray(gameMailImage?.games) &&
+      gameMailImage.games.length > 0 &&
+      typeof title === 'string' &&
+      title.includes('경기 알림');
+
+    if (shouldTryImageCard) {
+      try {
+        const png = await renderGameReminderMailPng({
+          nowLabel: gameMailImage?.nowLabel || new Date().toLocaleString('ko-KR'),
+          games: gameMailImage.games,
+        });
+
+        const cid = 'game-reminder-card@fccg';
+        emailExtras = {
+          mailHtml: `
+            <div style="margin:0;padding:16px;background:#f3f4f6;font-family:Arial,'Noto Sans KR','Malgun Gothic',sans-serif;color:#111827;">
+              <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;">
+                <div style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 12px 0;">
+                  확정된 경기 일정을 이미지 카드로 안내드립니다. (모바일/PC 메일 앱에서 동일하게 보입니다)
+                </div>
+                <img src="cid:${cid}" alt="경기 알림 카드" style="width:100%;max-width:720px;height:auto;display:block;border-radius:10px;border:1px solid #e5e7eb;" />
+                <div style="font-size:12px;color:#9ca3af;margin-top:12px;line-height:1.5;">
+                  이미지가 보이지 않으면 메일 앱에서 “이미지 표시”를 켜주세요.
+                </div>
+              </div>
+            </div>
+          `,
+          textBody: [
+            '⚽ 경기 알림',
+            '',
+            '확정된 경기 일정을 이미지 카드로 안내드립니다.',
+            '이메일 본문에 첨부된 PNG 이미지를 확인해주세요.',
+            '',
+            `발송 시간: ${gameMailImage?.nowLabel || new Date().toLocaleString('ko-KR')}`,
+          ].join('\n'),
+          attachments: [
+            {
+              filename: 'game-reminder.png',
+              content: png,
+              cid,
+              contentType: 'image/png',
+            },
+          ],
+        };
+      } catch (e) {
+        console.error('❌ 경기 알림 이미지 카드 생성 실패 - HTML로 폴백합니다:', e);
+        emailExtras = {};
+      }
+    }
+
     console.log('📧 이메일 발송 시작 - 대상자:', userEmails.map(u => `${u.name}(${u.email})`));
-    const result = await sendTestEmailNotification(userEmails, title, message, useRaw);
+    const result = await sendTestEmailNotification(userEmails, title, message, useRaw, emailExtras);
     
     console.log('📧 이메일 발송 완료 - 결과:', {
       successCount: result.successCount,
@@ -4429,11 +4517,40 @@ router.post('/send-test-notification', authenticateToken, async (req, res) => {
   }
 });
 
-// 테스트 이메일 발송 함수
-async function sendTestEmailNotification(recipients, title, message, useRaw = false) {
+// 경기 알림 이미지(PNG) 프리뷰/검증용 (실제 메일 발송과 동일 렌더러)
+router.post('/render-game-mail-image', authenticateToken, async (req, res) => {
   try {
+    const gameMailImage = req.body.gameMailImage as GameMailImageInput | undefined;
+    if (!gameMailImage || !Array.isArray(gameMailImage.games)) {
+      return res.status(400).json({ error: 'gameMailImage.games가 필요합니다.' });
+    }
+
+    const png = await renderGameReminderMailPng({
+      nowLabel: gameMailImage.nowLabel || new Date().toLocaleString('ko-KR'),
+      games: gameMailImage.games,
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).send(png);
+  } catch (error) {
+    console.error('경기 알림 이미지 렌더 오류:', error);
+    return res.status(500).json({ error: '경기 알림 이미지 생성 중 오류가 발생했습니다.', message: error.message });
+  }
+});
+
+// 테스트 이메일 발송 함수
+async function sendTestEmailNotification(
+  recipients,
+  title,
+  message,
+  useRaw = false,
+  emailExtras: { mailHtml?: string; textBody?: string; attachments?: any[] } = {}
+) {
+  try {
+    const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
     // Gmail 환경변수 확인
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    if (!process.env.GMAIL_USER || !gmailPass) {
       console.log('⚠️ Gmail 환경변수가 설정되지 않음 - 이메일 발송 건너뜀');
       console.log('📧 테스트 알림 내용 (콘솔 출력):');
       console.log('='.repeat(50));
@@ -4451,7 +4568,7 @@ async function sendTestEmailNotification(recipients, title, message, useRaw = fa
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
+        pass: gmailPass
       }
     });
 
@@ -4466,12 +4583,11 @@ async function sendTestEmailNotification(recipients, title, message, useRaw = fa
     console.log(`📧 총 ${recipients.length}명에게 이메일 발송 시작...`);
     for (const recipient of recipients) {
       console.log(`📧 발송 중: ${recipient.name} (${recipient.email})`);
-      const mailOptions = {
-        from: process.env.GMAIL_USER,
-        to: recipient.email,
-        subject: title.startsWith('🧪') ? title : title, // 테스트 제목이 아니면 그대로 사용
-        text: message,
-        html: useRaw ? message : `
+      const htmlContent = emailExtras.mailHtml
+        ? emailExtras.mailHtml
+        : useRaw
+          ? message
+          : `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0; text-align: center;">
               <h1 style="margin: 0; font-size: 24px;">🏆 FC CHAL-GGYEO</h1>
@@ -4484,7 +4600,15 @@ async function sendTestEmailNotification(recipients, title, message, useRaw = fa
               </div>
             </div>
           </div>
-        `
+        `;
+
+      const mailOptions = {
+        from: process.env.GMAIL_USER,
+        to: recipient.email,
+        subject: title.startsWith('🧪') ? title : title, // 테스트 제목이 아니면 그대로 사용
+        text: emailExtras.textBody || message,
+        html: htmlContent,
+        attachments: emailExtras.attachments || undefined
       };
 
       try {
@@ -4521,8 +4645,9 @@ async function sendTestEmailNotification(recipients, title, message, useRaw = fa
 // 이메일 알림 발송 함수
 async function sendEmailNotification(attendances, message, gameDate, game) {
   try {
+    const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
     // Gmail 환경변수 확인
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    if (!process.env.GMAIL_USER || !gmailPass) {
       console.log('⚠️ Gmail 환경변수가 설정되지 않음 - 이메일 발송 건너뜀');
       console.log('📧 이메일 알림 내용 (콘솔 출력):');
       console.log('='.repeat(50));
@@ -4540,7 +4665,7 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
+        pass: gmailPass
       }
     });
 
@@ -6299,18 +6424,9 @@ router.post('/send-vote-notification-test', async (req, res) => {
     const endFriday = new Date(startMonday.getTime() + 4 * 24 * 60 * 60 * 1000);
     endFriday.setHours(23, 59, 59, 0);
 
-    // 마감 계산 (목요일 17:00)
+    // 마감 계산 (대상 주차 직전 일요일 23:59)
     const now = new Date();
-    const currentDay = now.getDay();
-    let daysUntilThursday = 0;
-    if (currentDay <= 4) {
-      daysUntilThursday = 4 - currentDay;
-    } else {
-      daysUntilThursday = 11 - currentDay;
-    }
-    const nextThursday = new Date(now);
-    nextThursday.setDate(now.getDate() + daysUntilThursday);
-    nextThursday.setHours(17, 0, 0, 0);
+    const sessionDeadline = getVoteSessionSundayDeadline(startMonday);
 
     // 날짜 포맷팅
     const days = ['일','월','화','수','목','금','토'];
@@ -6329,7 +6445,7 @@ router.post('/send-vote-notification-test', async (req, res) => {
       !participants.some(p => p.id === user.id)
     );
 
-    const hoursUntilDeadline = Math.max(0, Math.ceil((nextThursday.getTime() - now.getTime()) / (1000 * 60 * 60)));
+    const hoursUntilDeadline = Math.max(0, Math.ceil((sessionDeadline.getTime() - now.getTime()) / (1000 * 60 * 60)));
 
     // 프리뷰와 동일한 HTML 생성
     const htmlContent = `
@@ -6387,7 +6503,8 @@ router.post('/send-vote-notification-test', async (req, res) => {
     `;
 
     // 이메일 발송
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
+    if (!process.env.GMAIL_USER || !gmailPass) {
       return res.status(500).json({ error: 'Gmail 환경변수가 설정되지 않았습니다.' });
     }
 
@@ -6396,7 +6513,7 @@ router.post('/send-vote-notification-test', async (req, res) => {
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
+        pass: gmailPass
       }
     });
 
@@ -6514,7 +6631,8 @@ router.post('/send-game-notification-test', async (req, res) => {
     `;
 
     // 이메일 발송
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
+    if (!process.env.GMAIL_USER || !gmailPass) {
       return res.status(500).json({ error: 'Gmail 환경변수가 설정되지 않았습니다.' });
     }
 
@@ -6523,7 +6641,7 @@ router.post('/send-game-notification-test', async (req, res) => {
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
+        pass: gmailPass
       }
     });
 

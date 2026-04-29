@@ -253,11 +253,11 @@ class PushNotificationManager {
     switch (type) {
       case 'game_confirmation':
       case 'game_reminder':
-        window.open(`${baseUrl}/schedule`, '_blank');
+        window.open(`${baseUrl}/schedule-v2`, '_blank');
         break;
       case 'vote_reminder':
         if (action === 'vote') {
-          window.open(`${baseUrl}/schedule`, '_blank');
+          window.open(`${baseUrl}/schedule-v2`, '_blank');
         } else {
           window.open(`${baseUrl}/`, '_blank');
         }

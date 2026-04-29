@@ -44,56 +44,73 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const request = async <T = any>(path: string, init: RequestInit = {}): Promise<T> => {
   const url = await getApiUrl(path);
-  
-  // 타임아웃 설정 (30초)
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-  
-  try {
-    const res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers || {}) },
-      ...init,
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!res.ok) {
-      const errorText = await res.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { error: errorText || '요청 처리 중 오류가 발생했습니다.' };
+  const method = String(init.method || 'GET').toUpperCase();
+  const maxAttempts = method === 'GET' ? 2 : 1;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers || {}) },
+        ...init,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || '요청 처리 중 오류가 발생했습니다.' };
+        }
+        const error = new Error(errorData.error || errorData.message || '요청 처리 중 오류가 발생했습니다.');
+        (error as any).response = { status: res.status, data: errorData };
+
+        const retryable = method === 'GET' && attempt < maxAttempts && res.status >= 500;
+        if (retryable) {
+          await delay(350);
+          continue;
+        }
+        throw error;
       }
-      const error = new Error(errorData.error || errorData.message || '요청 처리 중 오류가 발생했습니다.');
-      (error as any).response = { status: res.status, data: errorData };
+      const ct = res.headers.get('content-type') || '';
+      return (ct.includes('application/json') ? (await res.json()) : (await res.text())) as T;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+
+      const isTimeout = error.name === 'AbortError' || String(error.message || '').includes('aborted');
+      const isNetwork = String(error.message || '').includes('Failed to fetch') || String(error.message || '').includes('NetworkError');
+      const retryable = method === 'GET' && attempt < maxAttempts && (isTimeout || isNetwork);
+      if (retryable) {
+        await delay(350);
+        continue;
+      }
+
+      if (isTimeout) {
+        const timeoutError = new Error('요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.');
+        (timeoutError as any).response = { status: 408, data: { error: '요청 시간 초과' } };
+        throw timeoutError;
+      }
+
+      if (isNetwork) {
+        const networkError = new Error('네트워크 오류가 발생했습니다. 서버 연결을 확인해주세요.');
+        (networkError as any).response = { status: 0, data: { error: '네트워크 오류' } };
+        throw networkError;
+      }
+
       throw error;
     }
-    const ct = res.headers.get('content-type') || '';
-    return (ct.includes('application/json') ? (await res.json()) : (await res.text())) as T;
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    
-    // 네트워크 오류 또는 타임아웃 처리
-    if (error.name === 'AbortError' || error.message.includes('aborted')) {
-      const timeoutError = new Error('요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.');
-      (timeoutError as any).response = { status: 408, data: { error: '요청 시간 초과' } };
-      throw timeoutError;
-    }
-    
-    // 네트워크 오류
-    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-      const networkError = new Error('네트워크 오류가 발생했습니다. 서버 연결을 확인해주세요.');
-      (networkError as any).response = { status: 0, data: { error: '네트워크 오류' } };
-      throw networkError;
-    }
-    
-    // 기타 오류는 그대로 throw
-    throw error;
   }
+  throw new Error('요청 처리 중 알 수 없는 오류가 발생했습니다.');
 };
 
 // ===== 인증 =====

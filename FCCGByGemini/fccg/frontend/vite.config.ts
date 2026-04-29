@@ -2,7 +2,14 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
+const buildStamp =
+  process.env.VITE_BUILD_STAMP ||
+  new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+
 export default defineConfig({
+  define: {
+    __BUILD_STAMP__: JSON.stringify(buildStamp),
+  },
   plugins: [react()],
   server: {
     proxy: {

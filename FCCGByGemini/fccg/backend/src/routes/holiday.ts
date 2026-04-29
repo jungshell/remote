@@ -11,9 +11,15 @@ import {
 
 const router = express.Router();
 
+const setHolidayCacheHeaders = (res: any) => {
+  // 공휴일 데이터는 변동이 적어 적극 캐시 (무료 플랜 콜드스타트 체감 완화)
+  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
+};
+
 // 특정 연도의 공휴일 조회
 router.get('/year/:year', async (req, res) => {
   try {
+    setHolidayCacheHeaders(res);
     const { year } = req.params;
     
     if (!year || year.length !== 4) {
@@ -49,6 +55,7 @@ router.get('/year/:year', async (req, res) => {
 // 여러 연도의 공휴일 조회
 router.post('/years', async (req, res) => {
   try {
+    setHolidayCacheHeaders(res);
     const { years } = req.body;
     
     if (!Array.isArray(years)) {
@@ -89,6 +96,7 @@ router.post('/years', async (req, res) => {
 // 특정 날짜가 공휴일인지 확인
 router.get('/check/:date', async (req, res) => {
   try {
+    setHolidayCacheHeaders(res);
     const { date } = req.params;
     
     // YYYY-MM-DD 형식 검증
@@ -125,6 +133,7 @@ router.get('/check/:date', async (req, res) => {
 // 다음 주 평일 일정 생성 (공휴일 제외)
 router.post('/next-week-weekdays', async (req, res) => {
   try {
+    setHolidayCacheHeaders(res);
     console.log('📅 다음 주 평일 일정 생성 요청');
     
     const { startDate } = req.body;
@@ -162,6 +171,7 @@ router.post('/next-week-weekdays', async (req, res) => {
 // 특정 날짜 범위의 평일 필터링
 router.post('/filter-weekdays', async (req, res) => {
   try {
+    setHolidayCacheHeaders(res);
     const { dates } = req.body;
     
     if (!Array.isArray(dates)) {

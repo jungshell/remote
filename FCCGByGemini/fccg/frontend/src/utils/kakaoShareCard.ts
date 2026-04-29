@@ -20,11 +20,84 @@ export function resolvePrimaryVenueName(gameData: {
   location?: string | null;
   gameLocation?: string | null;
 }): string {
-  const a = normalizeVenueWhitespace(gameData.location);
-  const b = normalizeVenueWhitespace(gameData.gameLocation);
-  if (a && a !== '미정') return a;
-  if (b && b !== '미정') return b;
+  const raw = gameData as Record<string, unknown>;
+  const candidates = [
+    gameData.location,
+    gameData.gameLocation,
+    raw.game_location,
+    raw.GameLocation,
+    raw.placeName,
+    raw.place_name,
+  ];
+  for (const c of candidates) {
+    const s = normalizeVenueWhitespace(c == null ? '' : String(c));
+    if (s && s !== '미정') return s;
+  }
   return '';
+}
+
+/** 로컬 달력 기준 YYYY-MM-DD (UTC ISO 하루 밀림 방지) */
+export function toLocalDateKey(input?: string | Date | null): string {
+  if (input == null) return '';
+  const d = typeof input === 'string' ? new Date(input) : input;
+  if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * 캘린더 등에서 넘어온 요약 객체에 장소가 비어 있을 때, 회원 API의 games 풀에서 같은 경기를 찾아 채움
+ */
+export function enrichGameDataForMapAndShare(
+  partial: Record<string, unknown> | null | undefined,
+  games: Array<Record<string, unknown>>
+): Record<string, unknown> | null {
+  if (!partial) return null;
+  const partialKey = toLocalDateKey((partial.date as string) || null);
+  const byId =
+    partial.id != null
+      ? games.find((g) => String(g.id) === String(partial.id))
+      : undefined;
+  let match = byId;
+  if (!match && partialKey) {
+    match = games.find((g) => toLocalDateKey((g.date as string) || null) === partialKey);
+  }
+  if (!match) return partial;
+
+  /** 신주소·지번 형태로 시작하면 시설명 후보보다 API 쪽 짧은 장소명을 우선 */
+  const looksLikeProvinceAddressLine = (s: string) => {
+    const t = normalizeVenueWhitespace(s);
+    return /^(충남|충청남도|서울|경기|경기도|인천|부산|대전|대구|광주|울산|세종|강원|전북|전남|경북|경남|제주)/.test(t);
+  };
+
+  const pickLoc = (a?: unknown, b?: unknown) => {
+    const sa = normalizeVenueWhitespace(a == null ? '' : String(a));
+    const sb = normalizeVenueWhitespace(b == null ? '' : String(b));
+    const aIsAddr = sa && looksLikeProvinceAddressLine(sa);
+    const bIsAddr = sb && looksLikeProvinceAddressLine(sb);
+    if (sa && sa !== '미정' && !aIsAddr) return String(a).replace(UNICODE_SPACE_RE, ' ').trim();
+    if (sb && sb !== '미정' && !bIsAddr) return String(b).replace(UNICODE_SPACE_RE, ' ').trim();
+    if (aIsAddr && sb && sb !== '미정' && !bIsAddr) return String(b).replace(UNICODE_SPACE_RE, ' ').trim();
+    if (bIsAddr && sa && sa !== '미정' && !aIsAddr) return String(a).replace(UNICODE_SPACE_RE, ' ').trim();
+    if (sa && sa !== '미정') return String(a).replace(UNICODE_SPACE_RE, ' ').trim();
+    if (sb && sb !== '미정') return String(b).replace(UNICODE_SPACE_RE, ' ').trim();
+    return (a as string) || (b as string) || '';
+  };
+
+  const location = pickLoc(partial.location, match.location);
+  const locationAddress =
+    (partial.locationAddress as string | null | undefined) ??
+    (match.locationAddress as string | null | undefined) ??
+    null;
+
+  return {
+    ...match,
+    ...partial,
+    location,
+    locationAddress,
+  };
 }
 
 /** 장소 필드에서 지도 검색어 (예: "아트풋살장 2구장" → "아트풋살장") */
@@ -43,15 +116,31 @@ export function getVenueMapDisplayLabel(location?: string | null): string {
   return raw || '장소';
 }
 
-/** 카카오맵 검색 URL (장소명 우선, 장소 없을 때만 주소 사용) */
-export function buildKakaoMapSearchUrl(location?: string, locationAddress?: string): string {
-  const query = getVenueMapSearchQuery(location);
+function buildScopedVenueQuery(location?: string | null, locationAddress?: string | null): string {
+  const venue = getVenueMapSearchQuery(location);
+  if (!venue) return '';
+  const addr = normalizeVenueWhitespace(locationAddress);
+  if (!addr) return venue;
+
+  // 숫자 지번은 제외하고 시/구/동 수준까지만 붙여 전국 동명 장소 노이즈를 줄임
+  const scope = addr
+    .split(' ')
+    .filter((token) => token && !/^\d/.test(token))
+    .slice(0, 4)
+    .join(' ');
+  if (!scope) return venue;
+  return `${venue} ${scope}`;
+}
+
+/** 카카오맵 검색 URL (장소명 우선, 장소 없을 때만 주소 사용). */
+export function buildKakaoMapSearchUrl(location?: string | null, locationAddress?: string | null): string {
+  const query = buildScopedVenueQuery(location, locationAddress);
   if (query) {
-    return `https://map.kakao.com/link/search/${encodeURIComponent(query)}`;
+    return `https://map.kakao.com/?q=${encodeURIComponent(query)}`;
   }
   const addr = normalizeVenueWhitespace(locationAddress);
   if (addr) {
-    return `https://map.kakao.com/link/search/${encodeURIComponent(addr)}`;
+    return `https://map.kakao.com/?q=${encodeURIComponent(addr)}`;
   }
   return 'https://map.kakao.com';
 }

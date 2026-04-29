@@ -13,7 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import nodemailer from 'nodemailer';
 import { securityHeaders, apiLimiter } from './middlewares/security';
 import { monitoring } from './utils/monitoring';
-import { aggregateVotesByWeekday, type WeekdayKey } from './utils/voteUtils';
+import { aggregateVotesByWeekday, getKstDateKey, getVoteSessionSundayDeadline, type WeekdayKey } from './utils/voteUtils';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1258,44 +1258,32 @@ async function runWeeklyScheduler() {
       일수차이: daysUntilNextMonday
     });
     
-    // 다음주 금요일 계산 (투표 마감일)
-    const nextWeekFriday = new Date(nextWeekMonday);
-    nextWeekFriday.setDate(nextWeekMonday.getDate() + 4);
-    nextWeekFriday.setHours(17, 0, 0, 0);
+    // 세션 마감은 대상 주차 직전 일요일 23:59
+    const nextWeekDeadline = getVoteSessionSundayDeadline(nextWeekMonday);
     
     // 의견수렴기간 시작일은 이번주 월요일 00:01
     thisWeekMonday.setHours(0, 1, 0, 0);
     
     // 중복 체크 - 정확한 주간(월요일) 비교
     // 같은 주의 월요일인지 확인 (주간을 고유하게 식별)
-    const nextWeekMondayDateOnly = new Date(
-      nextWeekMonday.getFullYear(),
-      nextWeekMonday.getMonth(),
-      nextWeekMonday.getDate()
-    );
-    nextWeekMondayDateOnly.setHours(0, 0, 0, 0);
-    
-    // 기존 활성 세션이 있는지 확인 (다음주 세션이 이미 생성되어 있는지)
-    const existingActiveSession = await prisma.voteSession.findFirst({
-      where: {
-        isActive: true,
-        weekStartDate: {
-          gte: nextWeekMondayDateOnly,
-          lt: new Date(nextWeekMondayDateOnly.getTime() + 24 * 60 * 60 * 1000) // 다음날 00:00 이전
-        }
-      }
-    });
-    
-    // 다음주 세션이 이미 존재하는지 확인 (활성/비활성 모두)
-    const existingSession = await prisma.voteSession.findFirst({
+    const targetWeekKey = getKstDateKey(nextWeekMonday);
+    const aroundStart = new Date(nextWeekMonday.getTime() - 36 * 60 * 60 * 1000);
+    const aroundEnd = new Date(nextWeekMonday.getTime() + 36 * 60 * 60 * 1000);
+    const existingCandidates = await prisma.voteSession.findMany({
       where: {
         weekStartDate: {
-          gte: nextWeekMondayDateOnly,
-          lt: new Date(nextWeekMondayDateOnly.getTime() + 24 * 60 * 60 * 1000) // 다음날 00:00 이전
+          gte: aroundStart,
+          lte: aroundEnd
         }
-      }
+      },
+      orderBy: { id: 'desc' }
     });
+    const existingSession = existingCandidates.find((s) => getKstDateKey(new Date(s.weekStartDate)) === targetWeekKey) || null;
     
+    const activeSession = await prisma.voteSession.findFirst({
+      where: { isActive: true, isCompleted: false },
+      orderBy: { id: 'desc' }
+    });
     let newVoteSession = null;
     
     // 다음주 세션이 없고, 오늘이 월요일 00:01 이후인 경우에만 생성
@@ -1310,16 +1298,16 @@ async function runWeeklyScheduler() {
           data: {
             weekStartDate: nextWeekMonday,
             startTime: thisWeekMonday,
-            endTime: nextWeekFriday,
-            isActive: true,
+            endTime: nextWeekDeadline,
+            isActive: !activeSession,
             isCompleted: false
           }
         });
         console.log('✅ 다음주 투표 세션 자동 생성 완료:', {
           세션ID: newVoteSession.id,
-          투표기간: `${nextWeekMonday.toLocaleDateString('ko-KR')} ~ ${nextWeekFriday.toLocaleDateString('ko-KR')}`,
+          투표기간: `${nextWeekMonday.toLocaleDateString('ko-KR')} 대상 / 마감 ${nextWeekDeadline.toLocaleString('ko-KR')}`,
           의견수렴기간시작: `${thisWeekMonday.toLocaleDateString('ko-KR')} 00:01`,
-          의견수렴기간마감: '관리자 투표마감 버튼 클릭 시'
+          의견수렴기간마감: `${nextWeekDeadline.toLocaleString('ko-KR')} 또는 관리자 수동 마감`
         });
       }
     } else if (existingSession) {
@@ -1518,45 +1506,36 @@ app.get('/', (req, res) => {
 async function cleanupDuplicateSessionsOnStartup() {
   try {
     console.log('🔄 서버 시작 시 중복 세션 정리 시작...');
-    
-    // 같은 주간을 대상으로 하는 세션들을 찾기
     const sessions = await prisma.voteSession.findMany({
+      include: { _count: { select: { votes: true } } },
       orderBy: { id: 'desc' }
     });
-    
     if (sessions.length === 0) {
       console.log('✅ 정리할 세션이 없습니다.');
       return;
     }
-    
-    // 주간별로 그룹화 (weekStartDate 기준으로 같은 날짜의 세션들을 그룹화)
-    const sessionsByWeek = new Map<string, any[]>();
-    
+    const sessionsByWeek = new Map<string, typeof sessions>();
     for (const session of sessions) {
-      const weekStart = new Date(session.weekStartDate);
-      // 날짜만 사용하여 키 생성 (시간 제외)
-      const weekKey = `${weekStart.getFullYear()}-${weekStart.getMonth()}-${weekStart.getDate()}`;
-      
-      if (!sessionsByWeek.has(weekKey)) {
-        sessionsByWeek.set(weekKey, []);
-      }
+      const weekKey = getKstDateKey(new Date(session.weekStartDate));
+      if (!sessionsByWeek.has(weekKey)) sessionsByWeek.set(weekKey, []);
       sessionsByWeek.get(weekKey)!.push(session);
     }
-    
+
     let deletedCount = 0;
-    let keptSessions: any[] = [];
-    
-    // 각 주간별로 가장 최신 세션만 남기고 나머지 삭제
     for (const [weekKey, weekSessions] of sessionsByWeek) {
       if (weekSessions.length > 1) {
-        // ID 기준으로 정렬하여 가장 최신 세션 찾기 (ID가 큰 것이 최신)
-        weekSessions.sort((a, b) => b.id - a.id);
+        // 투표 데이터가 있는 세션을 우선 보존하여 마감 직후 리셋처럼 보이는 문제를 방지
+        weekSessions.sort((a, b) => {
+          const voteDiff = (b._count?.votes || 0) - (a._count?.votes || 0);
+          if (voteDiff !== 0) return voteDiff;
+          const activeDiff = Number(b.isActive) - Number(a.isActive);
+          if (activeDiff !== 0) return activeDiff;
+          return b.id - a.id;
+        });
         const keepSession = weekSessions[0];
         const deleteSessions = weekSessions.slice(1);
-        
-        console.log(`📋 주간 ${weekKey}: ${weekSessions.length}개 세션 발견, ${deleteSessions.length}개 삭제 예정`);
-        
-        // 삭제할 세션들의 관련 투표 데이터도 함께 삭제
+        console.log(`📋 주간 ${weekKey}: ${weekSessions.length}개 중 세션 ${keepSession.id} 보존`);
+
         for (const session of deleteSessions) {
           await prisma.vote.deleteMany({
             where: { voteSessionId: session.id }
@@ -1568,90 +1547,9 @@ async function cleanupDuplicateSessionsOnStartup() {
           
           deletedCount++;
         }
-        
-        keptSessions.push(keepSession);
-      } else {
-        keptSessions.push(weekSessions[0]);
       }
     }
-    
-    if (deletedCount > 0) {
-      console.log(`✅ 중복 세션 ${deletedCount}개 삭제 완료, ${keptSessions.length}개 세션 유지`);
-      
-      // 세션 번호 재정렬 (가장 오래된 세션이 1번)
-      const allSessions = await prisma.voteSession.findMany({
-        orderBy: { weekStartDate: 'asc' }
-      });
-
-      if (allSessions.length > 0) {
-        console.log('🔄 세션 번호 재정렬 시작:', allSessions.length, '개 세션');
-
-        const sessionData = await Promise.all(
-          allSessions.map(async (session: any) => {
-            const votes = await prisma.vote.findMany({
-              where: { voteSessionId: session.id }
-            });
-            return {
-              weekStartDate: session.weekStartDate,
-              startTime: session.startTime,
-              endTime: session.endTime,
-              isActive: session.isActive,
-              isCompleted: session.isCompleted,
-              createdAt: session.createdAt,
-              updatedAt: session.updatedAt,
-              votes: votes.map((v: any) => ({
-                userId: v.userId,
-                selectedDays: v.selectedDays,
-                createdAt: v.createdAt,
-                updatedAt: v.updatedAt
-              }))
-            };
-          })
-        );
-
-        // 모든 투표 데이터 삭제
-        await prisma.vote.deleteMany({});
-        
-        // 모든 세션 삭제
-        await prisma.voteSession.deleteMany({});
-
-        // 시퀀스 리셋 (PostgreSQL)
-        await prisma.$executeRaw`ALTER SEQUENCE "VoteSession_id_seq" RESTART WITH 1`;
-
-        // 세션을 순서대로 재생성 (가장 오래된 것이 1번)
-        for (let i = 0; i < sessionData.length; i++) {
-          const data = sessionData[i];
-          const newSession = await prisma.voteSession.create({
-            data: {
-              weekStartDate: data.weekStartDate,
-              startTime: data.startTime,
-              endTime: data.endTime,
-              isActive: data.isActive,
-              isCompleted: data.isCompleted,
-              createdAt: data.createdAt,
-              updatedAt: data.updatedAt
-            }
-          });
-
-          // 관련 투표 데이터 재생성
-          for (const vote of data.votes) {
-            await prisma.vote.create({
-              data: {
-                userId: vote.userId,
-                voteSessionId: newSession.id,
-                selectedDays: vote.selectedDays,
-                createdAt: vote.createdAt,
-                updatedAt: vote.updatedAt
-              }
-            });
-          }
-        }
-
-        console.log('✅ 세션 번호 재정렬 완료: 가장 오래된 세션이 1번으로 설정됨');
-      }
-    } else {
-      console.log('✅ 중복 세션이 없습니다.');
-    }
+    console.log(deletedCount > 0 ? `✅ 중복 세션 ${deletedCount}개 삭제 완료` : '✅ 중복 세션이 없습니다.');
   } catch (error) {
     console.error('❌ 중복 세션 정리 중 오류:', error);
     // 오류가 발생해도 서버는 계속 실행되도록 함

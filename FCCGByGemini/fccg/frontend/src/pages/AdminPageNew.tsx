@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box,
   Button,
   Card,
   CardBody,
+  Center,
   Flex,
   SimpleGrid,
+  Spinner,
   Text,
   VStack,
   useToast,
@@ -132,6 +134,10 @@ interface Team {
               status: 'PENDING' | 'SENT' | 'FAILED';
               deliveryMethods: ('email' | 'push' | 'inapp')[];
               metadata?: any;
+              gameMailImage?: {
+                nowLabel?: string;
+                games: any[];
+              };
             }
 
 
@@ -447,6 +453,7 @@ export default function AdminPageNew() {
 
   // 알림 시스템 상태
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const lastNotificationErrorRef = useRef<string>('');
   const [isNotificationSystemActive, setIsNotificationSystemActive] = useState(false);
 
 
@@ -1337,7 +1344,8 @@ export default function AdminPageNew() {
   };
 
   // 알림 발송 엔진
-  const sendNotification = async (notification: Omit<Notification, 'id' | 'sentAt' | 'status'>) => {
+  const sendNotification = async (notification: Omit<Notification, 'id' | 'sentAt' | 'status'>): Promise<boolean> => {
+    lastNotificationErrorRef.current = '';
     const newNotification: Notification = {
       ...notification,
       id: Date.now().toString(),
@@ -1350,7 +1358,10 @@ export default function AdminPageNew() {
     try {
       // 1. 이메일 알림 발송
       if (notification.deliveryMethods.includes('email')) {
-        await sendEmailNotification(newNotification);
+        const emailOk = await sendEmailNotification(newNotification);
+        if (!emailOk) {
+          throw new Error(lastNotificationErrorRef.current || '이메일 알림 발송 실패');
+        }
       }
 
       // 2. 푸시 알림 발송
@@ -1370,20 +1381,25 @@ export default function AdminPageNew() {
 
       // 활동 로그에 알림 발송 기록
       addActivityLog(0, 'System', 'ANNOUNCEMENT_CREATE', `알림 발송: ${notification.title}`);
+      return true;
 
     } catch (error) {
       console.error('알림 발송 실패:', error);
+      if (error instanceof Error && error.message) {
+        lastNotificationErrorRef.current = error.message;
+      }
       
       // 알림 상태를 실패로 업데이트
       setNotifications(prev => 
         prev.map(n => n.id === newNotification.id ? { ...n, status: 'FAILED' } : n)
       );
+      return false;
     }
   };
 
 
   // 이메일 알림 발송
-  const sendEmailNotification = async (notification: Notification) => {
+  const sendEmailNotification = async (notification: Notification): Promise<boolean> => {
     try {
       console.log('📧 이메일 알림 발송 시작:', notification);
       console.log('📧 발송 대상자 ID 목록:', notification.recipients);
@@ -1408,8 +1424,9 @@ export default function AdminPageNew() {
       const requestOnce = async () => {
         const token = localStorage.getItem('token') || localStorage.getItem('auth_token_backup');
         console.log('📧 사용할 토큰:', token ? `있음 (길이: ${token.length})` : '없음');
+        const baseUrl = await import('../constants').then(m => m.ensureApiBaseUrl()).catch(() => '/api/auth');
         
-        const res = await fetch('/api/auth/send-test-notification', {
+        const res = await fetch(`${baseUrl}/send-test-notification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1420,7 +1437,10 @@ export default function AdminPageNew() {
             title: notification.title,
             message: notification.message,
             html: notification.message,
-            useRaw: true
+            useRaw: true,
+            ...(notification.type === 'GAME_REMINDER' && notification.gameMailImage
+              ? { gameMailImage: notification.gameMailImage }
+              : {})
           })
         });
         
@@ -1428,7 +1448,14 @@ export default function AdminPageNew() {
         if (!res.ok) {
           const errorText = await res.text();
           console.error('📧 API 오류 응답:', errorText);
-          throw new Error(`HTTP ${res.status}: ${errorText}`);
+          let parsedReason = '';
+          try {
+            const parsed = JSON.parse(errorText);
+            parsedReason = parsed?.reason || parsed?.error || parsed?.message || '';
+          } catch {
+            parsedReason = '';
+          }
+          throw new Error(parsedReason || `HTTP ${res.status}: ${errorText}`);
         }
         return res.json();
       };
@@ -1455,6 +1482,10 @@ export default function AdminPageNew() {
         console.warn('⚠️ 일부 이메일 발송 실패:', result.result.failCount, '건');
       }
 
+      if (!result?.result?.successCount || result.result.successCount <= 0) {
+        throw new Error(result?.result?.reason || result?.reason || '이메일 발송 성공 건수가 0입니다.');
+      }
+
         // 발송 성공 로그
         addActivityLog(0, 'System', 'ANNOUNCEMENT_CREATE', 
           `이메일 알림 발송 성공: ${notification.title} (성공: ${result.result.successCount}건, 실패: ${result.result.failCount}건)`);
@@ -1471,12 +1502,14 @@ export default function AdminPageNew() {
         });
         localStorage.setItem(key, JSON.stringify(history.slice(0, 20)));
       } catch {}
-        
+      return true;
 
     } catch (error) {
       console.error('❌ 이메일 발송 오류:', error);
+      const message = error instanceof Error ? error.message : '이메일 발송 오류';
+      lastNotificationErrorRef.current = message;
       addActivityLog(0, 'System', 'ANNOUNCEMENT_CREATE', 
-        `이메일 알림 발송 오류: ${error.message}`);
+        `이메일 알림 발송 오류: ${message}`);
       // 실패 이력 저장
       try {
         const key = 'email_send_history';
@@ -1485,86 +1518,246 @@ export default function AdminPageNew() {
           at: new Date().toISOString(),
           title: notification.title,
           recipients: notification.recipients,
-          error: String(error?.message || error)
+          error: message
         });
         localStorage.setItem(key, JSON.stringify(history.slice(0, 20)));
       } catch {}
-        
+      return false;
     }
   };
+
+  const parseStringArray = (value: any): string[] => {
+    if (Array.isArray(value)) return value.filter((v) => typeof v === 'string' && v.trim() !== '').map((v) => v.trim());
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed.filter((v) => typeof v === 'string' && v.trim() !== '').map((v) => v.trim());
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const getGameParticipantSummary = (game: any) => {
+    const allNames = parseStringArray(game?.allParticipantNames);
+    const selectedNames = parseStringArray(game?.selectedMembers);
+    const manualNames = parseStringArray(game?.memberNames).filter((n) => !n.startsWith('용병'));
+    const mergedNames = Array.from(new Set([...allNames, ...selectedNames, ...manualNames]));
+    const mercenaryCount = Number(game?.mercenaryCount || 0);
+    const totalParticipantCount =
+      Number(game?.totalParticipantCount || 0) ||
+      Number(game?.count || 0) ||
+      mergedNames.length + mercenaryCount;
+
+    return {
+      names: mergedNames,
+      mercenaryCount,
+      totalParticipantCount,
+    };
+  };
+
+  // 경기 알림 이메일용 이미지 카드 데이터(백엔드 SVG→PNG 렌더링 입력)
+  const buildGameMailImagePayload = (futureGames: any[]) => {
+    const nowLabel = new Date().toLocaleString('ko-KR');
+    const games = (futureGames || []).slice(0, 3).map((game: any) => ({
+      date: game?.date,
+      time: game?.time,
+      eventType: game?.eventType,
+      location: game?.location,
+      locationAddress: game?.locationAddress,
+      memberNames: game?.memberNames,
+      selectedMembers: game?.selectedMembers,
+      allParticipantNames: game?.allParticipantNames,
+      mercenaryCount: game?.mercenaryCount,
+      totalParticipantCount: game?.totalParticipantCount,
+      count: game?.count,
+    }));
+
+    return { nowLabel, games };
+  };
+
+  const loadGameMailPreviewImage = useCallback(async () => {
+    const now = new Date();
+    const futureGames = (games || []).filter((g: any) => new Date(g.date).getTime() >= now.getTime());
+    if (futureGames.length === 0) {
+      return { objectUrl: '', error: '발송할 미래 경기가 없습니다.' };
+    }
+
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token_backup');
+    if (!token) {
+      return { objectUrl: '', error: '로그인 토큰이 없습니다. 다시 로그인해주세요.' };
+    }
+
+    const baseUrl = await import('../constants').then(m => m.ensureApiBaseUrl()).catch(() => '/api/auth');
+    const gameMailImage = buildGameMailImagePayload(futureGames);
+
+    const res = await fetch(`${baseUrl}/render-game-mail-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ gameMailImage }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `HTTP ${res.status}`;
+      try {
+        const parsed = JSON.parse(text);
+        msg = parsed?.error || parsed?.message || msg;
+      } catch {
+        if (text) msg = text;
+      }
+      return { objectUrl: '', error: msg };
+    }
+
+    const blob = await res.blob();
+    return { objectUrl: URL.createObjectURL(blob), error: '' };
+  }, [games]);
 
   // 경기 알림용 HTML 생성 (프리뷰와 동일 템플릿, 미래 경기만)
   const buildGameNotificationHtml = () => {
     const now = new Date();
     const futureGames = (games || []).filter((g: any) => new Date(g.date).getTime() >= now.getTime());
+    const formatEventType = (eventType?: string) => {
+      const normalized = eventType || '자체';
+      if (['풋살', 'FRIENDLY', 'FRIENDLY_MATCH'].includes(normalized)) return '매치';
+      if (!['매치', '자체', '회식', '기타'].includes(normalized)) return '기타';
+      return normalized;
+    };
+    const nowLabel = new Date().toLocaleString('ko-KR');
+
     if (futureGames.length === 0) {
       return `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 400px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 15px; color: white;">
-          <div style="background: rgba(255, 255, 255, 0.1); padding: 30px; border-radius: 10px; margin-bottom: 30px;">
-            <h2 style="margin: 0 0 20px 0; font-size: 24px; text-align: center;">⚽ 경기 알림</h2>
-            <p style="margin: 0 0 20px 0; font-size: 18px; line-height: 1.6; text-align: center;">확정된 경기 일정을 회원들에게 알립니다.</p>
-            <div style="background: rgba(255, 255, 255, 0.2); padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center;">
-              <p style="margin: 0; font-size: 16px;">현재 확정된 경기가 없습니다.</p>
-            </div>
-          </div>
-          <div style="text-align: center; margin-bottom: 30px;">
-            <div style="display: inline-block; background: rgba(255, 255, 255, 0.2); padding: 15px 25px; border-radius: 25px;">
-              <span style="font-size: 14px; opacity: 0.9;">발송 시간: ${new Date().toLocaleString('ko-KR')}</span>
-            </div>
-          </div>
-          <div style="text-align: center; font-size: 14px; opacity: 0.7;">
-            <p style="margin: 0;">이 이메일은 자동으로 발송되었습니다.</p>
-            <p style="margin: 5px 0 0 0;">FC CHAL GGYEO 관리 시스템</p>
-          </div>
+        <div style="margin:0;padding:16px;background:#f3f4f6;font-family:Arial,'Noto Sans KR','Malgun Gothic',sans-serif;color:#111827;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="background:#4f46e5;color:#ffffff;padding:16px 20px;font-size:20px;font-weight:700;">⚽ 경기 알림</td>
+            </tr>
+            <tr>
+              <td style="padding:16px 20px;font-size:14px;line-height:1.6;">확정된 경기 일정을 회원들에게 알립니다.</td>
+            </tr>
+            <tr>
+              <td style="padding:0 20px 16px 20px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+                  <tr>
+                    <td style="padding:14px;font-size:14px;line-height:1.6;">현재 확정된 경기가 없습니다.</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 20px 16px 20px;font-size:12px;color:#6b7280;">발송 시간: ${nowLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding:0 20px 20px 20px;font-size:12px;color:#9ca3af;">이 이메일은 자동으로 발송되었습니다. FC CHAL GGYEO 관리 시스템</td>
+            </tr>
+          </table>
         </div>`;
     }
-    const items = futureGames.slice(0, 3).map((game: any) => {
-      const names: string[] = game.allParticipantNames || [];
-      const merc = game.mercenaryCount || 0;
-      const dateStr = new Date(game.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+
+    const items = futureGames.slice(0, 3).map((game: any, idx: number) => {
+      const { names, mercenaryCount, totalParticipantCount } = getGameParticipantSummary(game);
+      const dateStr = new Date(game.date).toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+      });
+      const location = game.location || '장소 미정';
+      const address = game.locationAddress ? `(${game.locationAddress})` : '';
+      const locationBase =
+        typeof location === 'string' && location.includes(' ')
+          ? location.substring(0, location.lastIndexOf(' '))
+          : location;
+      const mapLink = location
+        ? `<a href="https://map.kakao.com/link/search/${encodeURIComponent(String(locationBase))}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#FEE500;border:1px solid #e5e7eb;border-radius:6px;color:#1d4ed8;text-decoration:none;font-weight:700;font-size:10px;line-height:1;">MAP</a>`
+        : '';
+      const participantDetailLine = (() => {
+        const memberLine = names.length > 0 ? `- 회원: ${names.join(', ')}` : '';
+        const mercenaryLine = mercenaryCount > 0 ? `- 용병: ${mercenaryCount}명` : '';
+        if (!memberLine && !mercenaryLine) return '';
+        return `<tr>
+          <td colspan="4" style="padding:4px 0 0 2ch;text-align:left;color:#374151;font-size:13px;line-height:1.45;">
+            ${memberLine ? `${memberLine}<br />` : ''}
+            ${mercenaryLine}
+          </td>
+        </tr>`;
+      })();
       return `
-        <div style="margin-bottom: 15px; padding: 15px; background: rgba(255, 255, 255, 0.1); border-radius: 8px;">
-          <div style="font-size: 14px; margin-bottom: 5px;">🏆 ${game.eventType || '자체'}</div>
-          <div style="font-size: 14px; margin-bottom: 5px;">📅 ${dateStr} ${game.time ? `⏰ ${game.time}` : ''}</div>
-          <div style="font-size: 14px; margin-bottom: 5px;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: ${game.locationAddress ? '4px' : '0'};">
-              📍 ${game.location || '장소 미정'}
-              ${game.location ? (() => {
-                // location에서 세부 장소 제거 (마지막 공백 이후 부분 제거)
-                const locationBase = game.location.includes(' ') ? game.location.substring(0, game.location.lastIndexOf(' ')) : game.location;
-                return `<a href="https://map.kakao.com/link/search/${encodeURIComponent(locationBase)}" target="_blank" style="display:inline-block;background:#FFD700;color:#0066CC;text-decoration:none;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;margin-left:8px;">K</a>`;
-              })() : ''}
-            </div>
-            ${game.locationAddress ? `<div style="font-size: 12px; opacity: 0.9; padding-left: 24px;">${game.locationAddress}</div>` : ''}
-          </div>
-          <div style="font-size: 14px; margin-bottom: 5px;">👥 참가자: ${game.totalParticipantCount || 0}명</div>
-          ${(names.length > 0 || merc > 0) ? `<div style="font-size: 14px; margin-bottom: 5px; opacity: 0.9; display: flex; flex-wrap: wrap; gap: 4px;">${names.map(n => `<span style=\"background:#3182CE;color:#fff;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:500;\">${n}</span>`).join('')}${merc > 0 ? `<span style=\"background:#2D3748;color:#fff;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:500;\">용병 ${merc}명</span>` : ''}</div>` : ''}
-        </div>`;
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:${idx === 0 ? '0' : '10px'};background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;">
+          <tr>
+            <td style="padding:12px 14px;font-size:14px;line-height:1.55;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="top" align="center" style="width:28px;padding:0 0 4px 0;">🏆</td>
+                  <td valign="top" align="center" style="width:62px;font-weight:700;padding:0 0 4px 0;">유형</td>
+                  <td valign="top" align="left" style="width:16px;font-weight:700;padding:0 0 4px 0;">:</td>
+                  <td valign="top" style="padding:0 0 4px 0;text-align:left;">${formatEventType(game.eventType)}</td>
+                </tr>
+                <tr>
+                  <td valign="top" align="center" style="width:28px;padding:0 0 4px 0;">📅</td>
+                  <td valign="top" align="center" style="width:62px;font-weight:700;padding:0 0 4px 0;">일시</td>
+                  <td valign="top" align="left" style="width:16px;font-weight:700;padding:0 0 4px 0;">:</td>
+                  <td valign="top" style="padding:0 0 4px 0;text-align:left;">${dateStr}${game.time ? ` ⏰ ${game.time}` : ''}</td>
+                </tr>
+                <tr>
+                  <td valign="top" align="center" style="width:28px;padding:0 0 4px 0;">📍</td>
+                  <td valign="top" align="center" style="width:62px;font-weight:700;padding:0 0 4px 0;">장소</td>
+                  <td valign="top" align="left" style="width:16px;font-weight:700;padding:0 0 4px 0;">:</td>
+                  <td valign="top" style="padding:0 0 4px 0;">
+                    <div style="text-align:left;line-height:1.25;">${location}</div>
+                    ${address ? `
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:0;">
+                      <tr>
+                        <td valign="middle" style="color:#4b5563;text-align:left;line-height:1.2;">${address}</td>
+                        <td valign="middle" align="right" style="width:42px;padding-left:8px;">${mapLink}</td>
+                      </tr>
+                    </table>` : ''}
+                  </td>
+                </tr>
+                <tr>
+                  <td valign="top" align="center" style="width:28px;padding:0;">👥</td>
+                  <td valign="top" align="center" style="width:62px;font-weight:700;padding:0;">참가자</td>
+                  <td valign="top" align="left" style="width:16px;font-weight:700;padding:0;">:</td>
+                  <td valign="top" style="padding:0;text-align:left;">${totalParticipantCount}명</td>
+                </tr>
+                ${participantDetailLine}
+              </table>
+            </td>
+          </tr>
+        </table>`;
     }).join('');
+
     return `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 400px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 15px; color: white;">
-        <div style="background: rgba(255, 255, 255, 0.1); padding: 30px; border-radius: 10px; margin-bottom: 30px;">
-          <h2 style="margin: 0 0 20px 0; font-size: 24px; text-align: center;">⚽ 경기 알림</h2>
-          <p style="margin: 0 0 20px 0; font-size: 18px; line-height: 1.6; text-align: center;">확정된 경기 일정을 회원들에게 알립니다.</p>
-          <div style="background: rgba(255, 255, 255, 0.2); padding: 20px; border-radius: 8px; margin-top: 20px;">
-            <h3 style="margin: 0 0 15px 0; font-size: 20px; text-align: center;">다음 경기 일정</h3>
-            ${items}
-          </div>
-        </div>
-        <div style="text-align: center; margin-bottom: 30px;">
-          <div style="display: inline-block; background: rgba(255, 255, 255, 0.2); padding: 15px 25px; border-radius: 25px;">
-            <span style="font-size: 14px; opacity: 0.9;">발송 시간: ${new Date().toLocaleString('ko-KR')}</span>
-          </div>
-        </div>
-        <div style="text-align: center; font-size: 14px; opacity: 0.7;">
-          <p style="margin: 0;">이 이메일은 자동으로 발송되었습니다.</p>
-          <p style="margin: 5px 0 0 0;">FC CHAL GGYEO 관리 시스템</p>
-        </div>
+      <div style="margin:0;padding:16px;background:#f3f4f6;font-family:Arial,'Noto Sans KR','Malgun Gothic',sans-serif;color:#111827;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+          <tr>
+            <td style="background:#4f46e5;color:#ffffff;padding:16px 20px;font-size:20px;font-weight:700;">⚽ 경기 알림</td>
+          </tr>
+          <tr>
+            <td style="padding:16px 20px;font-size:14px;line-height:1.6;">확정된 경기 일정을 회원들에게 알립니다.</td>
+          </tr>
+          <tr>
+            <td style="padding:0 20px 16px 20px;">
+              <div style="font-size:14px;font-weight:700;margin-bottom:8px;">다음 경기 일정</div>
+              ${items}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 20px 16px 20px;font-size:12px;color:#6b7280;">발송 시간: ${nowLabel}</td>
+          </tr>
+          <tr>
+            <td style="padding:0 20px 20px 20px;font-size:12px;color:#9ca3af;">이 이메일은 자동으로 발송되었습니다. FC CHAL GGYEO 관리 시스템</td>
+          </tr>
+        </table>
       </div>`;
   };
 
   // 실제 경기 알림 발송 (프리뷰 HTML 그대로, 실제 수신자 대상으로)
-  const sendGameNotification = () => {
+  const sendGameNotification = async () => {
     console.log('📧 경기 알림 발송 시작 - 현재 상태:', {
       userListCount: userList.length,
       gamesCount: games.length,
@@ -1620,6 +1813,14 @@ export default function AdminPageNew() {
             }
           });
         }
+        // attendances가 비어있는 데이터셋 대비: selected/member 이름으로 사용자 ID 매핑
+        if ((!g.attendances || g.attendances.length === 0) && userList && userList.length > 0) {
+          const { names } = getGameParticipantSummary(g);
+          names.forEach((name) => {
+            const hit = userList.find((u: any) => u.name === name);
+            if (hit?.id) ids.add(hit.id);
+          });
+        }
       });
       recipients = Array.from(ids);
       console.log('📧 경기 알림 발송 - 참가 예정 회원 대상:', {
@@ -1670,16 +1871,22 @@ export default function AdminPageNew() {
     }
 
     const htmlContent = buildGameNotificationHtml();
-    sendNotification({
+    const gameMailImage = buildGameMailImagePayload(futureGames);
+    const ok = await sendNotification({
       type: 'GAME_REMINDER',
       title: '⚽ 경기 알림',
       message: htmlContent,
       recipients,
       deliveryMethods: ['email'],
-      metadata: { isGameNotification: true }
+      metadata: { isGameNotification: true },
+      gameMailImage
     });
 
-    toast({ title: '경기 알림 발송 완료', description: `${recipients.length}명에게 경기 알림이 발송되었습니다.`, status: 'success', duration: 3000, isClosable: true });
+    if (ok) {
+      toast({ title: '경기 알림 발송 완료', description: `${recipients.length}명에게 경기 알림이 발송되었습니다.`, status: 'success', duration: 3000, isClosable: true });
+    } else {
+      toast({ title: '경기 알림 발송 실패', description: lastNotificationErrorRef.current || '이메일 서버 또는 수신자 정보를 확인해주세요.', status: 'error', duration: 5000, isClosable: true });
+    }
   };
 
   // 푸시 알림 발송
@@ -2574,6 +2781,64 @@ export default function AdminPageNew() {
   const { isOpen: isGamePreviewOpen, onOpen: onGamePreviewOpen, onClose: onGamePreviewClose } = useDisclosure();
   const { isOpen: isVotePreviewOpen, onOpen: onVotePreviewOpen, onClose: onVotePreviewClose } = useDisclosure();
 
+  const [gamePreviewObjectUrl, setGamePreviewObjectUrl] = useState<string>('');
+  const [gamePreviewLoading, setGamePreviewLoading] = useState(false);
+  const [gamePreviewError, setGamePreviewError] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!isGamePreviewOpen) return;
+
+      setGamePreviewLoading(true);
+      setGamePreviewError('');
+
+      if (gamePreviewObjectUrl) {
+        URL.revokeObjectURL(gamePreviewObjectUrl);
+        setGamePreviewObjectUrl('');
+      }
+
+      try {
+        const { objectUrl, error } = await loadGameMailPreviewImage();
+        if (cancelled) {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        if (error) {
+          setGamePreviewError(error);
+          setGamePreviewObjectUrl('');
+        } else {
+          setGamePreviewObjectUrl(objectUrl);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setGamePreviewError(e?.message || '이미지 프리뷰를 불러오지 못했습니다.');
+          setGamePreviewObjectUrl('');
+        }
+      } finally {
+        if (!cancelled) setGamePreviewLoading(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGamePreviewOpen, loadGameMailPreviewImage]);
+
+  const handleGamePreviewClose = () => {
+    if (gamePreviewObjectUrl) {
+      URL.revokeObjectURL(gamePreviewObjectUrl);
+      setGamePreviewObjectUrl('');
+    }
+    setGamePreviewError('');
+    setGamePreviewLoading(false);
+    onGamePreviewClose();
+  };
+
   // 수동 알림 발송 함수들
   const sendTestNotification = () => {
     sendNotification({
@@ -2630,35 +2895,61 @@ export default function AdminPageNew() {
     onVotePreviewOpen();
   };
 
-  const sendVoteReminder = () => {
+  const sendVoteReminder = async () => {
     const voteDeadline = getVoteDeadline();
     
     // 투표하지 않은 회원 목록 가져오기 (getNonVoters 함수 사용)
     const nonVoters = getNonVoters();
+    const voteTarget = notificationSettings.voteReminder.targets[0] || 'nonVoters';
+    const recipients = voteTarget === 'all' ? userList : nonVoters;
+
+    if (recipients.length === 0) {
+      toast({
+        title: '투표 알림 발송 불가',
+        description: voteTarget === 'all' ? '발송 대상 회원이 없습니다.' : '현재 투표 미참여 회원이 없습니다.',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
     
     // 투표 독려 이메일 생성 (카운트다운 포함)
     const emailMessage = createVoteReminderEmail(voteDeadline, nonVoters);
     
-    sendNotification({
+    const ok = await sendNotification({
       type: 'VOTE_REMINDER',
       title: '🗳️ 투표 독려 알림',
       message: emailMessage,
-      recipients: nonVoters.map(user => user.id), // 투표하지 않은 회원에게만 발송
+      recipients: recipients.map(user => user.id),
       deliveryMethods: ['email'],
       metadata: { 
         deadline: voteDeadline.deadline.toISOString(),
         isManual: true,
-        nonVoterCount: nonVoters.length
+        nonVoterCount: nonVoters.length,
+        target: voteTarget
       }
     });
 
-    toast({
-      title: '투표 독려 알림 발송',
-      description: `투표하지 않은 ${nonVoters.length}명의 회원에게 투표 독려 알림이 발송되었습니다.`,
-      status: 'success',
-      duration: 3000,
-      isClosable: true,
-    });
+    if (ok) {
+      toast({
+        title: '투표 독려 알림 발송',
+        description: voteTarget === 'all'
+          ? `전체 ${recipients.length}명의 회원에게 투표 알림이 발송되었습니다.`
+          : `투표하지 않은 ${recipients.length}명의 회원에게 투표 독려 알림이 발송되었습니다.`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } else {
+      toast({
+        title: '투표 알림 발송 실패',
+        description: lastNotificationErrorRef.current || '이메일 서버 또는 수신자 정보를 확인해주세요.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
   };
 
   // 연속 미참여 투표 수 계산
@@ -4427,7 +4718,7 @@ export default function AdminPageNew() {
       </Flex>
 
       {/* 경기 알림 프리뷰 모달 */}
-      <Modal isOpen={isGamePreviewOpen} onClose={onGamePreviewClose} size="xl">
+      <Modal isOpen={isGamePreviewOpen} onClose={handleGamePreviewClose} size="xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>경기 알림 프리뷰</ModalHeader>
@@ -4440,150 +4731,30 @@ export default function AdminPageNew() {
               borderRadius="md"
               bg="white"
             >
-                      <div 
-                        style={{
-                          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                          maxWidth: "600px",
-                          margin: "0 auto",
-                          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                          padding: "40px",
-                          borderRadius: "15px",
-                          color: "white"
-                        }}
-                      >
-                        <div style={{ background: "rgba(255, 255, 255, 0.1)", padding: "30px", borderRadius: "10px", marginBottom: "30px" }}>
-                          <h2 style={{ margin: "0 0 20px 0", fontSize: "24px", textAlign: "center" }}>⚽ 경기 알림</h2>
-                          <p style={{ margin: "0 0 20px 0", fontSize: "18px", lineHeight: "1.6", textAlign: "center" }}>
-                            확정된 경기 일정을 회원들에게 알립니다.
-                          </p>
-                          
-                          {/* 실제 경기 데이터 표시 (미래 경기만 프리뷰) */}
-                          {(() => {
-                            const now = new Date();
-                            const futureGames = (games || []).filter(g => {
-                              const d = new Date(g.date);
-                              return d.getTime() >= now.getTime();
-                            });
-                            return futureGames.length > 0 ? (
-                            <div style={{ background: "rgba(255, 255, 255, 0.2)", padding: "20px", borderRadius: "8px", marginTop: "20px" }}>
-                              <h3 style={{ margin: "0 0 15px 0", fontSize: "20px", textAlign: "center" }}>다음 경기 일정</h3>
-                              {futureGames.slice(0, 3).map((game, index) => (
-                                <div key={index} style={{ marginBottom: "15px", padding: "15px", background: "rgba(255, 255, 255, 0.1)", borderRadius: "8px" }}>
-                                  {/* 첫번째줄: 경기유형 */}
-                                  <div style={{ fontSize: "14px", marginBottom: "5px" }}>
-                                    🏆 {(() => {
-                                      const eventType = game.eventType || '자체';
-                                      if (['풋살', 'FRIENDLY', 'FRIENDLY_MATCH'].includes(eventType)) return '매치';
-                                      if (!['매치', '자체', '회식', '기타'].includes(eventType)) return '기타';
-                                      return eventType;
-                                    })()}
-                                  </div>
-                                  {/* 두번째줄: 일시 */}
-                                  <div style={{ fontSize: "14px", marginBottom: "5px" }}>
-                                    📅 {new Date(game.date).toLocaleDateString('ko-KR', { 
-                                      year: 'numeric', 
-                                      month: 'long', 
-                                      day: 'numeric',
-                                      weekday: 'long'
-                                    })} {game.time ? `⏰ ${game.time}` : ''}
-                                  </div>
-                                  {/* 세번째줄: 장소 */}
-                                  <div style={{ fontSize: "14px", marginBottom: "5px" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: game.locationAddress ? "4px" : "0" }}>
-                                      📍 {game.location || '장소 미정'}
-                                      {game.location && (
-                                        <button 
-                                          style={{
-                                            background: "#FFD700",
-                                            border: "none",
-                                            borderRadius: "4px",
-                                            color: "#0066CC",
-                                            padding: "4px 8px",
-                                            fontSize: "12px",
-                                            cursor: "pointer",
-                                            fontWeight: "bold"
-                                          }}
-                                          onClick={() => {
-                                            // location에서 세부 장소 제거 (마지막 공백 이후 부분 제거)
-                                            const locationBase = game.location.includes(' ') ? game.location.substring(0, game.location.lastIndexOf(' ')) : game.location;
-                                            window.open(`https://map.kakao.com/link/search/${encodeURIComponent(locationBase)}`, '_blank');
-                                          }}
-                                        >
-                                          K
-                                        </button>
-                                      )}
-                                    </div>
-                                    {/* 주소 표시 */}
-                                    {game.locationAddress && (
-                                      <div style={{ fontSize: "12px", opacity: "0.9", paddingLeft: "24px" }}>
-                                        {game.locationAddress}
-                                      </div>
-                                    )}
-                                  </div>
-                                  {/* 네번째줄: 참가자 인원수 */}
-                                  <div style={{ fontSize: "14px", marginBottom: "5px" }}>
-                                    👥 참가자: {game.totalParticipantCount || 0}명
-                                  </div>
-                                  {/* 다섯번째줄: 참가인원 이름 나열 (pill 형식) */}
-                                  {game.allParticipantNames && game.allParticipantNames.length > 0 && (
-                                    <div style={{ fontSize: "14px", marginBottom: "5px", opacity: "0.9", display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                                      {game.allParticipantNames.map((name, index) => (
-                                        <span 
-                                          key={index}
-                                          style={{
-                                            background: "#3182CE",
-                                            color: "white",
-                                            padding: "2px 8px",
-                                            borderRadius: "12px",
-                                            fontSize: "12px",
-                                            fontWeight: "500"
-                                          }}
-                                        >
-                                          {name}
-                                        </span>
-                                      ))}
-                                      {game.mercenaryCount > 0 && (
-                                        <span 
-                                          style={{
-                                            background: "#2D3748",
-                                            color: "white",
-                                            padding: "2px 8px",
-                                            borderRadius: "12px",
-                                            fontSize: "12px",
-                                            fontWeight: "500"
-                                          }}
-                                        >
-                                          용병 {game.mercenaryCount}명
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            ) : (
-                            <div style={{ background: "rgba(255, 255, 255, 0.2)", padding: "20px", borderRadius: "8px", marginTop: "20px", textAlign: "center" }}>
-                              <p style={{ margin: "0", fontSize: "16px" }}>현재 확정된 경기가 없습니다.</p>
-                            </div>
-                            );
-                          })()}
-                        </div>
-                
-                <div style={{ textAlign: "center", marginBottom: "30px" }}>
-                  <div style={{ display: "inline-block", background: "rgba(255, 255, 255, 0.2)", padding: "15px 25px", borderRadius: "25px" }}>
-                    <span style={{ fontSize: "14px", opacity: "0.9" }}>발송 시간: {new Date().toLocaleString('ko-KR')}</span>
-                  </div>
-                </div>
-                
-                <div style={{ textAlign: "center", fontSize: "14px", opacity: "0.7" }}>
-                  <p style={{ margin: "0" }}>이 이메일은 자동으로 발송되었습니다.</p>
-                  <p style={{ margin: "5px 0 0 0" }}>FC CHAL GGYEO 관리 시스템</p>
-                </div>
-              </div>
+              {gamePreviewLoading ? (
+                <Center minH="240px">
+                  <Spinner size="lg" color="blue.500" />
+                </Center>
+              ) : gamePreviewError ? (
+                <Text fontSize="sm" color="red.600" whiteSpace="pre-wrap">
+                  {gamePreviewError}
+                </Text>
+              ) : gamePreviewObjectUrl ? (
+                <Box maxW="720px" mx="auto">
+                  <Box as="img" src={gamePreviewObjectUrl} alt="경기 알림 카드" width="100%" borderRadius="md" border="1px solid" borderColor="gray.100" />
+                  <Text mt={3} fontSize="xs" color="gray.500">
+                    실제 발송 메일 본문에도 동일한 PNG 카드가 표시됩니다.
+                  </Text>
+                </Box>
+              ) : (
+                <Text fontSize="sm" color="gray.600">
+                  프리뷰를 준비하는 중입니다...
+                </Text>
+              )}
             </Box>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" onClick={onGamePreviewClose}>닫기</Button>
+            <Button colorScheme="blue" onClick={handleGamePreviewClose}>닫기</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

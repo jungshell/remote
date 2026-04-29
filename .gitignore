@@ -51,6 +51,11 @@ PROJECT_INVENTORY.txt
 pdf-tools/
 scripts/
 
+# workhub local runtime artifacts
+workhub/prisma/*.db
+workhub/prisma/*.db-journal
+workhub/uploads/
+
 # Drive temp folders found in root
 .tmp.drivedownload/
 .tmp.driveupload/

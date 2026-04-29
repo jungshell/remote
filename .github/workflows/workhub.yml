@@ -1,0 +1,33 @@
+name: workhub build
+
+on:
+  push:
+    paths:
+      - "workhub/**"
+      - ".github/workflows/workhub.yml"
+  pull_request:
+    paths:
+      - "workhub/**"
+      - ".github/workflows/workhub.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workhub
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: workhub/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Prisma + Next build
+        env:
+          DATABASE_URL: "file:./dev.db"
+          WORKHUB_SECRET: "ci-test-secret-min-32-chars-long-ok"
+          WORKHUB_PASSWORD: "ci-test-password"
+        run: npx prisma db push && npm run build

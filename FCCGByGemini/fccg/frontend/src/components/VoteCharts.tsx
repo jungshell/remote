@@ -85,7 +85,12 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
   }
 
   const weekStartDate = new Date(voteResults.weekStartDate);
-  const barChartData = Object.entries(voteResults.results).map(([day, data], index) => {
+  const weekdayOrder: Record<string, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
+  const barChartData = Object.entries(voteResults.results)
+    .filter(([day]) => day in weekdayOrder)
+    .sort(([a], [b]) => (weekdayOrder[a] ?? 999) - (weekdayOrder[b] ?? 999))
+    .map(([day, data]) => {
+    const index = weekdayOrder[day] ?? 0;
     const currentDate = new Date(weekStartDate.getTime() + index * 24 * 60 * 60 * 1000);
     const dayName = day === 'MON' ? '월' : day === 'TUE' ? '화' : day === 'WED' ? '수' : day === 'THU' ? '목' : '금';
     const chartData = {
@@ -117,8 +122,8 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
   }
 
   // 도넛 차트용 데이터 변환
-  const weekdayOrder: Record<string, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
   const pieChartData = Object.entries(voteResults.results)
+    .filter(([day]) => day in weekdayOrder)
     .filter(([, data]) => data.count > 0)
     .map(([day, data]) => ({
       name: day === 'MON' ? '월' : day === 'TUE' ? '화' : day === 'WED' ? '수' : day === 'THU' ? '목' : '금',

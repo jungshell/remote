@@ -11,6 +11,19 @@ export function getKoreaTime(): Date {
   return new Date(currentTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
 }
 
+export function getKstDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === 'year')?.value ?? '0000';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '00';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '00';
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * 이번주 월요일 계산 (한국시간 기준)
  */
@@ -53,6 +66,16 @@ export function getWeekFriday(weekMonday: Date): Date {
   friday.setDate(weekMonday.getDate() + 4);
   friday.setHours(23, 59, 59, 999);
   return friday;
+}
+
+/**
+ * 세션 대상 주(weekStartDate=월요일) 기준 마감시각: 직전 일요일 23:59:59.999
+ */
+export function getVoteSessionSundayDeadline(weekMonday: Date): Date {
+  const deadline = new Date(weekMonday);
+  deadline.setDate(weekMonday.getDate() - 1);
+  deadline.setHours(23, 59, 59, 999);
+  return deadline;
 }
 
 /**

@@ -5,14 +5,6 @@ import { Flex, Badge, Tooltip } from '@chakra-ui/react';
 import { useAuthStore } from '../store/auth';
 import { API_ENDPOINTS } from '../constants';
 
-// 공휴일 체크 함수 (날짜 문자열에서 공휴일 확인)
-const isHolidayDate = (dateString: string, holidayMap: Record<string, string>): boolean => {
-  // YYYY-MM-DD 형식으로 변환하여 확인
-  const date = new Date(dateString);
-  const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  return holidayMap[formattedDate] !== undefined;
-};
-
 // 애니메이션 정의
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(10px); }
@@ -205,8 +197,12 @@ const DayCell = styled.div.withConfig({
       if (props.hasVote) return '#f7fafc';
       return props.isCurrentMonth ? '#f7fafc' : '#edf2f7';
     }};
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: ${props =>
+      props.hasGame ? 'translateY(-3px) scale(1.02)' : 'translateY(-1px)'};
+    box-shadow: ${props =>
+      props.hasGame
+        ? '0 6px 18px rgba(0, 78, 168, 0.22)'
+        : '0 4px 12px rgba(0, 0, 0, 0.1)'};
   }
   
   // 모든 날짜 셀의 크기를 동일하게 고정 (isCurrentMonth와 무관하게)
@@ -408,14 +404,14 @@ const VoteContainer = styled.div`
   width: 100%;
 `;
 
-const VoteGauge = styled.div<{ percentage: number }>`
+const VoteGauge = styled.div<{ percentage: number; isMax: boolean }>`
   height: 15px;
   width: 100%;
-  background: #e0e7ff;
+  background: ${props => props.isMax ? '#ddd6fe' : '#ede9fe'};
   border-radius: 7px;
   overflow: hidden;
   position: relative;
-  border: 1px solid #c4b5fd;
+  border: 1px solid ${props => props.isMax ? '#7c3aed' : '#c4b5fd'};
   transition: all 0.3s ease;
   
   &::after {
@@ -425,7 +421,7 @@ const VoteGauge = styled.div<{ percentage: number }>`
     left: 0;
     height: 100%;
     width: 0%;
-    background: ${props => props.percentage >= 80 ? '#7c3aed' : '#a78bfa'};
+    background: ${props => props.isMax ? '#7c3aed' : '#a78bfa'};
     border-radius: 7px;
     animation: ${props => props.percentage > 0 ? css`${gaugeFill} 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards` : 'none'};
     transition: all 0.3s ease;
@@ -550,6 +546,40 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
   const [currentDate, setCurrentDate] = useState(dayjs());
   const [holidays, setHolidays] = useState<Record<string, string>>({}); // 빈 객체로 시작 (API에서 로드)
   const { user } = useAuthStore();
+  const targetVoteMonth = useMemo(() => {
+    if (!nextWeekVoteData || nextWeekVoteData.length === 0) return null;
+    const withVoteDate = nextWeekVoteData.find((item) => item.voteDate);
+    const candidate = withVoteDate || nextWeekVoteData[0];
+    const parsed = dayjs(candidate.voteDate);
+    if (!parsed.isValid()) return null;
+    return parsed.startOf('month');
+  }, [nextWeekVoteData]);
+
+  useEffect(() => {
+    if (!targetVoteMonth) return;
+    if (!currentDate.isSame(targetVoteMonth, 'month')) {
+      setCurrentDate(targetVoteMonth);
+    }
+  }, [targetVoteMonth]);
+
+  const disabledDayKeySet = useMemo(() => {
+    const set = new Set<string>();
+    const raw = unifiedVoteData?.activeSession?.disabledDays;
+    if (!raw) return set;
+    try {
+      const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(arr)) {
+        arr.forEach((item: any) => {
+          if (item?.day && typeof item.day === 'string') {
+            set.add(item.day);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('disabledDays 파싱 실패(NewCalendarV2):', e);
+    }
+    return set;
+  }, [unifiedVoteData?.activeSession?.disabledDays]);
   
   // 공휴일 데이터 가져오기
   useEffect(() => {
@@ -708,6 +738,11 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
     
     // 통합 API에서 해당 날짜의 투표 수 찾기
     let voteCount = 0;
+    const dayOfWeek = day.day(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
+    const dayKeys = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const dayKey = dayKeys[dayOfWeek];
+    const isVoteDisabledByAdmin = disabledDayKeySet.has(dayKey);
+
     if (unifiedVoteData?.activeSession?.results) {
       const dayOfWeek = day.day(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
       const dayKeys = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -819,7 +854,7 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
       }
     }
 
-    if (weekHasConfirmed) {
+    if (weekHasConfirmed || (isNextWeekVoteDay && isVoteDisabledByAdmin)) {
       showVoteForThisDay = false;
       voteCount = 0;
     }
@@ -850,7 +885,7 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
     }
     
     return daysArray;
-  }, [holidays, currentDate, startOfCalendar, endOfCalendar, gameDataForCalendar, allDates, unifiedVoteData]);
+  }, [holidays, currentDate, startOfCalendar, endOfCalendar, gameDataForCalendar, allDates, unifiedVoteData, disabledDayKeySet]);
   
   const goToPreviousMonth = () => {
     const newDate = dayjs(currentDate).subtract(1, 'month');
@@ -964,7 +999,7 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                   }}
                 >
                   {/* 공휴일이 아닌 경우에만 인원수 pill 표시 */}
-                  {dayInfo.date && !isNaN(dayInfo.date.getTime()) && !isHolidayDate(dayjs(dayInfo.date).format('M월 D일'), holidays) && (
+                  {dayInfo.date && !isNaN(dayInfo.date.getTime()) && !dayInfo.isHoliday && (
                     <GameCountBadge>
                       ⚽ {dayInfo.gameData.count}명
                     </GameCountBadge>
@@ -979,7 +1014,7 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
               )}
               
               {/* 투표 게이지 표시 - 다음주 일정투표(동적) (월 경계 무시하고 표시) */}
-              {dayInfo.hasVote && dayInfo.date && !isNaN(dayInfo.date.getTime()) && !isHolidayDate(dayjs(dayInfo.date).format('M월 D일'), holidays) && (
+              {dayInfo.hasVote && dayInfo.date && !isNaN(dayInfo.date.getTime()) && !dayInfo.isHoliday && (
                 <Tooltip 
                   label={(() => {
                     // 통합 API 데이터에서 직접 투표자 이름 찾기
@@ -1018,8 +1053,12 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                   py={2}
                 >
                   <VoteContainer>
+                    {(() => {
+                      const isMaxVoteDay = dayInfo.voteCount > 0 && dayInfo.voteCount === getMaxVoteCount();
+                      const hasVotes = dayInfo.voteCount > 0;
+                      return (
                     <Badge 
-                      colorScheme={dayInfo.voteCount > 0 ? "purple" : "gray"}
+                      colorScheme={hasVotes ? "purple" : "gray"}
                       variant="outline" 
                       borderRadius="full" 
                       px={3} 
@@ -1030,16 +1069,18 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                       display="flex"
                       alignItems="center"
                       justifyContent="center"
-                      fontWeight={dayInfo.voteCount > 0 && dayInfo.voteCount === getMaxVoteCount() ? "bold" : "normal"}
+                      fontWeight={isMaxVoteDay ? "bold" : "normal"}
                       mx="auto"
                       borderWidth="0.3px"
-                      bg={dayInfo.voteCount > 0 ? "purple.50" : "gray.50"}
-                      borderColor={dayInfo.voteCount > 0 ? "purple.400" : "gray.300"}
-                      color={dayInfo.voteCount > 0 ? "purple.700" : "gray.600"}
+                      bg={isMaxVoteDay ? "purple.600" : (hasVotes ? "purple.100" : "gray.50")}
+                      borderColor={isMaxVoteDay ? "purple.700" : (hasVotes ? "purple.300" : "gray.300")}
+                      color={isMaxVoteDay ? "white" : (hasVotes ? "purple.700" : "gray.600")}
                     >
                       {dayInfo.voteCount}명
                     </Badge>
-                    <VoteGauge percentage={calculateGaugePercentage(dayInfo.voteCount)} />
+                      );
+                    })()}
+                    <VoteGauge percentage={calculateGaugePercentage(dayInfo.voteCount)} isMax={dayInfo.voteCount > 0 && dayInfo.voteCount === getMaxVoteCount()} />
                   </VoteContainer>
                 </Tooltip>
               )}

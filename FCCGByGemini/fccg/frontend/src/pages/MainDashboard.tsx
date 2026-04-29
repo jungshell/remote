@@ -238,6 +238,7 @@ export default function MainDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const initialDataLoadedRef = useRef(false);
   
   // 투표 현황 상태
   const [voteData, setVoteData] = useState<any[]>([]);
@@ -749,29 +750,45 @@ export default function MainDashboard() {
   // 멤버 데이터 가져오기 함수
   // 초기 로딩 시 실시간 데이터 fetch
   useEffect(() => {
+    if (initialDataLoadedRef.current) return;
+    initialDataLoadedRef.current = true;
+
     setLoading(true);
     setError(null);
     
     // 런타임에서 BASE_URL 가져오기
     const loadData = async () => {
       const baseUrl = await import('../constants').then(m => m.ensureApiBaseUrl()).catch(() => '/api/auth');
+      const withTimeout = async <T,>(promise: Promise<T>, timeoutMs = 8000, fallback: T): Promise<T> => {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<T>((resolve) => {
+          timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
+        });
+        const result = await Promise.race([promise, timeoutPromise]);
+        if (timeoutId) clearTimeout(timeoutId);
+        return result;
+      };
     
     // 통계 데이터, 멤버 데이터, 경기 데이터, 투표 데이터를 모두 fetch
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token_backup');
+    // 통합 투표 데이터는 백그라운드로 분리해서 첫 화면 블로킹 방지
+    loadUnifiedVoteData().catch(() => undefined);
     Promise.all([
       // 통계 API 호출 (로그인 시에만)
       token 
-        ? fetch(`${baseUrl}/members/stats`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
-          .then(res => res.json())
-          .catch(() => null)
+        ? withTimeout(
+            fetch(`${baseUrl}/members/stats`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+              .then(res => res.json())
+              .catch(() => null),
+            6000,
+            null
+          )
         : Promise.resolve(null),
-      fetchRealTimeMembers(),
+      withTimeout(fetchRealTimeMembers(), 8000, undefined),
       // 경기 데이터 가져오기
-      fetchRealTimeGames(),
-      // 통합 투표 데이터 가져오기
-      loadUnifiedVoteData()
+      withTimeout(fetchRealTimeGames(), 8000, undefined)
     ]).then(([statsData]) => {
       if (statsData && !statsData.error) {
         setStats({
@@ -804,7 +821,7 @@ export default function MainDashboard() {
     };
 
     loadData();
-  }, [fetchRealTimeMembers, fetchRealTimeGames, fetchVoteData, loadUnifiedVoteData]);
+  }, [fetchRealTimeMembers, fetchRealTimeGames, loadUnifiedVoteData]);
 
   // 투표 데이터는 초기 로드 + 주기적 갱신에서만 호출 (불필요한 반복 호출 방지)
 
@@ -1102,10 +1119,10 @@ export default function MainDashboard() {
   // 투표 모달 열릴 때 투표 데이터 fetch
   useEffect(() => {
     if (isOpen && modalIdx === 3) { // 다음주 경기 투표하기 모달
-      fetchVoteData();
+      // 모달에서는 unifiedVoteData만 사용하므로 중복 API 호출을 줄여 체감 로딩 개선
       loadUnifiedVoteData(); // 통합 투표 데이터도 함께 로드
     }
-  }, [isOpen, modalIdx, fetchVoteData, loadUnifiedVoteData]);
+  }, [isOpen, modalIdx, loadUnifiedVoteData]);
 
   // 상세 내용 생성 함수
   function getDetailContent(idx: number) {
@@ -1598,6 +1615,24 @@ export default function MainDashboard() {
                     </Box>
                   </Flex>
                 </Box>
+
+                <Flex justify="flex-end">
+                  <Button
+                    colorScheme="blue"
+                    size="sm"
+                    onClick={() => {
+                      onClose();
+                      // 일부 환경에서 라우터 navigate가 모달 닫힘과 경합되는 케이스가 있어 강제 이동 사용
+                      if (typeof window !== 'undefined') {
+                        window.location.href = '/schedule-v2';
+                      } else {
+                        navigate('/schedule-v2');
+                      }
+                    }}
+                  >
+                    투표하러 가기
+                  </Button>
+                </Flex>
               </Box>
             ) : (
               <Text textAlign="center" color="gray.500">
@@ -1667,6 +1702,7 @@ export default function MainDashboard() {
         >
           <IconButton icon={<ChevronLeftIcon />} aria-label="이전" position="absolute" left={2} top="50%" transform="translateY(-50%)" onClick={handlePrev} zIndex={2} bg="white" color="#004ea8" boxShadow="md" _hover={{ bg: "gray.100" }}/>
           <Box
+            key={currentVideo.id}
             w="100%"
             h="100%"
             position="relative"
@@ -1679,6 +1715,13 @@ export default function MainDashboard() {
             maxW="100%"
             display="block"
             boxSizing="border-box"
+            sx={{
+              animation: 'fccg-yt-in 0.38s ease-out',
+              '@keyframes fccg-yt-in': {
+                from: { opacity: 0, transform: 'scale(0.97)' },
+                to: { opacity: 1, transform: 'scale(1)' },
+              },
+            }}
           >
             {/* 영상 제목 왼쪽 위에 예쁘게 노출 */}
             <Box position="absolute" top={3} left={3} bg="rgba(0,0,0,0.55)" color="white" px={4} py={2} borderRadius="lg" fontWeight="bold" fontSize="md" zIndex={3} boxShadow="md" maxW="80%" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
