@@ -59,6 +59,23 @@ async function ensureNextWeekVoteSessionExists() {
   };
 }
 
+async function findExistingSessionByWeekKst(targetWeekMonday: Date) {
+  const targetWeekKey = getKstDateKey(targetWeekMonday);
+  const aroundStart = new Date(targetWeekMonday.getTime() - 36 * 60 * 60 * 1000);
+  const aroundEnd = new Date(targetWeekMonday.getTime() + 36 * 60 * 60 * 1000);
+  const candidates = await prisma.voteSession.findMany({
+    where: {
+      weekStartDate: {
+        gte: aroundStart,
+        lte: aroundEnd
+      }
+    },
+    orderBy: { id: 'desc' }
+  });
+
+  return candidates.find((s) => getKstDateKey(new Date(s.weekStartDate)) === targetWeekKey) || null;
+}
+
 function escapeHtml(text: string) {
   return String(text ?? '')
     .replace(/&/g, '&amp;')
@@ -2343,8 +2360,7 @@ router.post('/cleanup-duplicate-sessions', authenticateToken, async (req, res) =
     const sessionsByWeek = new Map();
     
     for (const session of sessions) {
-      const weekStart = new Date(session.weekStartDate);
-      const weekKey = `${weekStart.getFullYear()}-${weekStart.getMonth()}-${weekStart.getDate()}`;
+      const weekKey = getKstDateKey(new Date(session.weekStartDate));
       
       if (!sessionsByWeek.has(weekKey)) {
         sessionsByWeek.set(weekKey, []);
@@ -2355,13 +2371,25 @@ router.post('/cleanup-duplicate-sessions', authenticateToken, async (req, res) =
     let deletedCount = 0;
     let keptSessions = [];
     
-    // 각 주간별로 가장 최신 세션만 남기고 나머지 삭제
+    // 각 주간별로 보존 우선순위를 적용해 1개만 남기고 삭제
     for (const [weekKey, weekSessions] of sessionsByWeek) {
       if (weekSessions.length > 1) {
-        // ID 기준으로 정렬하여 가장 최신 세션 찾기
-        weekSessions.sort((a, b) => b.id - a.id);
-        const keepSession = weekSessions[0];
-        const deleteSessions = weekSessions.slice(1);
+        const sessionsWithVoteCount = await Promise.all(
+          weekSessions.map(async (s: any) => {
+            const voteCount = await prisma.vote.count({ where: { voteSessionId: s.id } });
+            return { ...s, voteCount };
+          })
+        );
+        sessionsWithVoteCount.sort((a: any, b: any) => {
+          const voteDiff = b.voteCount - a.voteCount;
+          if (voteDiff !== 0) return voteDiff;
+          const activeDiff = Number(b.isActive) - Number(a.isActive);
+          if (activeDiff !== 0) return activeDiff;
+          return b.id - a.id;
+        });
+
+        const keepSession = sessionsWithVoteCount[0];
+        const deleteSessions = sessionsWithVoteCount.slice(1);
         
         // 삭제할 세션들의 관련 투표 데이터도 함께 삭제
         for (const session of deleteSessions) {
@@ -2856,39 +2884,36 @@ router.get('/unified-vote-data', async (req, res) => {
 });
 
 // 주간 투표 세션 자동 생성 API
-router.post('/start-weekly-vote', async (req, res) => {
+router.post('/start-weekly-vote', authenticateToken, async (req, res) => {
   try {
-    // 다음주 월요일 날짜 계산 (동적으로 계산)
-    const currentTime = new Date();
-    const nextMonday = new Date(currentTime);
-    
-    // 현재 요일이 일요일(0)이면 다음 월요일로, 아니면 다음주 월요일로
-    if (currentTime.getDay() === 0) {
-      nextMonday.setDate(currentTime.getDate() + 1); // 일요일이면 다음날(월요일)
-    } else {
-      nextMonday.setDate(currentTime.getDate() + (8 - currentTime.getDay()) % 7); // 다른 요일이면 다음주 월요일
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: '인증이 필요합니다.' });
     }
-    nextMonday.setHours(0, 1, 0, 0); // 월요일 00:01
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: '관리자만 실행할 수 있습니다.' });
+    }
+
+    const koreaTime = getKoreaTime();
+    const dayOfWeek = koreaTime.getDay();
+    const hour = koreaTime.getHours();
+    const minute = koreaTime.getMinutes();
+    if (dayOfWeek !== 1 || (hour === 0 && minute < 1)) {
+      return res.status(400).json({
+        error: '자동 생성 정책에 따라 월요일 00:01(KST) 이후에만 생성 가능합니다.'
+      });
+    }
+
+    const nextMonday = getNextWeekMonday(koreaTime);
+    nextMonday.setHours(0, 0, 0, 0);
 
     // 세션 마감일: 대상 주차 시작 직전 일요일 23:59
     const endTime = getVoteSessionSundayDeadline(nextMonday);
 
-    // 중복 체크 - 정확한 주간(월요일) 비교
-    const nextMondayDateOnly = new Date(
-      nextMonday.getFullYear(),
-      nextMonday.getMonth(),
-      nextMonday.getDate()
-    );
-    nextMondayDateOnly.setHours(0, 0, 0, 0);
-    
-    const existingSession = await prisma.voteSession.findFirst({
-      where: {
-        weekStartDate: {
-          gte: nextMondayDateOnly,
-          lt: new Date(nextMondayDateOnly.getTime() + 24 * 60 * 60 * 1000) // 다음날 00:00 이전
-        }
-      }
-    });
+    // 중복 체크 - KST 기준 주차 키 비교
+    const existingSession = await findExistingSessionByWeekKst(nextMonday);
 
     if (existingSession) {
       return res.status(400).json({
@@ -2923,7 +2948,7 @@ router.post('/start-weekly-vote', async (req, res) => {
       data: {
         id: nextSessionId,
         weekStartDate: nextMonday,
-        startTime: nextMonday,
+        startTime: new Date(koreaTime),
         endTime,
         isActive: true,
         isCompleted: false
@@ -2975,15 +3000,8 @@ router.post('/admin/vote-sessions/create', authenticateToken, async (req, res) =
       console.log('📅 주 시작일을 해당 주 월요일로 정규화:', weekStart.toISOString().split('T')[0]);
     }
 
-    // 중복 체크
-    const existingSession = await prisma.voteSession.findFirst({
-      where: {
-        weekStartDate: {
-          gte: weekStart,
-          lt: new Date(weekStart.getTime() + 24 * 60 * 60 * 1000)
-        }
-      }
-    });
+    // 중복 체크(KST 주차 키 기준)
+    const existingSession = await findExistingSessionByWeekKst(weekStart);
 
     if (existingSession) {
       return res.status(400).json({
