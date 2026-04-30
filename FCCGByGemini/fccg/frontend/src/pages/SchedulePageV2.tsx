@@ -164,6 +164,15 @@ const uniqueParticipantNames = (participants: any[] = []) =>
     )
   );
 
+const formatNamesThreePerLine = (names: string[]) => {
+  if (!Array.isArray(names) || names.length === 0) return '-';
+  const lines: string[] = [];
+  for (let i = 0; i < names.length; i += 3) {
+    lines.push(names.slice(i, i + 3).join(', '));
+  }
+  return lines.join('\n');
+};
+
 const VOTE_FEEDBACK_STORAGE_KEY = 'fccg_vote_feedback_v1';
 
 export default function SchedulePageV2() {
@@ -3396,12 +3405,12 @@ export default function SchedulePageV2() {
                                     if (dayKey && unifiedVoteData.activeSession.results[dayKey]?.participants) {
                                       const dayResult = unifiedVoteData.activeSession.results[dayKey];
                                       const memberNames = uniqueParticipantNames(dayResult.participants);
-                                      return memberNames.length > 0 ? memberNames.join(', ') : '-';
+                                      return formatNamesThreePerLine(memberNames);
                                     }
                                   }
                                 }
                                 const memberNames = getVoteMemberNames(vote.date, voteResults, user);
-                                return memberNames.length > 0 ? memberNames.join(', ') : '-';
+                                return formatNamesThreePerLine(memberNames);
                               })()}
                               placement="top"
                               hasArrow
@@ -3412,7 +3421,7 @@ export default function SchedulePageV2() {
                               px={3}
                               py={2}
                               maxW="200px"
-                              whiteSpace="normal"
+                              whiteSpace="pre-line"
                             >
                               <Badge
                                   colorScheme="purple"
