@@ -59,6 +59,15 @@ async function ensureNextWeekVoteSessionExists() {
   };
 }
 
+function escapeHtml(text: string) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // 공통 에러 핸들링 함수
 const handleError = (error: any, res: any, operation: string) => {
   console.error(`❌ ${operation} 오류:`, error);
@@ -2373,12 +2382,9 @@ router.post('/cleanup-duplicate-sessions', authenticateToken, async (req, res) =
       }
     }
     
-    // 세션 번호 재정렬 (가장 오래된 세션이 1번)
-    await reorderSessionNumbers(prisma);
-    
     
     res.status(200).json({
-      message: '중복 세션 정리 및 번호 재정렬이 완료되었습니다.',
+      message: '중복 세션 정리가 완료되었습니다.',
       deletedCount,
       keptSessions: keptSessions.length
     });
@@ -2513,12 +2519,9 @@ router.delete('/vote-sessions/:id', authenticateToken, async (req, res) => {
       where: { id: sessionId }
     });
 
-    // 세션 삭제 후 번호 재정렬 (가장 오래된 세션이 1번)
-    await reorderSessionNumbers(prisma);
-
     
     res.status(200).json({ 
-      message: '투표 세션이 성공적으로 삭제되었습니다. 세션 번호가 재정렬되었습니다.',
+      message: '투표 세션이 성공적으로 삭제되었습니다.',
       sessionId: sessionId
     });
   } catch (error) {
@@ -2603,8 +2606,6 @@ router.get('/unified-vote-data', async (req, res) => {
   try {
     // 세션 상태 검증 및 자동 수정
     await validateAndFixSessionState();
-    // 자동 생성 누락 방지: 조회 시점에 다음주 세션 존재 보장
-    await ensureNextWeekVoteSessionExists();
     
     // 날짜 계산 (유틸리티 함수 사용)
     const koreaTime = getKoreaTime();
@@ -3810,8 +3811,6 @@ router.get('/votes/sessions/summary', async (req, res) => {
   try {
     // 세션 상태 검증 및 자동 수정
     await validateAndFixSessionState();
-    // 세션 목록 조회 시에도 다음주 세션 누락 보정
-    await ensureNextWeekVoteSessionExists();
     
     // 전체 회원 목록 조회
     const allUsers = await prisma.user.findMany({
@@ -4445,6 +4444,16 @@ router.post('/send-test-notification', authenticateToken, async (req, res) => {
 
     if (shouldTryImageCard) {
       try {
+        const summaryLines = (gameMailImage?.games || []).slice(0, 3).map((g: any, idx: number) => {
+          const date = g?.date ? new Date(g.date) : null;
+          const dateLabel = date && !Number.isNaN(date.getTime())
+            ? date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
+            : (g?.date || '날짜 미정');
+          const timeLabel = g?.time ? ` ${g.time}` : '';
+          const locationLabel = g?.location || '장소 미정';
+          return `${idx + 1}. ${dateLabel}${timeLabel} / ${locationLabel}`;
+        });
+
         const png = await renderGameReminderMailPng({
           nowLabel: gameMailImage?.nowLabel || new Date().toLocaleString('ko-KR'),
           games: gameMailImage.games,
@@ -4455,8 +4464,10 @@ router.post('/send-test-notification', authenticateToken, async (req, res) => {
           mailHtml: `
             <div style="margin:0;padding:16px;background:#f3f4f6;font-family:Arial,'Noto Sans KR','Malgun Gothic',sans-serif;color:#111827;">
               <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;">
-                <div style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 12px 0;">
-                  확정된 경기 일정을 이미지 카드로 안내드립니다. (모바일/PC 메일 앱에서 동일하게 보입니다)
+                <div style="font-size:14px;line-height:1.7;color:#374151;margin:0 0 12px 0;">
+                  <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:6px;">다음 경기 요약</div>
+                  ${summaryLines.map((line) => `<div>• ${escapeHtml(line)}</div>`).join('')}
+                  <div style="margin-top:8px;color:#6b7280;">아래 카드에서 상세 정보를 확인해주세요.</div>
                 </div>
                 <img src="cid:${cid}" alt="경기 알림 카드" style="width:100%;max-width:720px;height:auto;display:block;border-radius:10px;border:1px solid #e5e7eb;" />
                 <div style="font-size:12px;color:#9ca3af;margin-top:12px;line-height:1.5;">
@@ -4468,8 +4479,10 @@ router.post('/send-test-notification', authenticateToken, async (req, res) => {
           textBody: [
             '⚽ 경기 알림',
             '',
-            '확정된 경기 일정을 이미지 카드로 안내드립니다.',
-            '이메일 본문에 첨부된 PNG 이미지를 확인해주세요.',
+            '다음 경기 요약',
+            ...summaryLines.map((line) => `- ${line}`),
+            '',
+            '상세 정보는 첨부된 이미지 카드에서 확인해주세요.',
             '',
             `발송 시간: ${gameMailImage?.nowLabel || new Date().toLocaleString('ko-KR')}`,
           ].join('\n'),

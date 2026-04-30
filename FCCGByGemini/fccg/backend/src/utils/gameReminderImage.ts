@@ -110,11 +110,11 @@ function buildRowsSvg(opts: {
   w: number;
   rows: { icon: string; label: string; valueLines: string[]; valueColor?: string }[];
 }) {
-  const iconCol = 34;
-  const labelCol = 78;
-  const gapCol = 18;
+  const iconCol = 24;
+  const labelCol = 58;
+  const gapCol = 12;
   const valueX = opts.x + iconCol + labelCol + gapCol;
-  const lineHeight = 18;
+  const lineHeight = 20;
   let y = opts.y;
 
   let svg = '';
@@ -125,123 +125,149 @@ function buildRowsSvg(opts: {
 
     if (hasKey) {
       svg += `
-      <text x="${opts.x + 6}" y="${y + 16}" font-size="14" fill="#111827">${escapeXml(r.icon)}</text>
-      <text x="${opts.x + iconCol}" y="${y + 16}" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">${escapeXml(r.label)}</text>
-      <text x="${opts.x + iconCol + labelCol}" y="${y + 16}" font-size="13" font-weight="800" fill="#6b7280">:</text>
+      <text x="${opts.x + 2}" y="${y + 15}" font-size="13" fill="#334155">${escapeXml(r.icon)}</text>
+      <text x="${opts.x + iconCol}" y="${y + 15}" font-size="13" font-weight="700" fill="#334155">${escapeXml(r.label)}</text>
+      <text x="${opts.x + iconCol + labelCol}" y="${y + 15}" font-size="13" font-weight="700" fill="#94a3b8">:</text>
     `;
     }
 
     const color = r.valueColor || '#111827';
     const startX = hasKey ? valueX : opts.x + 6;
     lines.forEach((line, idx) => {
-      svg += `<text x="${startX}" y="${y + 16 + idx * lineHeight}" font-size="13" fill="${color}">${escapeXml(line)}</text>`;
+      svg += `<text x="${startX}" y="${y + 15 + idx * lineHeight}" font-size="13" fill="${color}">${escapeXml(line)}</text>`;
     });
 
-    y += blockH + 6;
+    y += blockH + 4;
   }
 
   return { svg, height: y - opts.y };
 }
 
-export function buildGameReminderMailSvg(input: GameMailImageInput) {
-  const width = 720;
-  const pad = 22;
-  const headerH = 64;
-  const footerH = 44;
+function formatDateTimeLabel(date: string, time?: string) {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return `${date}${time ? ` ${time}` : ''}`;
+  const datePart = parsed.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+  return `${datePart}${time ? ` ${time}` : ''}`;
+}
 
+function buildParticipantSegments(game: GameMailImageGameInput) {
+  const selectedMembers = parseStringArray(game.selectedMembers);
+  const memberNames = parseStringArray(game.memberNames).filter((n) => !n.startsWith('용병'));
+  const selectedSet = new Set(selectedMembers);
+  const others = memberNames.filter((n) => !selectedSet.has(n));
+  const mercenaryCount = Number(game.mercenaryCount || 0);
+  return { selectedMembers, others, mercenaryCount };
+}
+
+function buildBadgeSvg(x: number, y: number, text: string, opts?: { fill?: string; color?: string; paddingX?: number }) {
+  const fill = opts?.fill || '#0b4ea2';
+  const color = opts?.color || '#ffffff';
+  const paddingX = opts?.paddingX || 10;
+  const width = Math.max(52, text.length * 10 + paddingX * 2);
+  return {
+    width,
+    svg: `
+      <rect x="${x}" y="${y}" rx="11" ry="11" width="${width}" height="24" fill="${fill}" />
+      <text x="${x + width / 2}" y="${y + 16}" font-size="12" font-weight="700" fill="${color}" text-anchor="middle">${escapeXml(text)}</text>
+    `,
+  };
+}
+
+export function buildGameReminderMailSvg(input: GameMailImageInput) {
+  const width = 760;
+  const pad = 22;
+  const headerH = 52;
   const nowLabel = input.nowLabel || new Date().toLocaleString('ko-KR');
   const games = Array.isArray(input.games) ? input.games.slice(0, 3) : [];
 
-  let y = pad + headerH + 18;
+  let y = pad + headerH + 10;
   let body = '';
 
-  body += `<text x="${pad}" y="${y}" font-size="15" font-weight="800" fill="#111827">다음 경기 일정</text>`;
-  y += 26;
-
   if (games.length === 0) {
+    y += 6;
     body += `
-      <rect x="${pad}" y="${y}" width="${width - pad * 2}" height="86" rx="12" fill="#f9fafb" stroke="#e5e7eb"/>
-      <text x="${pad + 16}" y="${y + 52}" font-size="14" fill="#374151">현재 확정된 경기가 없습니다.</text>
+      <rect x="${pad}" y="${y}" width="${width - pad * 2}" height="98" rx="16" fill="#ffffff" stroke="#dbe3ef"/>
+      <text x="${pad + 22}" y="${y + 56}" font-size="15" fill="#4b5563">발송할 확정 경기가 없습니다.</text>
     `;
-    y += 96;
+    y += 112;
   }
 
-  games.forEach((game, idx) => {
-    const cardY = y;
+  for (const game of games) {
+    const cardX = pad;
+    const cardY = y + 6;
     const cardW = width - pad * 2;
-    const { names, mercenaryCount, totalParticipantCount } = getParticipantSummary(game);
+    let rowY = cardY + 30;
 
-    const dateStr = new Date(game.date).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
-    });
-    const timeStr = game.time ? ` ⏰ ${game.time}` : '';
+    const eventType = formatEventType(game.eventType);
+    const dateTime = formatDateTimeLabel(game.date, game.time);
     const location = game.location || '장소 미정';
-    const address = game.locationAddress ? `(${game.locationAddress})` : '';
-
-    const locationLines = wrapLines(location, 34, 3);
-    const addressLines = address ? wrapLines(address, 34, 2) : [];
-
-    const memberLine = names.length > 0 ? `- 회원: ${names.join(', ')}` : '';
-    const mercLine = mercenaryCount > 0 ? `- 용병: ${mercenaryCount}명` : '';
-    const detailLines: string[] = [];
-    if (memberLine) detailLines.push(...wrapLines(memberLine, 40, 3));
-    if (mercLine) detailLines.push(...wrapLines(mercLine, 40, 2));
+    const locationAddress = game.locationAddress || '';
+    const { names, mercenaryCount, totalParticipantCount } = getParticipantSummary(game);
+    const { selectedMembers, others } = buildParticipantSegments(game);
+    const memberCount = selectedMembers.length;
+    const etcCount = others.length;
 
     const rows = [
-      { icon: '🏆', label: '유형', valueLines: [formatEventType(game.eventType)] },
-      { icon: '📅', label: '일시', valueLines: [`${dateStr}${timeStr}`] },
-      { icon: '📍', label: '장소', valueLines: [...locationLines, ...addressLines] },
-      { icon: '👥', label: '참가자', valueLines: [`${totalParticipantCount}명`] },
-      ...(detailLines.length
-        ? [{ icon: '', label: '', valueLines: detailLines, valueColor: '#374151' as const }]
-        : []),
+      { icon: '⚽', label: '유형', valueLines: [eventType] },
+      { icon: '⏰', label: '일시', valueLines: [dateTime] },
+      { icon: '📍', label: '장소', valueLines: [location, ...(locationAddress ? [locationAddress] : [])] },
+      { icon: '👥', label: '참석자', valueLines: [`${totalParticipantCount}명 (회원 ${memberCount}명 + 용병 ${mercenaryCount}명 + 기타 ${etcCount}명)`] },
     ];
 
-    const rowsSvg = buildRowsSvg({ x: pad + 14, y: cardY + 16, w: cardW - 28, rows });
-    const cardH = rowsSvg.height + 28;
+    const rowsSvg = buildRowsSvg({ x: cardX + 20, y: rowY, w: cardW - 40, rows });
+    rowY += rowsSvg.height + 8;
+
+    const maxBadgesPerRow = 8;
+    const badgeRows: string[] = [];
+    const normalBadges = names.slice(0, 16).map((n) => ({ text: n, fill: '#0b4ea2', color: '#ffffff' }));
+    const extraBadges = others.slice(0, 4).map((n) => ({ text: n, fill: '#ff6b35', color: '#ffffff' }));
+    if (mercenaryCount > 0) extraBadges.unshift({ text: `용병 ${mercenaryCount}명`, fill: '#111111', color: '#ffffff' });
+    const badges = [...normalBadges, ...extraBadges];
+
+    let badgeY = rowY;
+    let badgeX = cardX + 20;
+    let inRow = 0;
+    for (const b of badges) {
+      const badge = buildBadgeSvg(badgeX, badgeY, b.text, { fill: b.fill, color: b.color });
+      badgeRows.push(badge.svg);
+      badgeX += badge.width + 8;
+      inRow += 1;
+      if (inRow >= maxBadgesPerRow) {
+        inRow = 0;
+        badgeX = cardX + 20;
+        badgeY += 30;
+      }
+    }
+    const cardH = Math.max(204, (badgeY - cardY) + 48);
 
     body += `
-      <rect x="${pad}" y="${cardY}" width="${cardW}" height="${cardH}" rx="14" fill="#ffffff" stroke="#e5e7eb"/>
-      <rect x="${pad}" y="${cardY}" width="${cardW}" height="6" rx="14" fill="#4f46e5"/>
+      <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="18" fill="#ffffff" stroke="#dbe3ef" />
+      <text x="${cardX + cardW - 14}" y="${cardY + 22}" font-size="10" fill="#94a3b8" text-anchor="end">FC CHAL GGYEO</text>
+      ${rowsSvg.svg}
+      ${badgeRows.join('\n')}
+      <text x="${cardX + 20}" y="${cardY + cardH - 16}" font-size="10" fill="#9aa5b1">발송 ${escapeXml(nowLabel)}</text>
     `;
-    body += rowsSvg.svg;
 
-    y = cardY + cardH + (idx === games.length - 1 ? 10 : 12);
-  });
+    y = cardY + cardH + 8;
+  }
 
-  const totalH = y + footerH + pad;
-
+  const totalH = y + 24;
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${totalH}" viewBox="0 0 ${width} ${totalH}">
   <defs>
-    <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#4f46e5"/>
-      <stop offset="100%" stop-color="#312e81"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7f9fc" />
+      <stop offset="100%" stop-color="#eef3fa" />
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.12"/>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.14"/>
     </filter>
   </defs>
-
-  <rect x="0" y="0" width="${width}" height="${totalH}" fill="#f3f4f6"/>
-
-  <rect x="${pad}" y="${pad}" width="${width - pad * 2}" height="${totalH - pad * 2}" rx="16" fill="#ffffff" stroke="#e5e7eb" filter="url(#shadow)"/>
-
-  <rect x="${pad}" y="${pad}" width="${width - pad * 2}" height="${headerH}" rx="16" fill="url(#hdr)"/>
-  <rect x="${pad}" y="${pad + headerH - 16}" width="${width - pad * 2}" height="16" fill="#312e81"/>
-
-  <text x="${pad + 20}" y="${pad + 40}" font-size="22" font-weight="800" fill="#ffffff">⚽ 경기 알림</text>
-  <text x="${width - pad - 20}" y="${pad + 40}" font-size="12" fill="#e0e7ff" text-anchor="end">FC CHAL GGYEO</text>
-
-  <text x="${pad + 20}" y="${pad + headerH + 22}" font-size="14" fill="#374151">확정된 경기 일정을 회원들에게 알립니다.</text>
-
+  <rect x="0" y="0" width="${width}" height="${totalH}" fill="url(#bg)" />
+  <text x="${pad + 2}" y="${pad + 30}" font-size="14" fill="#64748b">FC CHAL GGYEO</text>
+  <text x="${pad + 2}" y="${pad + 50}" font-size="28" font-weight="800" fill="#1f2937">일정 상세정보</text>
   ${body}
-
-  <text x="${pad + 20}" y="${totalH - pad - 18}" font-size="12" fill="#6b7280">발송 시간: ${escapeXml(nowLabel)}</text>
-  <text x="${width - pad - 20}" y="${totalH - pad - 18}" font-size="11" fill="#9ca3af" text-anchor="end">이 메일은 자동 발송되었습니다.</text>
+  <text x="${width - pad - 8}" y="${totalH - 8}" font-size="11" fill="#9ca3af" text-anchor="end">이 메일은 자동 발송되었습니다.</text>
 </svg>`;
 
   return svg;
