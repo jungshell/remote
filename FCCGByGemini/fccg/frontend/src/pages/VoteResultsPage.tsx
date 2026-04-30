@@ -84,6 +84,27 @@ interface UnifiedVoteData {
   lastWeekResults: VoteResults | null;
 }
 
+const getKstWeekKey = (dateLike: string | Date) => {
+  const date = new Date(dateLike);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === 'year')?.value ?? '0000';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '00';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '00';
+  return `${year}-${month}-${day}`;
+};
+
+const getSessionVoteScore = (session: any) => {
+  if (typeof session?.participantCount === 'number') return session.participantCount;
+  if (typeof session?.voteCount === 'number') return session.voteCount;
+  if (Array.isArray(session?.participants)) return session.participants.length;
+  return 0;
+};
+
 export default function VoteResultsPage() {
   const [allVoteSessions, setAllVoteSessions] = useState<VoteSession[]>([]);
   const [selectedVoteSessionId, setSelectedVoteSessionId] = useState<number | null>(null);
@@ -144,8 +165,26 @@ export default function VoteResultsPage() {
         weekStartDate: s.weekStartDate
       })));
       
-      // 모든 세션 표시 (중복 제거 로직 제거)
-      const uniqueSessions = allSessions;
+      // 같은 주차 중복 세션은 1개만 노출(운영 백엔드 레거시 중복 생성 안전장치)
+      const sessionsByWeek = new Map<string, VoteSession[]>();
+      allSessions.forEach((session) => {
+        const weekKey = getKstWeekKey(session.weekStartDate);
+        if (!sessionsByWeek.has(weekKey)) sessionsByWeek.set(weekKey, []);
+        sessionsByWeek.get(weekKey)!.push(session);
+      });
+
+      const uniqueSessions: VoteSession[] = Array.from(sessionsByWeek.values()).map((group) => {
+        const sorted = [...group].sort((a: any, b: any) => {
+          const voteDiff = getSessionVoteScore(b) - getSessionVoteScore(a);
+          if (voteDiff !== 0) return voteDiff;
+          const completedDiff = Number(b.isCompleted) - Number(a.isCompleted);
+          if (completedDiff !== 0) return completedDiff;
+          const activeDiff = Number(b.isActive) - Number(a.isActive);
+          if (activeDiff !== 0) return activeDiff;
+          return b.id - a.id;
+        });
+        return sorted[0];
+      });
       
       // weekStartDate 기준으로 내림차순 정렬 (최신 세션이 먼저)
       const sessions: VoteSession[] = uniqueSessions.sort((a: VoteSession, b: VoteSession) => {
@@ -153,6 +192,7 @@ export default function VoteResultsPage() {
       });
       
       setAllVoteSessions(sessions);
+      setCurrentPage(1);
 
       // 활성 세션 또는 첫 세션 자동 선택
       const activeSession = sessions.find((s: VoteSession) => s.isActive) || sessions[0];
@@ -572,7 +612,7 @@ export default function VoteResultsPage() {
                   <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">전체 세션</Heading>
                 </HStack>
                 <Text fontSize="2xl" fontWeight="bold" color="blue.600" lineHeight={0.95}>
-                  {unifiedData?.stats?.totalSessions || allVoteSessions.length}
+                  {allVoteSessions.length}
                 </Text>
               </Flex>
             </VStack>
@@ -587,7 +627,7 @@ export default function VoteResultsPage() {
                   <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">완료된 세션</Heading>
                 </HStack>
                 <Text fontSize="2xl" fontWeight="bold" color="green.600" lineHeight={0.95}>
-                  {unifiedData?.stats?.completedSessions || allVoteSessions.filter((s: VoteSession) => s.isCompleted).length}
+                  {allVoteSessions.filter((s: VoteSession) => s.isCompleted).length}
                 </Text>
               </Flex>
             </VStack>
@@ -602,7 +642,7 @@ export default function VoteResultsPage() {
                   <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">진행중 세션</Heading>
                 </HStack>
                 <Text fontSize="2xl" fontWeight="bold" color="orange.600" lineHeight={0.95}>
-                  {unifiedData?.stats?.activeSessions || allVoteSessions.filter((s: VoteSession) => s.isActive).length}
+                  {allVoteSessions.filter((s: VoteSession) => s.isActive).length}
                 </Text>
               </Flex>
             </VStack>
@@ -617,7 +657,7 @@ export default function VoteResultsPage() {
                   <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">총 참여자</Heading>
                 </HStack>
                 <Text fontSize="2xl" fontWeight="bold" color="purple.600" lineHeight={0.95}>
-                  {unifiedData?.stats?.totalParticipants || allVoteSessions.reduce((sum: number, s: any) => sum + (s.voteCount || 0), 0)}
+                  {allVoteSessions.reduce((sum: number, s: any) => sum + getSessionVoteScore(s), 0)}
                 </Text>
               </Flex>
             </VStack>

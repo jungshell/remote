@@ -9,6 +9,45 @@ import { getUnifiedVoteDataNew } from '../api/auth';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
 
+const getKstDateKey = (dateLike: string | Date) => {
+  const date = new Date(dateLike);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === 'year')?.value ?? '0000';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '00';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '00';
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeSelectedDays = (value: any): string[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const getSessionVoteWeight = (session: any) => {
+  const participantCount = Array.isArray(session?.participants) ? session.participants.length : 0;
+  const resultCount = session?.results && typeof session.results === 'object'
+    ? ['MON', 'TUE', 'WED', 'THU', 'FRI'].reduce((sum, key) => {
+        const day = session.results?.[key];
+        const count = day && typeof day === 'object' && 'count' in day ? Number(day.count || 0) : 0;
+        return sum + count;
+      }, 0)
+    : 0;
+  return Math.max(participantCount, resultCount);
+};
+
 const quotes = [
   { quote: '축구는 단순하다. 하지만 단순한 것이 가장 어렵다.', quoteEn: 'Football is simple, but the hardest thing is to play simple.', author: '요한 크루이프', authorEn: 'Johan Cruyff' },
   { quote: '나는 축구를 할 때 행복하다.', quoteEn: 'I am happy when I play football.', author: '리오넬 메시', authorEn: 'Lionel Messi' },
@@ -280,6 +319,54 @@ export default function MainDashboard() {
   
   // 통합 투표 데이터 상태
   const [unifiedVoteData, setUnifiedVoteData] = useState<any>(null);
+  const normalizedVoteSession = useMemo(() => {
+    if (!unifiedVoteData) return null;
+    let session = unifiedVoteData.activeSession || unifiedVoteData.nextWeekVoteSession || null;
+    const allSessions = Array.isArray(unifiedVoteData.allSessions) ? unifiedVoteData.allSessions : [];
+    if (session && allSessions.length > 0) {
+      const weekKey = getKstDateKey(session.weekStartDate);
+      const sameWeek = allSessions.filter((s: any) => getKstDateKey(s.weekStartDate) === weekKey);
+      if (sameWeek.length > 1) {
+        session = [...sameWeek].sort((a: any, b: any) => {
+          const voteDiff = getSessionVoteWeight(b) - getSessionVoteWeight(a);
+          if (voteDiff !== 0) return voteDiff;
+          const completedDiff = Number(b.isCompleted) - Number(a.isCompleted);
+          if (completedDiff !== 0) return completedDiff;
+          const activeDiff = Number(b.isActive) - Number(a.isActive);
+          if (activeDiff !== 0) return activeDiff;
+          return Number((b.sessionId ?? b.id) || 0) - Number((a.sessionId ?? a.id) || 0);
+        })[0];
+      }
+    }
+    if (!session) return null;
+
+    const participantMap = new Map<string, any>();
+    (Array.isArray(session.participants) ? session.participants : []).forEach((p: any) => {
+      const key = String(p?.userId ?? p?.id ?? p?.userName ?? p?.name ?? '');
+      if (!key) return;
+      if (!participantMap.has(key)) participantMap.set(key, p);
+    });
+    const participants = Array.from(participantMap.values());
+
+    let results = session.results;
+    if (!results || typeof results !== 'object') {
+      results = { MON: { count: 0, participants: [] }, TUE: { count: 0, participants: [] }, WED: { count: 0, participants: [] }, THU: { count: 0, participants: [] }, FRI: { count: 0, participants: [] }, '불참': { count: 0, participants: [] } };
+      participants.forEach((p: any) => {
+        normalizeSelectedDays(p?.selectedDays).forEach((day) => {
+          if (!results[day]) return;
+          results[day].count += 1;
+          results[day].participants.push({ userId: p.userId, userName: p.userName, votedAt: p.votedAt });
+        });
+      });
+    }
+
+    return {
+      ...session,
+      participants,
+      totalParticipants: participants.length,
+      results,
+    };
+  }, [unifiedVoteData]);
 
   // 🔄 이벤트 시스템 리스너 설정
   useEffect(() => {
@@ -1439,7 +1526,7 @@ export default function MainDashboard() {
       case 3:
         return (
           <Box>
-            {unifiedVoteData?.activeSession ? (
+            {normalizedVoteSession ? (
               <Box>
                 {/* 투표 기간 */}
                 <Box bg="blue.50" px={4} py={2.5} borderRadius="lg" mb={2.5} position="relative">
@@ -1450,7 +1537,7 @@ export default function MainDashboard() {
               <Box textAlign="center" mt="-28px">
                     <Text fontSize="md" color="gray.700" fontWeight="medium">
                       {(() => {
-                        const session = unifiedVoteData.activeSession;
+                        const session = normalizedVoteSession;
                         const weekStartDate = new Date(session.weekStartDate);
                         const weekEndDate = new Date(weekStartDate.getTime() + 4 * 24 * 60 * 60 * 1000); // 금요일
                         
@@ -1468,7 +1555,7 @@ export default function MainDashboard() {
                   {/* 투표 상태 pill */}
                   <Box position="absolute" top={3} right={3}>
                     {(() => {
-                      const session = unifiedVoteData.activeSession;
+                      const session = normalizedVoteSession;
                       const isVoteClosed = !session.isActive;
                       return (
                         <Badge 
@@ -1498,22 +1585,22 @@ export default function MainDashboard() {
                         <Text fontSize="sm" color="gray.600">투표 참여</Text>
                         <Tooltip
                           label={(() => {
-                            if (!unifiedVoteData?.activeSession) return '투표 세션이 없습니다.';
+                            if (!normalizedVoteSession) return '투표 세션이 없습니다.';
                             
-                            const session = unifiedVoteData.activeSession;
+                            const session = normalizedVoteSession;
                             const participants = session.participants || [];
                             const allMembers = unifiedVoteData.allMembers || [];
                             
-                            // 참여자 이름들
-                            const participantNames = participants.map((p: any) => p.userName).join(', ');
+                            // 참여자 이름들(중복 제거)
+                            const participantNames = Array.from(new Set(participants.map((p: any) => p.userName).filter(Boolean)));
                             
                             // 미참여자 이름들
-                            const participantIds = participants.map((p: any) => p.userId);
+                            const participantIds = Array.from(new Set(participants.map((p: any) => p.userId)));
                             const nonParticipantNames = allMembers
                               .filter((member: any) => !participantIds.includes(member.id))
                               .map((member: any) => member.name);
                             
-                            return `참여자: ${participantNames}\n미참여자: ${nonParticipantNames.join(', ')}`;
+                            return `참여자:\n${participantNames.join('\n') || '-'}\n\n미참여자:\n${nonParticipantNames.join('\n') || '-'}`;
                           })()}
                           placement="top"
                           hasArrow
@@ -1523,12 +1610,12 @@ export default function MainDashboard() {
                           whiteSpace="pre-line"
                         >
                           <Text fontSize="sm" fontWeight="semibold" color="blue.600" cursor="pointer">
-                            {(unifiedVoteData?.activeSession?.totalParticipants || 0)}/{unifiedVoteData?.allMembers?.length || 0}
+                            {(normalizedVoteSession?.totalParticipants || 0)}/{unifiedVoteData?.allMembers?.length || 0}
                           </Text>
                         </Tooltip>
                       </Flex>
                       {(() => {
-                        const participants = unifiedVoteData?.activeSession?.participants || [];
+                        const participants = normalizedVoteSession?.participants || [];
                         if (participants.length === 0) {
                           return (
                             <Text fontSize="xs" color="gray.400" textAlign="center" mt={2}>
@@ -1540,7 +1627,7 @@ export default function MainDashboard() {
                           <Wrap mt={2} spacing={1}>
                             {participants.map((p: any) => (
                               <WrapItem key={`${p.userId}-${p.votedAt || ''}`}>
-                                <Tag size="sm" variant="subtle" colorScheme="blue" borderRadius="full" px={2}>
+                                <Tag size="sm" variant="subtle" colorScheme="blue" borderRadius="full" px={2} whiteSpace="normal" wordBreak="keep-all" lineHeight="1.3">
                                   {p.userName || '이름없음'}
                                 </Tag>
                               </WrapItem>
@@ -1552,12 +1639,12 @@ export default function MainDashboard() {
                     <Box flex={0.6} bg="white" px={3} py={2} borderRadius="md">
                       <Text fontSize="sm" color="gray.600" mb={2}>최다투표일</Text>
                       {(() => {
-                        if (!unifiedVoteData?.activeSession?.results) {
+                        if (!normalizedVoteSession?.results) {
                           return <Text fontSize="md" fontWeight="bold" color="green.600">투표 없음</Text>;
                         }
                         
-                        const results = unifiedVoteData.activeSession.results;
-                        const session = unifiedVoteData.activeSession;
+                        const results = normalizedVoteSession.results;
+                        const session = normalizedVoteSession;
                         const weekStartDate = new Date(session.weekStartDate);
                         
                         const days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
@@ -1824,7 +1911,7 @@ export default function MainDashboard() {
                   <Box position="absolute" top={2} right={2}>
                     {(() => {
                       // 실제 투표 세션 데이터 사용
-                      const hasActiveSession = !!unifiedVoteData?.activeSession;
+                      const hasActiveSession = !!normalizedVoteSession;
                       const hasClosedSession = !!unifiedVoteData?.lastWeekResults;
                       
                       if (!hasActiveSession) {
@@ -1851,7 +1938,7 @@ export default function MainDashboard() {
                         );
                       }
                       
-                      const session = unifiedVoteData.activeSession;
+                      const session = normalizedVoteSession;
                       const isVoteClosed = session.isCompleted || !session.isActive;
                       
                       if (isVoteClosed) {
