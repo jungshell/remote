@@ -207,13 +207,22 @@ export function buildVoteRosterShareCard(opts: {
   votePeriodLabel: string;
   votedNames: string[];
   nonVotedNames: string[];
+  participationRate?: number;
+  totalMembers?: number;
   scheduleUrl: string;
 }): string {
   const votedList = opts.votedNames.length > 0 ? opts.votedNames.join(', ') : '없음';
   const nonVotedList = opts.nonVotedNames.length > 0 ? opts.nonVotedNames.join(', ') : '없음';
+  const totalMembers = typeof opts.totalMembers === 'number'
+    ? opts.totalMembers
+    : (opts.votedNames.length + opts.nonVotedNames.length);
+  const participationRate = typeof opts.participationRate === 'number'
+    ? opts.participationRate
+    : (totalMembers > 0 ? Math.round((opts.votedNames.length / totalMembers) * 100) : 0);
   return [
     `${SHARE_CARD_BRAND} 투표 안내`,
     `- 투표기간: ${opts.votePeriodLabel || '일정 확인 중'}`,
+    `- 투표참여율: ${participationRate}% (${opts.votedNames.length}/${totalMembers}명)`,
     `- 참여 (${opts.votedNames.length}명): ${votedList}`,
     `- 미참여 (${opts.nonVotedNames.length}명): ${nonVotedList}`,
     '- 안내: 아직 투표 안 하신 분은 링크에서 참여 부탁드립니다.',

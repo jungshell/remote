@@ -168,7 +168,7 @@ const formatNamesThreePerLine = (names: string[]) => {
   if (!Array.isArray(names) || names.length === 0) return '-';
   const lines: string[] = [];
   for (let i = 0; i < names.length; i += 3) {
-    lines.push(names.slice(i, i + 3).join(', '));
+    lines.push(names.slice(i, i + 3).join(' · '));
   }
   return lines.join('\n');
 };
@@ -2023,41 +2023,38 @@ export default function SchedulePageV2() {
     };
 
     const votedUserIds = new Set<number>();
-    const collectIds = (participants?: any[]) => {
-      if (!participants || !Array.isArray(participants)) return;
-      participants.forEach((participant: any) => {
-        const id = normalizeId(participant?.userId ?? participant?.id);
-        if (id > -1) votedUserIds.add(id);
-      });
-    };
 
-    const sessionParticipants = isVoteClosed
-      ? unifiedVoteData?.lastWeekResults?.participants
-      : unifiedVoteData?.activeSession?.participants;
-    collectIds(sessionParticipants);
+    // 1순위: 현재 세션 실투표 데이터(voteResults.voteSession.votes)를 단일 기준으로 사용
+    const sessionVotes = Array.isArray(voteResults?.voteSession?.votes) ? voteResults.voteSession.votes : [];
+    sessionVotes.forEach((vote: any) => {
+      const id = normalizeId(vote?.userId);
+      if (id > -1) votedUserIds.add(id);
+    });
 
-    if (effectiveVoteResults) {
-      Object.values(effectiveVoteResults).forEach((dayResult: any) => {
-        collectIds(dayResult?.participants);
-      });
+    // 2순위 폴백: 통합 응답 participants
+    if (votedUserIds.size === 0) {
+      const sessionParticipants = isVoteClosed
+        ? unifiedVoteData?.lastWeekResults?.participants
+        : unifiedVoteData?.activeSession?.participants;
+      if (Array.isArray(sessionParticipants)) {
+        sessionParticipants.forEach((participant: any) => {
+          const id = normalizeId(participant?.userId ?? participant?.id);
+          if (id > -1) votedUserIds.add(id);
+        });
+      }
     }
 
-    if (Array.isArray(unifiedVoteData.allSessions)) {
-      unifiedVoteData.allSessions.forEach((session: any) => {
-        collectIds(session?.participants);
-      });
-    }
-
-    const allMembers = unifiedVoteData.allMembers;
-    const votedMembers = allMembers
+    // 관리자 계정은 분모/분자에서 제외 (세션 목록 집계 기준과 정합)
+    const eligibleMembers = unifiedVoteData.allMembers.filter((member: any) => member?.role !== 'ADMIN');
+    const votedMembers = eligibleMembers
       .filter((member: any) => votedUserIds.has(normalizeId(member.id)))
       .map((member: any) => member.name);
-    const nonVotedMembers = allMembers
+    const nonVotedMembers = eligibleMembers
       .filter((member: any) => !votedUserIds.has(normalizeId(member.id)))
       .map((member: any) => member.name);
 
     const uniqueVoters = votedMembers.length;
-    const totalMembers = allMembers.length;
+    const totalMembers = eligibleMembers.length;
     const participationRate = totalMembers > 0 ? Math.round((uniqueVoters / totalMembers) * 100) : 0;
 
     return {
@@ -2067,7 +2064,7 @@ export default function SchedulePageV2() {
       votedMembers,
       nonVotedMembers
     };
-  }, [unifiedVoteData, effectiveVoteResults, isVoteClosed]);
+  }, [unifiedVoteData, voteResults, isVoteClosed]);
 
   const votePeriodLabel = useMemo(() => {
     if (!nextWeekVoteData || nextWeekVoteData.length === 0) return '';
@@ -2093,6 +2090,8 @@ export default function SchedulePageV2() {
       votePeriodLabel: votePeriodLabel || '',
       votedNames: votedMembers,
       nonVotedNames: nonVotedMembers,
+      participationRate: participationInfo?.participationRate || 0,
+      totalMembers: participationInfo?.totalMembers || (votedMembers.length + nonVotedMembers.length),
       scheduleUrl: shareUrl,
     });
   }, [voteParticipationInfo, votePeriodLabel]);
@@ -3422,6 +3421,7 @@ export default function SchedulePageV2() {
                               py={2}
                               maxW="200px"
                               whiteSpace="pre-line"
+                              textAlign="center"
                             >
                               <Badge
                                   colorScheme="purple"
