@@ -27,7 +27,7 @@ import {
 import { renderGameReminderMailPng, type GameMailImageInput } from '../utils/gameReminderImage';
 
 const prisma = new PrismaClient();
-const AUTH_TOKEN_EXPIRES_IN = process.env.AUTH_TOKEN_EXPIRES_IN || '365d';
+const AUTH_TOKEN_EXPIRES_IN = (process.env.AUTH_TOKEN_EXPIRES_IN || '365d') as import('jsonwebtoken').SignOptions['expiresIn'];
 
 async function ensureNextWeekVoteSessionExists() {
   const koreaTime = getKoreaTime();
