@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
+import { getHolidaysByYear } from '../utils/holidayApi';
 
 // 투표 데이터 파일 경로
 const VOTE_DATA_FILE = path.join(__dirname, '../../voteData.json');
@@ -337,53 +338,9 @@ const getStatusChangeEmailTemplate = (member: any, oldStatus: string, newStatus:
 
 // 공휴일 API 호출 함수
 const getHolidays = async (year: number) => {
-  const rawApiKey = process.env.PUBLIC_DATA_API_KEY || '';
-  const API_KEY = rawApiKey.includes('%')
-    ? (() => {
-        try {
-          return decodeURIComponent(rawApiKey);
-        } catch {
-          return rawApiKey;
-        }
-      })()
-    : rawApiKey;
-  if (!API_KEY || API_KEY.trim().length === 0) {
-    throw new Error('PUBLIC_DATA_API_KEY is not configured');
-  }
-
   try {
-    // 공공데이터포털 API 호출
-    const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo`;
-    const params = new URLSearchParams({
-      serviceKey: API_KEY,
-      solYear: year.toString(),
-      numOfRows: '100',
-      _type: 'json'
-    });
-    
-    console.log(`공공데이터포털 API 호출: ${year}년 공휴일 조회`);
-    const response = await axios.get(`${url}?${params.toString()}`);
-    
-    if (response.data && response.data.response && response.data.response.body) {
-      const items = response.data.response.body.items.item;
-      const holidays: { [key: string]: string } = {};
-      
-      // 단일 항목인 경우 배열로 변환
-      const holidayList = Array.isArray(items) ? items : [items];
-      
-      holidayList.forEach((item: any) => {
-        if (item && item.locdate && item.dateName) {
-          const dateStr = item.locdate.toString();
-          const formattedDate = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
-          holidays[formattedDate] = item.dateName;
-        }
-      });
-      
-      console.log(`공휴일 API 결과: ${Object.keys(holidays).length}개 공휴일 조회됨`);
-      return holidays;
-    } else {
-      throw new Error('공휴일 API 응답 형식이 예상과 다릅니다.');
-    }
+    // 공휴일 데이터 소스는 holidayApi(Google Calendar)로 단일화
+    return await getHolidaysByYear(String(year));
   } catch (error) {
     console.error('공휴일 API 호출 오류:', error);
     throw error;
