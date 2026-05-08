@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // 공공데이터포털 API 설정 (한국천문연구원 API 인증키)
 const PUBLIC_DATA_API_KEY = process.env.PUBLIC_DATA_API_KEY || '4v4qN2Ne+KlpM2iCir09sxyTt8+iXYdBqYEBNblmrS7XZmpcJi/MZRudqjmtdMsJICva6D6vrmckjNTMz1hVgA==';
-const HOLIDAY_API_URL = 'http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService';
+const HOLIDAY_API_URL = 'https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService';
 
 interface HolidayResponse {
   response: {
@@ -82,7 +82,6 @@ const getHolidayNameByDate = (date: string): string => {
   if (month === 1 && day === 1) return '신정';
   if (month === 3 && day === 1) return '삼일절';
   if (month === 5 && day === 5) return '어린이날';
-  if (month === 5 && day === 15) return '부처님오신날';
   if (month === 6 && day === 6) return '현충일';
   if (month === 8 && day === 15) return '광복절';
   if (month === 10 && day === 3) return '개천절';
@@ -106,6 +105,7 @@ const getHolidayNameByDate = (date: string): string => {
     if (day === 16 || day === 18) return '설날연휴';
     if (day === 17) return '설날';
   }
+  if (year === 2026 && month === 5 && day === 24) return '부처님오신날';
   
   return '공휴일';
 };
@@ -198,7 +198,7 @@ const getDefaultHolidays = (year: string): string[] => {
     ],
     "2026": [
       "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-03-01",
-      "2026-05-05", "2026-05-15", "2026-06-06", "2026-08-15", "2026-10-03",
+      "2026-05-05", "2026-05-24", "2026-06-06", "2026-08-15", "2026-10-03",
       "2026-12-25"
     ]
   };
