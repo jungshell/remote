@@ -151,6 +151,7 @@ export const changePassword = (newPassword: string) =>
   });
 
 export const getProfile = () => request('/profile');
+export const refreshToken = () => request<{ token: string; user: any }>('/refresh-token', { method: 'POST' });
 
 // ===== 멤버 관리 =====
 export const getMemberStats = () => request('/activity-analysis');

@@ -45,7 +45,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppLayout() {
   const location = useLocation();
   const hideHeader = ['/login', '/signup'].includes(location.pathname);
-  const { user } = useAuthStore();
+  const { user, token, setUser, setToken, logout } = useAuthStore();
 
   // 고급 기능 초기화
   React.useEffect(() => {
@@ -89,6 +89,31 @@ function AppLayout() {
       cancelled = true;
     };
   }, []);
+
+  // 앱 시작 시 토큰을 1회 갱신해서 동일 브라우저 재로그인을 최소화한다.
+  React.useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    const refreshAuth = async () => {
+      try {
+        const { refreshToken } = await import('./api/auth');
+        const refreshed = await refreshToken();
+        if (!alive) return;
+        if (refreshed?.token) setToken(refreshed.token);
+        if (refreshed?.user) setUser(refreshed.user);
+      } catch (error: any) {
+        // 토큰 만료(401)일 때만 로그아웃 처리, 네트워크 오류는 기존 세션 유지
+        const status = error?.response?.status;
+        if (status === 401) {
+          logout();
+        }
+      }
+    };
+    refreshAuth();
+    return () => {
+      alive = false;
+    };
+  }, [token, setToken, setUser, logout]);
 
   return (
     <Box minH="100vh" bgGradient="linear(to-br, #004ea8, #1f2937)" overflowX="hidden" maxW="100vw" w="100%">

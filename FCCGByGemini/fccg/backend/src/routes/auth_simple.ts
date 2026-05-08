@@ -27,6 +27,7 @@ import {
 import { renderGameReminderMailPng, type GameMailImageInput } from '../utils/gameReminderImage';
 
 const prisma = new PrismaClient();
+const AUTH_TOKEN_EXPIRES_IN = process.env.AUTH_TOKEN_EXPIRES_IN || '365d';
 
 async function ensureNextWeekVoteSessionExists() {
   const koreaTime = getKoreaTime();
@@ -404,7 +405,7 @@ router.post('/login', authLimiter, async (req, res) => {
         name: user.name 
       },
       process.env.JWT_SECRET || 'fc-chalggyeo-secret',
-      { expiresIn: '30d' }
+      { expiresIn: AUTH_TOKEN_EXPIRES_IN }
     );
 
     res.json({
@@ -449,7 +450,7 @@ router.post('/refresh-token', authenticateToken, async (req, res) => {
         role: user.role
       },
       process.env.JWT_SECRET || 'fc-chalggyeo-secret',
-      { expiresIn: '30d' }
+      { expiresIn: AUTH_TOKEN_EXPIRES_IN }
     );
 
     console.log('✅ 토큰 갱신 성공:', {
@@ -996,7 +997,7 @@ router.post('/register', authLimiter, async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'fc-chalggyeo-secret',
-      { expiresIn: '7d' }
+      { expiresIn: AUTH_TOKEN_EXPIRES_IN }
     );
 
     res.status(201).json({

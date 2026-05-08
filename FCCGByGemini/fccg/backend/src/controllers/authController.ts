@@ -337,33 +337,21 @@ const getStatusChangeEmailTemplate = (member: any, oldStatus: string, newStatus:
 
 // 공휴일 API 호출 함수
 const getHolidays = async (year: number) => {
+  const rawApiKey = process.env.PUBLIC_DATA_API_KEY || '';
+  const API_KEY = rawApiKey.includes('%')
+    ? (() => {
+        try {
+          return decodeURIComponent(rawApiKey);
+        } catch {
+          return rawApiKey;
+        }
+      })()
+    : rawApiKey;
+  if (!API_KEY || API_KEY.trim().length === 0) {
+    throw new Error('PUBLIC_DATA_API_KEY is not configured');
+  }
+
   try {
-    // 공공데이터포털 API 키 (실제 발급받은 키로 교체하세요)
-    const API_KEY = '4v4qN2Ne+KlpM2iCir09sxyTt8+iXYdBqYEBNblmrS7XZmpcJi/MZRudqjmtdMsJICva6D6vrmckjNTMz1hVgA==';
-    
-          // API 키가 설정되지 않은 경우 하드코딩된 공휴일 반환
-      if (!API_KEY) {
-        console.log('API 키가 설정되지 않아 하드코딩된 공휴일을 사용합니다.');
-        const holidays = {
-          '2025-01-01': '신정',
-          '2025-02-09': '설날',
-          '2025-02-10': '설날',
-          '2025-02-11': '설날',
-          '2025-03-01': '삼일절',
-          '2025-05-05': '어린이날',
-          '2025-05-15': '부처님오신날',
-          '2025-06-06': '현충일',
-          '2025-08-15': '광복절',
-          '2025-09-28': '추석',
-          '2025-09-29': '추석',
-          '2025-09-30': '추석',
-          '2025-10-03': '개천절',
-          '2025-10-09': '한글날',
-          '2025-12-25': '크리스마스'
-        };
-        return holidays;
-      }
-    
     // 공공데이터포털 API 호출
     const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo`;
     const params = new URLSearchParams({
@@ -394,37 +382,17 @@ const getHolidays = async (year: number) => {
       console.log(`공휴일 API 결과: ${Object.keys(holidays).length}개 공휴일 조회됨`);
       return holidays;
     } else {
-      console.log('API 응답 형식이 예상과 다릅니다:', response.data);
-      return {};
+      throw new Error('공휴일 API 응답 형식이 예상과 다릅니다.');
     }
   } catch (error) {
     console.error('공휴일 API 호출 오류:', error);
-    // API 오류 시 하드코딩된 공휴일 반환
-    const fallbackHolidays = {
-      '2025-01-01': '신정',
-      '2025-02-09': '설날',
-      '2025-02-10': '설날',
-      '2025-02-11': '설날',
-      '2025-03-01': '삼일절',
-      '2025-05-05': '어린이날',
-      '2025-05-15': '부처님오신날',
-      '2025-06-06': '현충일',
-      '2025-08-15': '광복절',
-      '2025-09-28': '추석',
-      '2025-09-29': '추석',
-      '2025-09-30': '추석',
-      '2025-10-03': '개천절',
-      '2025-10-09': '한글날',
-      '2025-12-25': '크리스마스'
-    };
-    return fallbackHolidays;
+    throw error;
   }
 };
 
 // 공휴일 체크 함수 (간단 버전)
 const isHoliday = (date: Date, holidays: { [key: string]: string }) => {
   const dateString = date.toISOString().split('T')[0];
-  if (dateString === '2025-08-15') return true;
   if (holidays[dateString]) return true;
   return false;
 };

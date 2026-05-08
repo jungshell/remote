@@ -1,122 +1,114 @@
 import axios from 'axios';
 
-// 공공데이터포털 API 설정 (한국천문연구원 API 인증키)
-const PUBLIC_DATA_API_KEY = process.env.PUBLIC_DATA_API_KEY || '4v4qN2Ne+KlpM2iCir09sxyTt8+iXYdBqYEBNblmrS7XZmpcJi/MZRudqjmtdMsJICva6D6vrmckjNTMz1hVgA==';
-const HOLIDAY_API_URL = 'https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService';
+const GOOGLE_CALENDAR_API_KEY = process.env.GOOGLE_CALENDAR_API_KEY || '';
+const GOOGLE_HOLIDAY_CALENDAR_ID =
+  process.env.GOOGLE_HOLIDAY_CALENDAR_ID || 'ko.south_korea#holiday@group.v.calendar.google.com';
+const GOOGLE_CALENDAR_API_URL = 'https://www.googleapis.com/calendar/v3/calendars';
 
-interface HolidayResponse {
-  response: {
-    body: {
-      items: {
-        item: Array<{
-          dateName: string;
-          locdate: string;
-          isHoliday: string;
-        }>;
-      };
-    };
+interface GoogleCalendarEvent {
+  summary?: string;
+  start?: {
+    date?: string;
+    dateTime?: string;
   };
 }
 
+interface GoogleCalendarResponse {
+  items?: GoogleCalendarEvent[];
+}
+
+const isStatutoryHoliday = (summary: string) => {
+  const name = summary.trim();
+  if (!name) return false;
+
+  // Google 공휴일 캘린더에는 기념일/관찰일이 섞여 있어 법정공휴일만 필터링
+  const allowPatterns = [
+    /새해첫날/,
+    /설날/,
+    /삼일절/,
+    /어린이날/,
+    /부처님오신날/,
+    /현충일/,
+    /광복절/,
+    /개천절/,
+    /한글날/,
+    /추석/,
+    /크리스마스$/,
+    /성탄절/,
+    /대통령선거일|국회의원선거일|지방선거일|전국동시지방선거일|선거일/,
+    /대체공휴일/,
+    /^쉬는 날 /
+  ];
+
+  const denyPatterns = [
+    /노동절/,
+    /식목일/,
+    /스승의날/,
+    /제헌절/,
+    /크리스마스 이브/,
+    /섣달 그믐날/
+  ];
+
+  if (denyPatterns.some((pattern) => pattern.test(name))) {
+    return false;
+  }
+
+  return allowPatterns.some((pattern) => pattern.test(name));
+};
+
 // 특정 연도의 공휴일 조회 (날짜와 이름을 함께 반환)
 export const getHolidaysByYear = async (year: string): Promise<{ [date: string]: string }> => {
+  if (!GOOGLE_CALENDAR_API_KEY || GOOGLE_CALENDAR_API_KEY.trim().length === 0) {
+    throw new Error('GOOGLE_CALENDAR_API_KEY is not configured');
+  }
+
   try {
-    console.log(`🗓️ ${year}년 공휴일 조회 시작`);
-    
-    const response = await axios.get<HolidayResponse>(HOLIDAY_API_URL + '/getRestDeInfo', {
+    const calendarId = encodeURIComponent(GOOGLE_HOLIDAY_CALENDAR_ID);
+    const timeMin = `${year}-01-01T00:00:00Z`;
+    const timeMax = `${year}-12-31T23:59:59Z`;
+
+    console.log(`🗓️ ${year}년 공휴일 조회 시작 (Google Calendar)`);
+
+    const response = await axios.get<GoogleCalendarResponse>(`${GOOGLE_CALENDAR_API_URL}/${calendarId}/events`, {
       params: {
-        serviceKey: PUBLIC_DATA_API_KEY,
-        solYear: year,
-        _type: 'json',
-        numOfRows: 100
+        key: GOOGLE_CALENDAR_API_KEY,
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: 'startTime',
+        maxResults: 2500,
       },
-      timeout: 10000
+      timeout: 10000,
     });
 
     const holidayMap: { [date: string]: string } = {};
-    
-    // 단일 항목인 경우 배열로 변환
-    const items = response.data.response.body.items.item;
-    const itemList = Array.isArray(items) ? items : [items];
-    
-    itemList
-      .filter(item => item && item.isHoliday === 'Y')
-      .forEach(item => {
-        // YYYYMMDD 형식을 YYYY-MM-DD로 변환
-        const dateStr = item.locdate.toString();
-        const formattedDate = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
-        
-        // API에서 받은 이름을 그대로 사용 (API가 실제 명절 이름을 반환함)
-        let holidayName = item.dateName || '';
-        
-        // API에서 이름이 없거나 "공휴일"로만 오는 경우에만 매핑 함수 사용
-        if (!holidayName || holidayName.trim() === '' || holidayName === '공휴일') {
-          holidayName = getHolidayNameByDate(formattedDate);
-        }
-        
-        holidayMap[formattedDate] = holidayName;
-      });
+    const items = Array.isArray(response.data?.items) ? response.data.items : [];
 
-    console.log(`✅ ${year}년 공휴일 ${Object.keys(holidayMap).length}개 조회 완료`);
+    items.forEach((item) => {
+      const holidayDate = item?.start?.date;
+      const holidayName = (item?.summary || '').trim();
+      if (!holidayDate || !holidayName) return;
+      if (!isStatutoryHoliday(holidayName)) return;
+      holidayMap[holidayDate] = holidayName;
+    });
+
+    console.log(`✅ ${year}년 공휴일 ${Object.keys(holidayMap).length}개 조회 완료 (Google Calendar)`);
     return holidayMap;
   } catch (error) {
     console.error(`❌ ${year}년 공휴일 조회 실패:`, error);
-    
-    // API 실패 시 기본 공휴일 반환 (백업)
-    const defaultDates = getDefaultHolidays(year);
-    const defaultMap: { [date: string]: string } = {};
-    defaultDates.forEach(date => {
-      defaultMap[date] = getHolidayNameByDate(date);
-    });
-    return defaultMap;
+    throw error;
   }
-};
-
-// 날짜로 공휴일 이름 가져오기 (API에서 "공휴일"로만 올 때 사용하는 백업 함수)
-// 주의: 이 함수는 API가 실제 명절 이름을 반환하지 못할 때만 사용됩니다.
-// API가 "추석", "설날" 등을 정확히 반환하면 그대로 사용해야 합니다.
-const getHolidayNameByDate = (date: string): string => {
-  const [year, month, day] = date.split('-').map(Number);
-  
-  // 고정 공휴일
-  if (month === 1 && day === 1) return '신정';
-  if (month === 3 && day === 1) return '삼일절';
-  if (month === 5 && day === 5) return '어린이날';
-  if (month === 6 && day === 6) return '현충일';
-  if (month === 8 && day === 15) return '광복절';
-  if (month === 10 && day === 3) return '개천절';
-  if (month === 10 && day === 9) return '한글날';
-  if (month === 12 && day === 25) return '크리스마스';
-  
-  // 설날 연휴 (2025년: 1월 28-30일)
-  if (year === 2025 && month === 1) {
-    if (day === 28 || day === 30) return '설날연휴';
-    if (day === 29) return '설날';
-  }
-  
-  // 추석 연휴 (2025년: 10월 5-8일) - API가 정확한 이름을 반환하지 못할 때만 사용
-  if (year === 2025 && month === 10) {
-    if (day === 5 || day === 7 || day === 8) return '추석연휴';
-    if (day === 6) return '추석';
-  }
-  
-  // 설날 연휴 (2026년: 2월 16-18일)
-  if (year === 2026 && month === 2) {
-    if (day === 16 || day === 18) return '설날연휴';
-    if (day === 17) return '설날';
-  }
-  if (year === 2026 && month === 5 && day === 24) return '부처님오신날';
-  
-  return '공휴일';
 };
 
 // 여러 연도의 공휴일 조회
 export const getHolidaysByYears = async (years: string[]): Promise<{ [year: string]: { [date: string]: string } }> => {
   const result: { [year: string]: { [date: string]: string } } = {};
   
-  for (const year of years) {
-    result[year] = await getHolidaysByYear(year);
-  }
+  await Promise.all(
+    years.map(async (year) => {
+      result[year] = await getHolidaysByYear(year);
+    })
+  );
   
   return result;
 };
@@ -179,31 +171,6 @@ export const formatDateKorean = (dateString: string): string => {
   const dayName = dayNames[date.getDay()];
   
   return `${month}월 ${day}일(${dayName})`;
-};
-
-// API 실패 시 사용할 기본 공휴일 데이터
-const getDefaultHolidays = (year: string): string[] => {
-  const defaultHolidays: { [year: string]: string[] } = {
-    "2024": [
-      "2024-01-01", "2024-02-09", "2024-02-10", "2024-02-11", "2024-02-12",
-      "2024-03-01", "2024-04-10", "2024-05-05", "2024-05-15", "2024-06-06",
-      "2024-08-15", "2024-09-16", "2024-09-17", "2024-09-18", "2024-10-03",
-      "2024-10-09", "2024-12-25"
-    ],
-    "2025": [
-      "2025-01-01", "2025-01-28", "2025-01-29", "2025-01-30", "2025-03-01",
-      "2025-05-05", "2025-05-15", "2025-06-06", "2025-08-15", "2025-10-03",
-      "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08", "2025-10-09",
-      "2025-12-25"
-    ],
-    "2026": [
-      "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-03-01",
-      "2026-05-05", "2026-05-24", "2026-06-06", "2026-08-15", "2026-10-03",
-      "2026-12-25"
-    ]
-  };
-  
-  return defaultHolidays[year] || [];
 };
 
 // 디버깅용: 공휴일 정보 출력
