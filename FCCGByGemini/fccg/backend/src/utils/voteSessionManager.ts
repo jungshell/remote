@@ -25,7 +25,7 @@ async function regenerateAutoGamesForSession(sessionId: number, weekStartDate: D
     include: { user: { select: { name: true } } }
   });
 
-  const { counts, participantsByDay } = aggregateVotesByWeekday(votes);
+  const { counts, participantsByDay } = aggregateVotesByWeekday(votes, weekStart);
 
   const maxVotes = Math.max(...Object.values(counts));
   if (maxVotes <= 0) {

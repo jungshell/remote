@@ -193,9 +193,77 @@ export function voteDayToMonFriAbsentKey(day: string): WeekdayKey | '불참' | n
   return MON_FRI_KEYS.includes(k) ? k : null;
 }
 
+function startOfLocalDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+/**
+ * 한글 날짜가 깨져도(예: "5? 13?(?)") 숫자만으로 월·일 추출
+ */
+export function parseMonthDayFromLooseToken(day: string): { month: number; day: number } | null {
+  const t = String(day).trim();
+  const standard = t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if (standard) {
+    const month = parseInt(standard[1], 10);
+    const d = parseInt(standard[2], 10);
+    if (month >= 1 && month <= 12 && d >= 1 && d <= 31) return { month, day: d };
+  }
+  const loose = t.match(/(\d{1,2})\D+(\d{1,2})/);
+  if (loose) {
+    const month = parseInt(loose[1], 10);
+    const d = parseInt(loose[2], 10);
+    if (month >= 1 && month <= 12 && d >= 1 && d <= 31) return { month, day: d };
+  }
+  return null;
+}
+
+/**
+ * 달력 날짜를 세션 주(weekStart=월)의 월~금 슬롯으로 매핑.
+ * 해당 주 밖이면 "같은 요일"이 오는 월~금 칸으로 맞춤(잘못된 절대일 표기 복구용).
+ */
+export function mapCalendarDateToMonFriInSessionWeek(cal: Date, sessionWeekStart: Date): WeekdayKey | null {
+  const ws = startOfLocalDay(sessionWeekStart);
+  const d = startOfLocalDay(cal);
+  const diffDays = Math.round((d.getTime() - ws.getTime()) / 86400000);
+  if (diffDays >= 0 && diffDays <= 4) {
+    return MON_FRI_KEYS[diffDays];
+  }
+  const dow = d.getDay();
+  if (dow < 1 || dow > 5) return null;
+  for (let i = 0; i < 5; i++) {
+    const t = new Date(ws);
+    t.setDate(ws.getDate() + i);
+    if (t.getDay() === dow) {
+      return MON_FRI_KEYS[i];
+    }
+  }
+  return null;
+}
+
+/**
+ * 세션 주 기준으로 투표 항목 → MON..FRI | 불참
+ * (UTF-8 깨짐·잘못된 한글 날짜는 숫자만 복구 후 세션 주 요일로 매핑)
+ */
+export function voteDayToMonFriAbsentKeyForSession(
+  day: string,
+  sessionWeekStart: Date
+): WeekdayKey | '불참' | null {
+  const direct = voteDayToMonFriAbsentKey(day);
+  if (direct) return direct;
+  const md = parseMonthDayFromLooseToken(day);
+  if (!md) return null;
+  const year = sessionWeekStart.getFullYear();
+  const candidate = new Date(year, md.month - 1, md.day);
+  if (isNaN(candidate.getTime())) return null;
+  return mapCalendarDateToMonFriInSessionWeek(candidate, sessionWeekStart);
+}
+
 /** 투표 행(JSON selectedDays)을 요일별 득표·참가자 이름으로 집계 (한글 날짜/영문 코드 혼용 지원) */
 export function aggregateVotesByWeekday(
-  votes: Array<{ selectedDays: string; user?: { name: string } | null }>
+  votes: Array<{ selectedDays: string; user?: { name: string } | null }>,
+  sessionWeekStart?: Date
 ): { counts: Record<WeekdayKey, number>; participantsByDay: Record<WeekdayKey, string[]> } {
   const counts: Record<WeekdayKey, number> = {
     MON: 0,
@@ -220,7 +288,18 @@ export function aggregateVotesByWeekday(
     const days = parseVoteDays(vote.selectedDays);
     const name = vote.user?.name;
     for (const day of days) {
-      const key = normalizeVoteDayToWeekdayKey(day);
+      let key: WeekdayKey | null = null;
+      if (sessionWeekStart) {
+        const mapped = voteDayToMonFriAbsentKeyForSession(day, sessionWeekStart);
+        if (mapped === '불참') continue;
+        if (mapped) {
+          key = mapped;
+        } else {
+          key = normalizeVoteDayToWeekdayKey(day);
+        }
+      } else {
+        key = normalizeVoteDayToWeekdayKey(day);
+      }
       if (!key) continue;
       counts[key] += 1;
       if (name && !participantsByDay[key].includes(name)) {

@@ -1361,7 +1361,10 @@ async function runWeeklyScheduler() {
       });
       console.log('🧹 지난주 자동생성일정 정리:', deleted.count, '개 삭제');
       
-      const { counts, participantsByDay } = aggregateVotesByWeekday(lastWeekSession.votes);
+      const { counts, participantsByDay } = aggregateVotesByWeekday(
+        lastWeekSession.votes,
+        new Date(lastWeekSession.weekStartDate)
+      );
       
       const max = Math.max(...Object.values(counts));
       

@@ -165,6 +165,9 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
     }))
     .sort((a, b) => a.order - b.order);
 
+  /** 요일별 득표 수 합계 — 도넛 % 분모 (참가자 수가 아닌 실제 득표 건수 기준) */
+  const pieTotalVoteChoices = pieChartData.reduce((sum, row) => sum + (row.value || 0), 0);
+
   // 시간대별 투표 분포 (참여자별)
   const timeDistributionData = voteResults.participants.map((participant) => ({
     name: participant.userName,
@@ -212,6 +215,11 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
 
   const getSortValue = (dayStr: string) => {
     if (!dayStr) return Number.MAX_SAFE_INTEGER;
+
+    const looseDigits = dayStr.match(/(\d{1,2})\D+(\d{1,2})/);
+    if (looseDigits && (!dayStr.includes('월') || !dayStr.includes('일'))) {
+      return parseInt(looseDigits[1], 10) * 100 + parseInt(looseDigits[2], 10);
+    }
 
     const koreanMatch = dayStr.match(/(\d+)월 (\d+)일/);
     if (koreanMatch) {
@@ -342,7 +350,10 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
                         {data.value}명
                       </Badge>
                       <Text fontSize="xs" color="gray.500">
-                        {((data.value / voteResults.totalParticipants) * 100).toFixed(1)}%
+                        {pieTotalVoteChoices > 0
+                          ? ((data.value / pieTotalVoteChoices) * 100).toFixed(1)
+                          : '0.0'}
+                        %
                       </Text>
                     </VStack>
                   </HStack>
@@ -397,7 +408,21 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
                         const dayName = dayMapping[dayStr as keyof typeof dayMapping];
                         return `${month}월 ${date}일(${dayName})`;
                       }
-                      
+
+                      const loose = dayStr.match(/(\d{1,2})\D+(\d{1,2})/);
+                      if (loose) {
+                        const mNum = parseInt(loose[1], 10);
+                        const dNum = parseInt(loose[2], 10);
+                        if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+                          const y = new Date(voteResults.weekStartDate).getFullYear();
+                          const cal = new Date(y, mNum - 1, dNum);
+                          if (!isNaN(cal.getTime())) {
+                            const dowKo = ['일', '월', '화', '수', '목', '금', '토'][cal.getDay()];
+                            return `${mNum}월 ${dNum}일(${dowKo})`;
+                          }
+                        }
+                      }
+
                       return dayStr;
                     };
                     
