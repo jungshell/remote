@@ -31,6 +31,22 @@ import { renderGameReminderMailPng, type GameMailImageInput } from '../utils/gam
 const prisma = new PrismaClient();
 const AUTH_TOKEN_EXPIRES_IN = (process.env.AUTH_TOKEN_EXPIRES_IN || '365d') as import('jsonwebtoken').SignOptions['expiresIn'];
 
+/** 미완료 투표 세션에서 해당 회원의 투표 행 삭제 (비활성·정지 후 집계·일정 불일치 방지) */
+async function deleteVotesForUserInIncompleteSessions(userId: number): Promise<number> {
+  const sessions = await prisma.voteSession.findMany({
+    where: { isCompleted: false },
+    select: { id: true }
+  });
+  if (sessions.length === 0) return 0;
+  const del = await prisma.vote.deleteMany({
+    where: {
+      userId,
+      voteSessionId: { in: sessions.map((s) => s.id) }
+    }
+  });
+  return del.count;
+}
+
 async function ensureNextWeekVoteSessionExists() {
   const koreaTime = getKoreaTime();
   const nextWeekMonday = getNextWeekMonday(koreaTime);
@@ -3126,6 +3142,95 @@ router.put('/admin/vote-sessions/active/disabled-days', authenticateToken, async
   }
 });
 
+/**
+ * 관리자: 특정 회원의 투표 행 삭제 (잘못된 기록·비활성 전 투표 정리용)
+ * body: { userName?: string, userId?: number, sessionId?: number, allIncompleteSessions?: boolean }
+ * - sessionId: 해당 세션만
+ * - allIncompleteSessions true: 완료되지 않은 모든 세션
+ * - 기본: 활성(isActive && !isCompleted) 세션만
+ */
+router.post('/admin/votes/remove-for-user', authenticateToken, async (req, res) => {
+  try {
+    const adminId = req.user?.userId;
+    if (!adminId) {
+      return res.status(401).json({ error: '인증이 필요합니다.' });
+    }
+    const admin = await prisma.user.findUnique({ where: { id: adminId } });
+    if (admin?.role !== 'ADMIN' && admin?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: '관리자만 삭제할 수 있습니다.' });
+    }
+
+    const { userName, userId: bodyUserId, sessionId, allIncompleteSessions } = req.body as {
+      userName?: string;
+      userId?: number;
+      sessionId?: number;
+      allIncompleteSessions?: boolean;
+    };
+
+    let targetUserIds: number[] = [];
+    if (typeof bodyUserId === 'number' && !Number.isNaN(bodyUserId)) {
+      targetUserIds = [bodyUserId];
+    } else if (userName && typeof userName === 'string') {
+      const trimmed = userName.trim();
+      const found = await prisma.user.findMany({
+        where: { name: trimmed },
+        select: { id: true, name: true }
+      });
+      if (found.length === 0) {
+        return res.status(404).json({ error: '해당 이름의 회원이 없습니다.', name: trimmed });
+      }
+      if (found.length > 1) {
+        return res.status(400).json({
+          error: '동명이인이 있습니다. userId로 지정해 주세요.',
+          matches: found
+        });
+      }
+      targetUserIds = [found[0].id];
+    } else {
+      return res.status(400).json({ error: 'userName 또는 userId가 필요합니다.' });
+    }
+
+    const details: { userId: number; sessionId?: number; deletedCount: number }[] = [];
+
+    for (const uid of targetUserIds) {
+      if (allIncompleteSessions === true) {
+        const n = await deleteVotesForUserInIncompleteSessions(uid);
+        details.push({ userId: uid, deletedCount: n });
+        continue;
+      }
+      if (typeof sessionId === 'number' && !Number.isNaN(sessionId)) {
+        const del = await prisma.vote.deleteMany({
+          where: { userId: uid, voteSessionId: sessionId }
+        });
+        details.push({ userId: uid, sessionId, deletedCount: del.count });
+        continue;
+      }
+      const activeSession = await prisma.voteSession.findFirst({
+        where: { isActive: true, isCompleted: false }
+      });
+      if (!activeSession) {
+        return res.status(404).json({
+          error: '활성 투표 세션이 없습니다. sessionId를 지정하거나 allIncompleteSessions를 사용하세요.'
+        });
+      }
+      const del = await prisma.vote.deleteMany({
+        where: { userId: uid, voteSessionId: activeSession.id }
+      });
+      details.push({ userId: uid, sessionId: activeSession.id, deletedCount: del.count });
+    }
+
+    const deletedTotal = details.reduce((s, d) => s + d.deletedCount, 0);
+    res.json({
+      message: '투표 기록이 삭제되었습니다.',
+      deletedTotal,
+      details
+    });
+  } catch (error) {
+    console.error('관리자 투표 삭제 오류:', error);
+    handleError(error, res, '관리자 투표 삭제');
+  }
+});
+
 // 자동 투표 세션 생성 스케줄러 (매주 월요일 00:01) - 수정: 무한 루프 방지
 const scheduleWeeklyVoteSession = () => {
   const currentTime = new Date();
@@ -3239,6 +3344,13 @@ router.put('/members/:id', authenticateToken, async (req, res) => {
         status
       }
     });
+
+    if (status === 'INACTIVE' || status === 'SUSPENDED') {
+      const removed = await deleteVotesForUserInIncompleteSessions(memberId);
+      if (removed > 0) {
+        console.log('🧹 회원 비활성/정지 → 미완료 세션 투표 삭제:', { memberId, removed });
+      }
+    }
 
     res.json({
       success: true,

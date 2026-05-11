@@ -9,7 +9,8 @@
     "start:ts": "node -r ts-node/register/transpile-only src/app.ts",
     "postinstall": "prisma generate",
     "postbuild": "node scripts/postbuild.js || true",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "script:remove-vote": "ts-node --transpile-only scripts/remove-votes-for-user.ts"
   },
   "engines": {
     "node": "18.x"

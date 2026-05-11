@@ -203,5 +203,14 @@ export const startWeeklyVote = () => request('/start-weekly-vote', { method: 'PO
 export const deleteVote = (userId: number) =>
   request(`/votes/${userId}`, { method: 'DELETE' });
 
+/** 관리자: 특정 회원 투표 행 삭제 (기본=활성 세션만) */
+export const adminRemoveVotesForUser = (body: {
+  userName?: string;
+  userId?: number;
+  sessionId?: number;
+  allIncompleteSessions?: boolean;
+}) =>
+  request('/admin/votes/remove-for-user', { method: 'POST', body: JSON.stringify(body) });
+
 // ===== 기타 유틸 =====
 export const apiGet = request;
