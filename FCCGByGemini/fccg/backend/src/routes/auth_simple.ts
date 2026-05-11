@@ -16,6 +16,7 @@ import {
   convertKoreanDateToDayCode,
   voteDayToMonFriAbsentKeyForSession,
   aggregateVotesByWeekday,
+  filterVotesForResultsDisplay,
   type WeekdayKey
 } from '../utils/voteUtils';
 import {
@@ -142,7 +143,7 @@ function buildProcessedVoteSession(filteredActiveSession: any): any | null {
   if (!filteredActiveSession) {
     return null;
   }
-  const rawVotes = filteredActiveSession.votes || [];
+  const rawVotes = filterVotesForResultsDisplay(filteredActiveSession.votes || []);
 
   const weekStartForSession = new Date(filteredActiveSession.weekStartDate);
   const participants = rawVotes.map((vote: any) => {
@@ -1612,7 +1613,7 @@ router.get('/admin/vote-sessions/results', async (req, res) => {
     
     // 전체 회원 목록 조회
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true }
+      select: { id: true, name: true, status: true }
     });
     
     // 모든 투표 세션 조회 (최신순)
@@ -1622,7 +1623,7 @@ router.get('/admin/vote-sessions/results', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }
@@ -1631,12 +1632,13 @@ router.get('/admin/vote-sessions/results', async (req, res) => {
     
     // 세션 데이터 가공
     const processedSessions = sessions.map(session => {
-      const participantCount = session.votes.length;
-      const uniqueParticipants = new Set(session.votes.map(vote => vote.userId)).size;
+      const votesShown = filterVotesForResultsDisplay(session.votes);
+      const participantCount = votesShown.length;
+      const uniqueParticipants = new Set(votesShown.map(vote => vote.userId)).size;
       
       // 참여자 목록 생성
       const sessionWeekStart = new Date(session.weekStartDate);
-      const participants = session.votes.map((vote) => {
+      const participants = votesShown.map((vote) => {
         const rawDays = parseVoteDays(vote.selectedDays);
         const codes = rawDays
           .map((d) => voteDayToMonFriAbsentKeyForSession(d, sessionWeekStart))
@@ -1649,9 +1651,10 @@ router.get('/admin/vote-sessions/results', async (req, res) => {
         };
       });
       
-      // 미참자 목록 생성
+      // 미참자 목록 생성 (활성 회원 중 미투표만)
       const participantUserIds = new Set(participants.map(p => p.userId));
       const nonParticipants = allUsers
+        .filter(user => user.status === 'ACTIVE')
         .filter(user => !participantUserIds.has(user.id))
         .map(user => user.name);
       
@@ -1704,7 +1707,7 @@ router.get('/votes/results', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }
@@ -1718,6 +1721,7 @@ router.get('/votes/results', async (req, res) => {
     }
 
     const sessionWeekStart = new Date(session.weekStartDate);
+    const votesForResults = filterVotesForResultsDisplay(session.votes);
     
     // 요일별 투표 결과 집계
     const dayVotes: any = {
@@ -1730,7 +1734,7 @@ router.get('/votes/results', async (req, res) => {
     };
     
     // 각 투표를 분석하여 요일별 집계 (한글 날짜·이중 JSON 등 parseVoteDays로 통일)
-    session.votes.forEach((vote) => {
+    votesForResults.forEach((vote) => {
       const selectedDays = parseVoteDays(vote.selectedDays);
       selectedDays.forEach((day: string) => {
         const dayKey = voteDayToMonFriAbsentKeyForSession(day, sessionWeekStart);
@@ -1755,7 +1759,7 @@ router.get('/votes/results', async (req, res) => {
     });
     
     // 전체 참여자 목록
-    const allParticipants = session.votes.map((vote) => {
+    const allParticipants = votesForResults.map((vote) => {
       const rawDays = parseVoteDays(vote.selectedDays);
       const codes = rawDays
         .map((d) => voteDayToMonFriAbsentKeyForSession(d, sessionWeekStart))
@@ -1783,7 +1787,7 @@ router.get('/votes/results', async (req, res) => {
       results: dayVotes,
       participants: allParticipants,
       totalParticipants: allParticipants.length,
-      totalVotes: session.votes.length
+      totalVotes: votesForResults.length
     });
     
   } catch (error) {
@@ -1807,7 +1811,7 @@ router.get('/votes/unified', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }
@@ -1859,7 +1863,7 @@ router.get('/votes/unified', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }
@@ -1887,7 +1891,8 @@ router.get('/votes/unified', async (req, res) => {
       };
       
       const activeWeekStart = new Date(activeSession.weekStartDate);
-      activeSession.votes.forEach((vote) => {
+      const activeVotes = filterVotesForResultsDisplay(activeSession.votes);
+      activeVotes.forEach((vote) => {
         const selectedDays = parseVoteDays(vote.selectedDays);
         selectedDays.forEach((day: string) => {
           const dayKey = voteDayToMonFriAbsentKeyForSession(day, activeWeekStart);
@@ -1921,7 +1926,7 @@ router.get('/votes/unified', async (req, res) => {
         isActive: activeSession.isActive,
         isCompleted: activeSession.isCompleted,
         results: dayVotes,
-        participants: activeSession.votes.map((vote) => {
+        participants: activeVotes.map((vote) => {
           const rawDays = parseVoteDays(vote.selectedDays);
           const codes = rawDays
             .map((d) => voteDayToMonFriAbsentKeyForSession(d, activeWeekStart))
@@ -1933,7 +1938,7 @@ router.get('/votes/unified', async (req, res) => {
             votedAt: vote.createdAt
           };
         }),
-        totalParticipants: activeSession.votes.length
+        totalParticipants: activeVotes.length
       };
       
       console.log('🔍 백엔드 processedActiveSession.results 키:', Object.keys(processedActiveSession.results));
@@ -1987,7 +1992,8 @@ router.get('/votes/unified', async (req, res) => {
       };
       
       const lastWeekStart = new Date(sessionToProcess.weekStartDate);
-      sessionToProcess.votes.forEach((vote) => {
+      const lastVotes = filterVotesForResultsDisplay(sessionToProcess.votes);
+      lastVotes.forEach((vote) => {
         const selectedDays = parseVoteDays(vote.selectedDays);
         selectedDays.forEach((day: string) => {
           const dayKey = voteDayToMonFriAbsentKeyForSession(day, lastWeekStart);
@@ -2020,7 +2026,7 @@ router.get('/votes/unified', async (req, res) => {
         isCompleted: sessionToProcess.isCompleted,
         weekRange: `${formatDateWithDay(sessionToProcess.weekStartDate)} ~ ${formatDateWithDay(new Date(sessionToProcess.weekStartDate.getTime() + 6 * 24 * 60 * 60 * 1000))}`,
         results: dayVotes,
-        participants: sessionToProcess.votes.map((vote) => {
+        participants: lastVotes.map((vote) => {
           const rawDays = parseVoteDays(vote.selectedDays);
           const codes = rawDays
             .map((d) => voteDayToMonFriAbsentKeyForSession(d, lastWeekStart))
@@ -2032,7 +2038,7 @@ router.get('/votes/unified', async (req, res) => {
             votedAt: vote.createdAt
           };
         }),
-        totalParticipants: sessionToProcess.votes.length
+        totalParticipants: lastVotes.length
       };
     }
     
@@ -2070,7 +2076,7 @@ router.post('/votes/aggregate/save', async (req, res) => {
       where: { id: parseInt(sessionId) },
       include: {
         votes: {
-          include: { user: { select: { name: true } } }
+          include: { user: { select: { name: true, status: true } } }
         }
       }
     });
@@ -2306,7 +2312,7 @@ router.post('/vote-sessions/:id/close', authenticateToken, async (req, res) => {
       // 2) 최신 투표 결과로 재생성
       const votes = await prisma.vote.findMany({ 
         where: { voteSessionId: sessionId },
-        include: { user: { select: { name: true } } }
+        include: { user: { select: { name: true, status: true } } }
       });
       const { counts, participantsByDay } = aggregateVotesByWeekday(votes, weekStart);
 
@@ -2672,7 +2678,7 @@ router.get('/unified-vote-data', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }
@@ -2720,7 +2726,7 @@ router.get('/unified-vote-data', async (req, res) => {
           votes: {
             include: {
               user: {
-                select: { id: true, name: true }
+                select: { id: true, name: true, status: true }
               }
             }
           }
@@ -2732,7 +2738,8 @@ router.get('/unified-vote-data', async (req, res) => {
 
     // 모든 세션 데이터 가공 (관리자 페이지용)
     const processedSessions = allSessions.map(session => {
-      const participants = session.votes.map(vote => {
+      const votesShown = filterVotesForResultsDisplay(session.votes);
+      const participants = votesShown.map(vote => {
         const selectedDays = parseVoteDays(vote.selectedDays);
         return {
           userId: vote.userId,
@@ -2743,6 +2750,7 @@ router.get('/unified-vote-data', async (req, res) => {
       });
 
       const nonParticipants = allMembers
+        .filter(m => m.status === 'ACTIVE')
         .filter(member => !participants.some(p => p.userId === member.id))
         .map(member => member.name);
 
@@ -2785,7 +2793,7 @@ router.get('/unified-vote-data', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }
@@ -2815,14 +2823,16 @@ router.get('/unified-vote-data', async (req, res) => {
         '불참': { count: 0, participants: [] }
       };
       
-      const participants = lastCompletedSession.votes.map(vote => ({
+      const votesLastWeek = filterVotesForResultsDisplay(lastCompletedSession.votes);
+
+      const participants = votesLastWeek.map(vote => ({
         userId: vote.userId,
         userName: vote.user.name,
         selectedDays: parseVoteDays(vote.selectedDays),
         votedAt: vote.createdAt
       }));
       
-      lastCompletedSession.votes.forEach(vote => {
+      votesLastWeek.forEach(vote => {
         const selectedDaysArray = parseVoteDays(vote.selectedDays);
         
           selectedDaysArray.forEach((day: string) => {
@@ -2855,7 +2865,7 @@ router.get('/unified-vote-data', async (req, res) => {
         endTime: lastCompletedSession.endTime,
         isActive: lastCompletedSession.isActive,
         isCompleted: lastCompletedSession.isCompleted,
-        totalParticipants: lastCompletedSession.votes.length,
+        totalParticipants: votesLastWeek.length,
         participants,
         results: dayVotes
       };
@@ -3710,7 +3720,7 @@ router.get('/votes/unified', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }
@@ -3748,7 +3758,8 @@ router.get('/votes/unified', async (req, res) => {
         FRI: { count: 0, participants: [] }
       };
       
-      activeSession.votes.forEach(vote => {
+      const activeVotesDep = filterVotesForResultsDisplay(activeSession.votes);
+      activeVotesDep.forEach(vote => {
         const selectedDays = parseVoteDays(vote.selectedDays);
         selectedDays.forEach((day: string) => {
           const dayKey = convertKoreanDateToDayCode(day);
@@ -3769,9 +3780,9 @@ router.get('/votes/unified', async (req, res) => {
         endTime: activeSession.endTime,
         isActive: activeSession.isActive,
         isCompleted: activeSession.isCompleted,
-        totalParticipants: activeSession.votes.length,
+        totalParticipants: activeVotesDep.length,
         results: dayVotes,
-        votes: activeSession.votes
+        votes: activeVotesDep
       };
     }
     
@@ -3786,7 +3797,8 @@ router.get('/votes/unified', async (req, res) => {
         FRI: { count: 0, participants: [] }
       };
       
-      lastWeekSession.votes.forEach(vote => {
+      const lastVotesDep = filterVotesForResultsDisplay(lastWeekSession.votes);
+      lastVotesDep.forEach(vote => {
         const selectedDays = parseVoteDays(vote.selectedDays);
         selectedDays.forEach((day: string) => {
           const dayKey = convertKoreanDateToDayCode(day);
@@ -3807,7 +3819,7 @@ router.get('/votes/unified', async (req, res) => {
         endTime: lastWeekSession.endTime,
         isActive: lastWeekSession.isActive,
         isCompleted: lastWeekSession.isCompleted,
-        totalParticipants: lastWeekSession.votes.length,
+        totalParticipants: lastVotesDep.length,
         results: dayVotes
       };
     }
@@ -3845,7 +3857,7 @@ router.get('/votes/sessions/summary', async (req, res) => {
     
     // 전체 회원 목록 조회
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true }
+      select: { id: true, name: true, status: true }
     });
     
     const sessions = await prisma.voteSession.findMany({
@@ -3866,12 +3878,13 @@ router.get('/votes/sessions/summary', async (req, res) => {
     const completedSessions = sessions.filter(s => s.isCompleted).length;
     const activeSessions = sessions.filter(s => s.isActive).length;
     const totalParticipants = sessions.reduce((sum, session) => {
-      return sum + session.votes.length;
+      return sum + filterVotesForResultsDisplay(session.votes).length;
     }, 0);
     
     const mappedSessions = sessions.map(session => {
+      const votesShown = filterVotesForResultsDisplay(session.votes);
       // 참여자 목록 생성
-      const participants = session.votes.map(vote => {
+      const participants = votesShown.map(vote => {
         const selectedDays = parseVoteDays(vote.selectedDays);
         return {
           userId: vote.userId,
@@ -3881,9 +3894,10 @@ router.get('/votes/sessions/summary', async (req, res) => {
         };
       });
       
-      // 미참자 목록 생성
+      // 미참자 목록 생성 (활성 회원 중 미투표만)
       const participantUserIds = new Set(participants.map(p => p.userId));
       const nonParticipants = allUsers
+        .filter(user => user.status === 'ACTIVE')
         .filter(user => !participantUserIds.has(user.id))
         .map(user => user.name);
       
@@ -3894,7 +3908,7 @@ router.get('/votes/sessions/summary', async (req, res) => {
         endTime: session.endTime,
         isActive: session.isActive,
         isCompleted: session.isCompleted,
-        voteCount: session.votes.length,
+        voteCount: votesShown.length,
         participantCount: participants.length,
         participantNames: participants.map(p => p.userName),
         participants: participants,

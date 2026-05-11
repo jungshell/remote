@@ -22,7 +22,7 @@ async function regenerateAutoGamesForSession(sessionId: number, weekStartDate: D
 
   const votes = await prisma.vote.findMany({
     where: { voteSessionId: sessionId },
-    include: { user: { select: { name: true } } }
+    include: { user: { select: { name: true, status: true } } }
   });
 
   const { counts, participantsByDay } = aggregateVotesByWeekday(votes, weekStart);
@@ -144,7 +144,7 @@ export async function getActiveSession(includeVotes: boolean = true) {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true }
+              select: { id: true, name: true, status: true }
             }
           }
         }

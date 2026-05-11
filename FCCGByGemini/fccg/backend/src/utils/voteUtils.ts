@@ -260,9 +260,26 @@ export function voteDayToMonFriAbsentKeyForSession(
   return mapCalendarDateToMonFriInSessionWeek(candidate, sessionWeekStart);
 }
 
+/**
+ * 관리자 결과·자동일정 집계 시 비활성(INACTIVE)·정지(SUSPENDED) 회원 제외.
+ * user 관계가 없으면 레거시 호환으로 해당 행은 집계에 포함한다.
+ */
+export function filterVotesForResultsDisplay<T extends { user?: { status?: string } | null }>(
+  votes: T[] | undefined | null
+): T[] {
+  if (!votes?.length) return [];
+  return votes.filter((v) => {
+    const u = v.user;
+    if (u == null) return true;
+    const s = u.status;
+    if (s === 'INACTIVE' || s === 'SUSPENDED') return false;
+    return true;
+  });
+}
+
 /** 투표 행(JSON selectedDays)을 요일별 득표·참가자 이름으로 집계 (한글 날짜/영문 코드 혼용 지원) */
 export function aggregateVotesByWeekday(
-  votes: Array<{ selectedDays: string; user?: { name: string } | null }>,
+  votes: Array<{ selectedDays: string; user?: { name: string; status?: string } | null }>,
   sessionWeekStart?: Date
 ): { counts: Record<WeekdayKey, number>; participantsByDay: Record<WeekdayKey, string[]> } {
   const counts: Record<WeekdayKey, number> = {
@@ -284,7 +301,9 @@ export function aggregateVotesByWeekday(
     SUN: []
   };
 
-  for (const vote of votes) {
+  const filteredVotes = filterVotesForResultsDisplay(votes);
+
+  for (const vote of filteredVotes) {
     const days = parseVoteDays(vote.selectedDays);
     const name = vote.user?.name;
     for (const day of days) {
