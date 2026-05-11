@@ -10,7 +10,7 @@
     "postinstall": "prisma generate",
     "postbuild": "node scripts/postbuild.js || true",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "script:remove-vote": "ts-node --transpile-only scripts/remove-votes-for-user.ts"
+    "script:remove-vote": "ts-node --transpile-only tooling/remove-votes-for-user.ts"
   },
   "engines": {
     "node": "18.x"
