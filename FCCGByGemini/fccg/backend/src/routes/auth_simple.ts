@@ -383,6 +383,14 @@ router.post('/login', authLimiter, async (req, res) => {
       });
     }
 
+    // 비활성 계정은 로그인 차단
+    if (user.status === 'INACTIVE') {
+      return res.status(403).json({
+        error: '비활성화된 계정입니다. 관리자에게 확인 바랍니다.',
+        memberStatus: user.status
+      });
+    }
+
     // 로그인 기록 업데이트 (마지막 로그인 시간, 로그인 횟수)
     try {
       await prisma.user.update({
@@ -510,6 +518,22 @@ router.post('/votes', async (req, res) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fc-chalggyeo-secret');
       const userId = decoded.userId;
+
+      // 비활성 회원은 투표 차단
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, status: true }
+      });
+      if (!currentUser) {
+        return res.status(404).json({
+          error: '사용자를 찾을 수 없습니다.'
+        });
+      }
+      if (currentUser.status === 'INACTIVE') {
+        return res.status(403).json({
+          error: '비활성화된 계정은 투표할 수 없습니다. 관리자에게 확인 바랍니다.'
+        });
+      }
 
       // 세션 상태 검증 및 자동 수정
       await validateAndFixSessionState();
@@ -698,7 +722,7 @@ router.get('/members', async (req, res) => {
     const members = await prisma.user.findMany({
       where: { 
         role: { in: ['MEMBER', 'ADMIN', 'SUPER_ADMIN'] },
-        status: { in: ['ACTIVE', 'SUSPENDED'] }
+        status: { in: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] }
       },
       select: {
         id: true,
@@ -2672,7 +2696,7 @@ router.get('/unified-vote-data', async (req, res) => {
     const allMembers = await prisma.user.findMany({
       where: { 
         role: { in: ['MEMBER', 'ADMIN', 'SUPER_ADMIN'] },
-        status: { in: ['ACTIVE', 'SUSPENDED'] }
+        status: { in: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] }
       },
       select: { id: true, name: true, status: true }
     });

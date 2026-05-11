@@ -48,12 +48,14 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusWarning, setStatusWarning] = useState<any>(null);
+  const [inactiveModalMessage, setInactiveModalMessage] = useState('');
   const setUser = useAuthStore((s) => s.setUser);
   const setToken = useAuthStore((s) => s.setToken);
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen: isWarningModalOpen, onOpen: onWarningModalOpen, onClose: onWarningModalClose } = useDisclosure();
+  const { isOpen: isInactiveModalOpen, onOpen: onInactiveModalOpen, onClose: onInactiveModalClose } = useDisclosure();
 
   // 회원 상태 경고 체크 함수
   const checkMemberStatusWarning = (user: any) => {
@@ -151,7 +153,14 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
         if (axiosError.response?.status === 401) {
           errorMsg = '이메일 또는 비밀번호가 올바르지 않습니다.';
         } else if (axiosError.response?.status === 403) {
-          errorMsg = '비활성화된 계정입니다. 관리자에게 문의하세요. (관리자 : 강병우, 정성인)';
+          const responseMessage = axiosError.response.data?.error || axiosError.response.data?.message || '';
+          const isInactiveMember = axiosError.response.data?.memberStatus === 'INACTIVE' || responseMessage.includes('비활성');
+          if (isInactiveMember) {
+            setInactiveModalMessage(responseMessage || '비활성화된 계정입니다. 관리자에게 확인 바랍니다.');
+            onInactiveModalOpen();
+            return;
+          }
+          errorMsg = responseMessage || '접근 권한이 없습니다.';
         } else if (axiosError.response?.status === 400) {
           errorMsg = axiosError.response.data?.error || axiosError.response.data?.message || '입력 정보를 확인해주세요.';
         } else if (axiosError.response?.status === 404) {
@@ -260,6 +269,30 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="blue" mr={3} onClick={handleWarningClose}>
+              확인
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* 비활성 계정 차단 모달 */}
+      <Modal isOpen={isInactiveModalOpen} onClose={onInactiveModalClose} size="md" isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>비활성 계정 안내</ModalHeader>
+          <ModalBody>
+            <Alert status="warning" variant="left-accent" borderRadius="md">
+              <AlertIcon />
+              <Box>
+                <AlertTitle mb={1}>로그인이 제한되었습니다.</AlertTitle>
+                <AlertDescription>
+                  {inactiveModalMessage || '비활성화된 계정입니다. 관리자에게 확인 바랍니다.'}
+                </AlertDescription>
+              </Box>
+            </Alert>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" onClick={onInactiveModalClose}>
               확인
             </Button>
           </ModalFooter>

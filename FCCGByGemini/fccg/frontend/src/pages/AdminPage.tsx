@@ -1324,7 +1324,13 @@ export default function AdminPage() {
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {games.map(game => {
+                      {[...games]
+                        .sort((a, b) => {
+                          const ta = new Date(a.date).getTime();
+                          const tb = new Date(b.date).getTime();
+                          return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+                        })
+                        .map(game => {
                         const gameDate = new Date(game.date);
                         return (
                           <Tr key={game.id}>

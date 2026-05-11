@@ -231,6 +231,32 @@ export async function validateAndFixSessionState(): Promise<void> {
     
     // 중복 활성 세션 처리
     await ensureSingleActiveSession();
+
+    // 다음주 세션이 누락되지 않도록 항상 보장
+    await createNextWeekSession();
+
+    // 활성 세션이 없다면 대기 중인 최신 세션을 활성화
+    const activeSession = await prisma.voteSession.findFirst({
+      where: { isActive: true, isCompleted: false },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (!activeSession) {
+      const pendingSession = await prisma.voteSession.findFirst({
+        where: { isActive: false, isCompleted: false },
+        orderBy: [
+          { weekStartDate: 'asc' },
+          { id: 'desc' }
+        ]
+      });
+
+      if (pendingSession) {
+        await prisma.voteSession.update({
+          where: { id: pendingSession.id },
+          data: { isActive: true }
+        });
+        console.log(`✅ 대기 세션 자동 활성화: ${pendingSession.id}`);
+      }
+    }
     
     console.log('✅ 세션 상태 검증 완료');
   } catch (error) {
