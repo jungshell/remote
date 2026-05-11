@@ -110,26 +110,51 @@ export function isSessionActive(session: {
 
 /**
  * 투표 데이터 파싱 (안전한 JSON 파싱)
+ * - DB에 배열이 아니라 "이중 JSON 문자열"로 들어간 레거시도 배열로 복원
+ * - JSON이 아니면 단일 항목 배열로 취급
  */
 export function parseVoteDays(selectedDays: string | string[] | null | undefined): string[] {
   if (!selectedDays) {
     return [];
   }
-  
+
   if (Array.isArray(selectedDays)) {
-    return selectedDays.filter(day => typeof day === 'string' && day.length > 0);
+    return selectedDays.filter((day) => typeof day === 'string' && day.length > 0);
   }
-  
+
   if (typeof selectedDays === 'string') {
+    const raw = selectedDays.trim();
+    if (!raw) return [];
+
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(selectedDays);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.warn('투표 데이터 파싱 실패:', selectedDays, e);
-      return [];
+      parsed = JSON.parse(raw);
+    } catch {
+      return raw ? [raw] : [];
     }
+
+    // "\"[\\\"MON\\\"]\"" 처럼 문자열로 한 번 더 감싸진 경우 unwrap
+    let depth = 0;
+    while (typeof parsed === 'string' && depth < 5) {
+      const inner = (parsed as string).trim();
+      if (!inner) return [];
+      try {
+        parsed = JSON.parse(inner);
+        depth += 1;
+      } catch {
+        return [inner];
+      }
+    }
+
+    if (Array.isArray(parsed)) {
+      return parsed.filter((day) => typeof day === 'string' && day.length > 0);
+    }
+    if (typeof parsed === 'string' && parsed.length > 0) {
+      return [parsed];
+    }
+    return [];
   }
-  
+
   return [];
 }
 
@@ -154,6 +179,18 @@ function normalizeVoteDayToWeekdayKey(day: string): WeekdayKey | null {
   const u = c.toUpperCase();
   const keys: WeekdayKey[] = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   return keys.includes(u as WeekdayKey) ? (u as WeekdayKey) : null;
+}
+
+const MON_FRI_KEYS: WeekdayKey[] = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+
+/** 일정투표 집계용: 월~금 또는 불참만 반환 (토·일 등은 null) */
+export function voteDayToMonFriAbsentKey(day: string): WeekdayKey | '불참' | null {
+  const t = String(day).trim();
+  if (!t) return null;
+  if (t === '불참') return '불참';
+  const k = normalizeVoteDayToWeekdayKey(t);
+  if (!k) return null;
+  return MON_FRI_KEYS.includes(k) ? k : null;
 }
 
 /** 투표 행(JSON selectedDays)을 요일별 득표·참가자 이름으로 집계 (한글 날짜/영문 코드 혼용 지원) */

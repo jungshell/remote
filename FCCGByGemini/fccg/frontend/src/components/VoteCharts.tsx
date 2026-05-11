@@ -52,6 +52,38 @@ interface VoteChartsProps {
   voteResults: VoteResults;
 }
 
+/** selectedDays가 문자열·이중 JSON이면 배열로만 쓰기 (문자열 spread로 글자 깨짐 방지) */
+function coerceSelectedDaysToArray(selectedDays: unknown): string[] {
+  if (Array.isArray(selectedDays)) {
+    return selectedDays.filter((x): x is string => typeof x === 'string' && x.length > 0);
+  }
+  if (typeof selectedDays !== 'string') return [];
+  const raw = selectedDays.trim();
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [raw];
+  }
+  let depth = 0;
+  while (typeof parsed === 'string' && depth < 5) {
+    const inner = (parsed as string).trim();
+    if (!inner) return [];
+    try {
+      parsed = JSON.parse(inner);
+      depth += 1;
+    } catch {
+      return [inner];
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return parsed.filter((x): x is string => typeof x === 'string' && x.length > 0);
+  }
+  if (typeof parsed === 'string' && parsed.length > 0) return [parsed];
+  return [];
+}
+
 const COLORS = ['#3182CE', '#38A169', '#DD6B20', '#805AD5', '#E53E3E'];
 
 export default function VoteCharts({ voteResults }: VoteChartsProps) {
@@ -134,9 +166,9 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
     .sort((a, b) => a.order - b.order);
 
   // 시간대별 투표 분포 (참여자별)
-  const timeDistributionData = voteResults.participants.map(participant => ({
+  const timeDistributionData = voteResults.participants.map((participant) => ({
     name: participant.userName,
-    votes: participant.selectedDays.length,
+    votes: coerceSelectedDaysToArray(participant.selectedDays).length,
     votedAt: new Date(participant.votedAt).toLocaleTimeString('ko-KR', { 
       hour: '2-digit', 
       minute: '2-digit' 
@@ -341,7 +373,7 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
                 {participant.userName}
               </Text>
               <VStack spacing={0.1}>
-                {[...participant.selectedDays]
+                {[...coerceSelectedDaysToArray(participant.selectedDays)]
                   .sort((a, b) => getSortValue(a) - getSortValue(b))
                   .map((day, dayIndex) => {
                     // 영어 요일 코드를 한글 날짜로 변환

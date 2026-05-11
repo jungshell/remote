@@ -14,6 +14,7 @@ import {
   getKstDateKey,
   parseVoteDays,
   convertKoreanDateToDayCode,
+  voteDayToMonFriAbsentKey,
   aggregateVotesByWeekday,
   type WeekdayKey
 } from '../utils/voteUtils';
@@ -144,11 +145,14 @@ function buildProcessedVoteSession(filteredActiveSession: any): any | null {
   const rawVotes = filteredActiveSession.votes || [];
 
   const participants = rawVotes.map((vote: any) => {
-    const selectedDays = parseVoteDays(vote.selectedDays);
+    const rawDays = parseVoteDays(vote.selectedDays);
+    const codes = rawDays
+      .map((d) => voteDayToMonFriAbsentKey(d))
+      .filter((x): x is NonNullable<typeof x> => x != null);
     return {
       userId: vote.userId,
       userName: vote.user.name,
-      selectedDays: selectedDays,
+      selectedDays: codes.length > 0 ? codes : rawDays,
       votedAt: vote.createdAt
     };
   });
@@ -1632,12 +1636,18 @@ router.get('/admin/vote-sessions/results', async (req, res) => {
       const uniqueParticipants = new Set(session.votes.map(vote => vote.userId)).size;
       
       // 참여자 목록 생성
-      const participants = session.votes.map(vote => ({
-        userId: vote.userId,
-        userName: vote.user.name,
-        selectedDays: JSON.parse(vote.selectedDays),
-        votedAt: vote.createdAt
-      }));
+      const participants = session.votes.map((vote) => {
+        const rawDays = parseVoteDays(vote.selectedDays);
+        const codes = rawDays
+          .map((d) => voteDayToMonFriAbsentKey(d))
+          .filter((x): x is NonNullable<typeof x> => x != null);
+        return {
+          userId: vote.userId,
+          userName: vote.user.name,
+          selectedDays: codes.length > 0 ? codes : rawDays,
+          votedAt: vote.createdAt
+        };
+      });
       
       // 미참자 목록 생성
       const participantUserIds = new Set(participants.map(p => p.userId));
@@ -1717,19 +1727,13 @@ router.get('/votes/results', async (req, res) => {
       '불참': { count: 0, participants: [] }
     };
     
-    // 각 투표를 분석하여 요일별 집계
-    session.votes.forEach(vote => {
-      let selectedDays = [];
-      try {
-        selectedDays = JSON.parse(vote.selectedDays || '[]');
-      } catch (e) {
-        console.warn(`투표 ${vote.id}의 selectedDays 파싱 실패:`, vote.selectedDays);
-        selectedDays = [];
-      }
+    // 각 투표를 분석하여 요일별 집계 (한글 날짜·이중 JSON 등 parseVoteDays로 통일)
+    session.votes.forEach((vote) => {
+      const selectedDays = parseVoteDays(vote.selectedDays);
       selectedDays.forEach((day: string) => {
-        // 요일 코드를 직접 사용 (MON, TUE, WED, THU, FRI) 또는 '불참'
-        const dayKey = day;
-        
+        const dayKey = voteDayToMonFriAbsentKey(day);
+        if (!dayKey) return;
+
         if (dayKey === '불참') {
           dayVotes['불참'].count++;
           dayVotes['불참'].participants.push({
@@ -1737,7 +1741,7 @@ router.get('/votes/results', async (req, res) => {
             userName: vote.user.name,
             votedAt: vote.createdAt
           });
-        } else if (dayKey && dayVotes[dayKey as keyof typeof dayVotes]) {
+        } else if (dayVotes[dayKey as keyof typeof dayVotes]) {
           dayVotes[dayKey as keyof typeof dayVotes].count++;
           dayVotes[dayKey as keyof typeof dayVotes].participants.push({
             userId: vote.userId,
@@ -1749,17 +1753,15 @@ router.get('/votes/results', async (req, res) => {
     });
     
     // 전체 참여자 목록
-    const allParticipants = session.votes.map(vote => {
-      let selectedDays = [];
-      try {
-        selectedDays = JSON.parse(vote.selectedDays || '[]');
-      } catch (e) {
-        selectedDays = [];
-      }
+    const allParticipants = session.votes.map((vote) => {
+      const rawDays = parseVoteDays(vote.selectedDays);
+      const codes = rawDays
+        .map((d) => voteDayToMonFriAbsentKey(d))
+        .filter((x): x is NonNullable<typeof x> => x != null);
       return {
         userId: vote.userId,
         userName: vote.user.name,
-        selectedDays: selectedDays,
+        selectedDays: codes.length > 0 ? codes : rawDays,
         votedAt: vote.createdAt
       };
     });
@@ -1882,18 +1884,12 @@ router.get('/votes/unified', async (req, res) => {
         '불참': { count: 0, participants: [] }
       };
       
-      activeSession.votes.forEach(vote => {
-        let selectedDays = [];
-        try {
-          selectedDays = JSON.parse(vote.selectedDays || '[]');
-        } catch (e) {
-          console.warn(`투표 ${vote.id}의 selectedDays 파싱 실패:`, vote.selectedDays);
-          selectedDays = [];
-        }
+      activeSession.votes.forEach((vote) => {
+        const selectedDays = parseVoteDays(vote.selectedDays);
         selectedDays.forEach((day: string) => {
-          // 요일 코드를 직접 사용 (MON, TUE, WED, THU, FRI) 또는 '불참'
-          const dayKey = day;
-          
+          const dayKey = voteDayToMonFriAbsentKey(day);
+          if (!dayKey) return;
+
           if (dayKey === '불참') {
             dayVotes['불참'].count++;
             dayVotes['불참'].participants.push({
@@ -1901,7 +1897,7 @@ router.get('/votes/unified', async (req, res) => {
               userName: vote.user.name,
               votedAt: vote.createdAt
             });
-          } else if (dayKey && dayVotes[dayKey as keyof typeof dayVotes]) {
+          } else if (dayVotes[dayKey as keyof typeof dayVotes]) {
             dayVotes[dayKey as keyof typeof dayVotes].count++;
             dayVotes[dayKey as keyof typeof dayVotes].participants.push({
               userId: vote.userId,
@@ -1922,18 +1918,15 @@ router.get('/votes/unified', async (req, res) => {
         isActive: activeSession.isActive,
         isCompleted: activeSession.isCompleted,
         results: dayVotes,
-        participants: activeSession.votes.map(vote => {
-          let selectedDays = [];
-          try {
-            selectedDays = JSON.parse(vote.selectedDays || '[]');
-          } catch (e) {
-            console.warn(`투표 ${vote.id}의 selectedDays 파싱 실패:`, vote.selectedDays);
-            selectedDays = [];
-          }
+        participants: activeSession.votes.map((vote) => {
+          const rawDays = parseVoteDays(vote.selectedDays);
+          const codes = rawDays
+            .map((d) => voteDayToMonFriAbsentKey(d))
+            .filter((x): x is NonNullable<typeof x> => x != null);
           return {
             userId: vote.userId,
             userName: vote.user.name,
-            selectedDays: selectedDays,
+            selectedDays: codes.length > 0 ? codes : rawDays,
             votedAt: vote.createdAt
           };
         }),
@@ -1990,18 +1983,12 @@ router.get('/votes/unified', async (req, res) => {
         '불참': { count: 0, participants: [] }
       };
       
-      sessionToProcess.votes.forEach(vote => {
-        let selectedDays = [];
-        try {
-          selectedDays = JSON.parse(vote.selectedDays || '[]');
-        } catch (e) {
-          console.warn(`투표 ${vote.id}의 selectedDays 파싱 실패:`, vote.selectedDays);
-          selectedDays = [];
-        }
+      sessionToProcess.votes.forEach((vote) => {
+        const selectedDays = parseVoteDays(vote.selectedDays);
         selectedDays.forEach((day: string) => {
-          // 요일 코드를 직접 사용 (MON, TUE, WED, THU, FRI) 또는 '불참'
-          const dayKey = day;
-          
+          const dayKey = voteDayToMonFriAbsentKey(day);
+          if (!dayKey) return;
+
           if (dayKey === '불참') {
             dayVotes['불참'].count++;
             dayVotes['불참'].participants.push({
@@ -2009,7 +1996,7 @@ router.get('/votes/unified', async (req, res) => {
               userName: vote.user.name,
               votedAt: vote.createdAt
             });
-          } else if (dayKey && dayVotes[dayKey as keyof typeof dayVotes]) {
+          } else if (dayVotes[dayKey as keyof typeof dayVotes]) {
             dayVotes[dayKey as keyof typeof dayVotes].count++;
             dayVotes[dayKey as keyof typeof dayVotes].participants.push({
               userId: vote.userId,
@@ -2029,18 +2016,15 @@ router.get('/votes/unified', async (req, res) => {
         isCompleted: sessionToProcess.isCompleted,
         weekRange: `${formatDateWithDay(sessionToProcess.weekStartDate)} ~ ${formatDateWithDay(new Date(sessionToProcess.weekStartDate.getTime() + 6 * 24 * 60 * 60 * 1000))}`,
         results: dayVotes,
-        participants: sessionToProcess.votes.map(vote => {
-          let selectedDays = [];
-          try {
-            selectedDays = JSON.parse(vote.selectedDays || '[]');
-          } catch (e) {
-            console.warn(`투표 ${vote.id}의 selectedDays 파싱 실패:`, vote.selectedDays);
-            selectedDays = [];
-          }
+        participants: sessionToProcess.votes.map((vote) => {
+          const rawDays = parseVoteDays(vote.selectedDays);
+          const codes = rawDays
+            .map((d) => voteDayToMonFriAbsentKey(d))
+            .filter((x): x is NonNullable<typeof x> => x != null);
           return {
             userId: vote.userId,
             userName: vote.user.name,
-            selectedDays: selectedDays,
+            selectedDays: codes.length > 0 ? codes : rawDays,
             votedAt: vote.createdAt
           };
         }),
