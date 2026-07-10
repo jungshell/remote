@@ -1,0 +1,95 @@
+export type Division =
+  | "경영혁신본부"
+  | "사업총괄실"
+  | "AI콘텐츠본부"
+  | "미래산업본부"
+  | "벤처창업본부";
+
+export type ProgramType =
+  | "교육·인력양성형"
+  | "제작·사업화 지원형"
+  | "자금·마케팅 지원형"
+  | "입주·인프라형"
+  | "행사·네트워킹형"
+  | "공모전·선발형"
+  | "스마트시티·리빙랩·현장서비스형";
+
+export type ProgramTypeCode = "edu" | "prod" | "fund" | "space" | "event" | "contest" | "living";
+
+export type RespondentType = "org" | "person" | "both";
+
+export type UserRole =
+  | "응답자"
+  | "사업담당자"
+  | "본부관리자"
+  | "총괄관리자"
+  | "조회전용";
+
+export type SurveyStatus = "작성중" | "진행중" | "종료";
+
+export type QuestionScale = "likert5" | "nps" | "text" | "choice";
+
+export type QuestionGroup = "일반" | "유형" | "커스텀";
+
+export interface Project {
+  id: string;
+  year: number;
+  division: Division;
+  business: string;
+  subBusiness: string;
+  round: number;
+  type: ProgramType;
+  manager: string;
+  targetResponses: number;
+}
+
+export interface Question {
+  id: string;
+  group: QuestionGroup;
+  category?: string;
+  type?: ProgramType;
+  label: string;
+  scale: QuestionScale;
+  required: boolean;
+  kpiIncluded: boolean;
+  locked?: boolean;
+  options?: string[];
+  orderNo?: number;
+}
+
+export interface SurveyRecord {
+  id: string;
+  title: string;
+  year: number;
+  division: Division;
+  business: string;
+  subBusiness: string;
+  round: number;
+  programType: ProgramType;
+  respondentType: RespondentType;
+  targetResponses: number;
+  status: SurveyStatus;
+  endsAt?: string | null;
+  questions: Question[];
+}
+
+export interface SurveyAnswer {
+  questionId: string;
+  value: string | number;
+}
+
+export interface SurveyResponse {
+  surveyId: string;
+  phoneLast4: string;
+  submittedAt: string;
+  answers: SurveyAnswer[];
+}
+
+export interface DashboardSummary {
+  totalSatisfaction: number;
+  kpiTarget: number;
+  kpiAchievement: number;
+  totalResponses: number;
+  responseRate: number;
+  nps: number;
+}
