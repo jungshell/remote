@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { ManagerWorkspace } from "@/components/manager/ManagerWorkspace";
+import { StaffProfileSetup } from "@/components/manager/StaffProfileSetup";
 import { SurveyCreator } from "@/components/manager/SurveyCreator";
 import { Badge } from "@/components/ui/Badge";
-import { authFetch } from "@/lib/auth/access";
+import { authFetch, fetchCurrentUser } from "@/lib/auth/access";
+import { hasStaffSurveyProfile, type AuthUser } from "@/lib/auth/types";
 import { surveyRowToRecord } from "@/lib/surveys/utils";
 import type { SurveyRow } from "@/lib/supabase/database.types";
 import type { SurveyRecord } from "@/types/platform";
@@ -12,10 +14,12 @@ import type { SurveyRecord } from "@/types/platform";
 type ViewMode = "list" | "create";
 
 export function ManagerConsole() {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [selectedSurvey, setSelectedSurvey] = useState<SurveyRecord | null>(null);
   const [view, setView] = useState<ViewMode>("list");
   const [status, setStatus] = useState("");
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
 
   async function loadSurveys() {
     try {
@@ -33,13 +37,30 @@ export function ManagerConsole() {
   }
 
   useEffect(() => {
-    void loadSurveys();
+    void (async () => {
+      const current = await fetchCurrentUser();
+      setUser(current);
+      setIsLoadingUser(false);
+      void loadSurveys();
+    })();
   }, []);
 
   function handleCreated(survey: SurveyRow) {
     setSurveys((prev) => [survey, ...prev]);
     setSelectedSurvey(surveyRowToRecord(survey));
     setView("list");
+  }
+
+  if (isLoadingUser) {
+    return <p className="py-12 text-sm text-[var(--text-muted)]">담당자 정보를 불러오는 중입니다.</p>;
+  }
+
+  if (user && !hasStaffSurveyProfile(user)) {
+    return (
+      <section className="py-12">
+        <StaffProfileSetup user={user} onSaved={setUser} />
+      </section>
+    );
   }
 
   if (selectedSurvey) {
@@ -63,7 +84,9 @@ export function ManagerConsole() {
             생성·운영
           </h1>
           <p className="mt-6 max-w-2xl text-[var(--text-body)]">
-            설문을 생성하고 활성화한 뒤 QR·링크로 배포하세요. 실시간 KPI는 Supabase 응답 기준입니다.
+            {user?.business} / {user?.subBusiness} · {user?.programType}
+            <br />
+            회차와 기간만 입력하면 설문이 자동 연동되어 생성됩니다.
           </p>
         </div>
         <button
@@ -75,9 +98,9 @@ export function ManagerConsole() {
         </button>
       </section>
 
-      {view === "create" ? (
+      {view === "create" && user ? (
         <section className="py-12">
-          <SurveyCreator onCreated={handleCreated} />
+          <SurveyCreator profile={user} onCreated={handleCreated} />
         </section>
       ) : (
         <section className="py-12">

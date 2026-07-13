@@ -18,6 +18,7 @@ export interface Database {
           round: number;
           respondent_type: string;
           created_at: string;
+          starts_at: string | null;
           ends_at: string | null;
         };
         Insert: {
@@ -34,6 +35,7 @@ export interface Database {
           round?: number;
           respondent_type?: string;
           created_at?: string;
+          starts_at?: string | null;
           ends_at?: string | null;
         };
         Update: {
@@ -50,6 +52,7 @@ export interface Database {
           round?: number;
           respondent_type?: string;
           created_at?: string;
+          starts_at?: string | null;
           ends_at?: string | null;
         };
         Relationships: [];
@@ -61,6 +64,9 @@ export interface Database {
           password_hash: string;
           name: string;
           division: string;
+          business: string;
+          sub_business: string;
+          program_type: string;
           role: string;
           status: string;
           created_at: string;
@@ -73,6 +79,9 @@ export interface Database {
           password_hash: string;
           name: string;
           division: string;
+          business?: string;
+          sub_business?: string;
+          program_type?: string;
           role?: string;
           status?: string;
           created_at?: string;
@@ -85,6 +94,9 @@ export interface Database {
           password_hash?: string;
           name?: string;
           division?: string;
+          business?: string;
+          sub_business?: string;
+          program_type?: string;
           role?: string;
           status?: string;
           created_at?: string;

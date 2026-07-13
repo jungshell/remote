@@ -87,7 +87,12 @@ export function UserApprovalPanel() {
                 <h3 className="mt-3 text-xl font-bold text-white">
                   {user.name} <span className="text-base font-normal text-[var(--text-muted)]">({user.email})</span>
                 </h3>
-                <p className="mt-2 text-sm text-[var(--text-body)]">{user.division}</p>
+                <p className="mt-2 text-sm text-[var(--text-body)]">
+                  {user.division}
+                  {user.business ? ` · ${user.business}` : ""}
+                  {user.subBusiness ? ` / ${user.subBusiness}` : ""}
+                  {user.programType ? ` · ${user.programType}` : ""}
+                </p>
               </div>
               {user.status === "pending" && user.role === "staff" ? (
                 <div className="flex flex-wrap gap-2">

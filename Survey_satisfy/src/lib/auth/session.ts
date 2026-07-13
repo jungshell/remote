@@ -20,6 +20,9 @@ interface UserRow {
   division: string;
   role: PlatformRole;
   status: AuthUser["status"];
+  business?: string | null;
+  sub_business?: string | null;
+  program_type?: string | null;
 }
 
 export async function createSession(userId: string) {
@@ -112,17 +115,37 @@ export async function getAuthUserFromToken(token: string | null): Promise<AuthUs
     return null;
   }
 
-  const { data: user, error: userError } = await supabase
+  let { data: user, error: userError } = await supabase
     .from("platform_users")
-    .select("id, email, name, division, role, status")
+    .select("id, email, name, division, role, status, business, sub_business, program_type")
     .eq("id", session.user_id)
     .maybeSingle<UserRow>();
+
+  if (userError) {
+    const fallback = await supabase
+      .from("platform_users")
+      .select("id, email, name, division, role, status")
+      .eq("id", session.user_id)
+      .maybeSingle<UserRow>();
+    user = fallback.data;
+    userError = fallback.error;
+  }
 
   if (userError || !user) {
     return null;
   }
 
-  return user;
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    division: user.division,
+    role: user.role,
+    status: user.status,
+    business: user.business ?? "",
+    subBusiness: user.sub_business ?? "",
+    programType: user.program_type ?? "",
+  };
 }
 
 export async function getAuthUserFromRequest(request: Request) {

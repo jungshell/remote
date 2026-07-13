@@ -17,6 +17,7 @@ interface CreateSurveyBody {
   year?: number;
   round?: number;
   targetResponses?: number;
+  startsAt?: string | null;
   endsAt?: string | null;
   selectedQuestionIds?: string[];
 }
@@ -88,7 +89,8 @@ export async function POST(request: Request) {
       round,
       target_responses: body.targetResponses ?? 80,
       status: "작성중",
-      ends_at: body.endsAt ?? null,
+      starts_at: body.startsAt ? new Date(body.startsAt).toISOString() : null,
+      ends_at: body.endsAt ? new Date(body.endsAt).toISOString() : null,
       custom_questions: questions as unknown as Json,
     })
     .select("*")

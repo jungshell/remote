@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { divisions } from "@/constants/divisions";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import { createSession, setSessionCookie } from "@/lib/auth/session";
+import { programTypes } from "@/constants/divisions";
+import { hashPassword } from "@/lib/auth/password";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 interface RegisterBody {
@@ -9,6 +9,9 @@ interface RegisterBody {
   password?: string;
   name?: string;
   division?: string;
+  business?: string;
+  subBusiness?: string;
+  programType?: string;
 }
 
 export async function POST(request: Request) {
@@ -23,9 +26,15 @@ export async function POST(request: Request) {
   const password = body.password ?? "";
   const name = body.name?.trim();
   const division = body.division?.trim();
+  const business = body.business?.trim() ?? "";
+  const subBusiness = body.subBusiness?.trim() ?? "";
+  const programType = body.programType?.trim() ?? "";
 
-  if (!email || !password || !name || !division) {
-    return NextResponse.json({ ok: false, error: "모든 항목을 입력해 주세요." }, { status: 400 });
+  if (!email || !password || !name || !division || !business || !subBusiness || !programType) {
+    return NextResponse.json(
+      { ok: false, error: "이름·이메일·본부·담당 사업·세부사업·사업유형을 모두 입력해 주세요." },
+      { status: 400 },
+    );
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -40,6 +49,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "올바른 본부를 선택해 주세요." }, { status: 400 });
   }
 
+  if (!programTypes.includes(programType as (typeof programTypes)[number])) {
+    return NextResponse.json({ ok: false, error: "올바른 사업유형을 선택해 주세요." }, { status: 400 });
+  }
+
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await supabase
@@ -49,10 +62,13 @@ export async function POST(request: Request) {
       password_hash: passwordHash,
       name,
       division,
+      business,
+      sub_business: subBusiness,
+      program_type: programType,
       role: "staff",
       status: "pending",
     })
-    .select("id, email, name, division, role, status")
+    .select("id, email, name, division, business, sub_business, program_type, role, status")
     .single();
 
   if (error) {

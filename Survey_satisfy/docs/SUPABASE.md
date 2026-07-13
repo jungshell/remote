@@ -8,6 +8,7 @@
    - `supabase/migration_002.sql` (회차·응답자 유형 등)
    - `supabase/migration_003_auth.sql` (계정·세션 테이블)
    - `supabase/migration_004_improvement_actions.sql` (개선과제)
+   - `supabase/migration_005_staff_profile.sql` (담당자 사업 프로필·설문 시작일)
 3. **Project Settings → API**에서 아래 값 복사:
    - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
    - anon public → `NEXT_PUBLIC_SUPABASE_ANON_KEY`

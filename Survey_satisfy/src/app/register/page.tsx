@@ -1,19 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { divisions } from "@/constants/divisions";
+import { divisions, programTypes } from "@/constants/divisions";
 import { authFetch } from "@/lib/auth/access";
 import { RoleAwareTopNav } from "@/components/ui/RoleAwareTopNav";
+import type { Division, ProgramType } from "@/types/platform";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
-  const [division, setDivision] = useState(divisions[0]);
+  const [division, setDivision] = useState<Division>(divisions[0]);
+  const [business, setBusiness] = useState("");
+  const [subBusiness, setSubBusiness] = useState("");
+  const [programType, setProgramType] = useState<ProgramType>(programTypes[0]);
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,7 +33,15 @@ export default function RegisterPage() {
       const response = await authFetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name, division }),
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          division,
+          business,
+          subBusiness,
+          programType,
+        }),
       });
 
       const data = (await response.json()) as { ok: boolean; error?: string; message?: string };
@@ -54,11 +64,11 @@ export default function RegisterPage() {
     <>
       <RoleAwareTopNav />
       <main className="shell flex min-h-[70vh] items-center py-16">
-        <section className="panel w-full max-w-lg p-8">
+        <section className="panel w-full max-w-2xl p-8">
           <p className="label-machined text-[var(--text-muted)]">Register</p>
           <h1 className="mt-4 text-3xl font-black uppercase">사업담당자 가입</h1>
           <p className="mt-4 text-sm leading-7 text-[var(--text-body)]">
-            가입 후 총괄 관리자 승인이 완료되면 로그인하여 설문을 생성·운영할 수 있습니다.
+            본부·담당 사업·사업유형을 미리 등록하면, 승인 후 설문 생성 시 자동으로 연동됩니다.
           </p>
 
           {isSuccess ? (
@@ -70,45 +80,80 @@ export default function RegisterPage() {
             </div>
           ) : (
             <>
-              <div className="mt-8 grid gap-4">
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="이름"
-                  className="focus-ring h-12 border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="이메일 (기관 메일)"
-                  className="focus-ring h-12 border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                />
-                <select
-                  value={division}
-                  onChange={(event) => setDivision(event.target.value as (typeof divisions)[number])}
-                  className="focus-ring h-12 border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                >
-                  {divisions.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="비밀번호 (8자 이상)"
-                  className="focus-ring h-12 border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                />
-                <input
-                  type="password"
-                  value={passwordConfirm}
-                  onChange={(event) => setPasswordConfirm(event.target.value)}
-                  placeholder="비밀번호 확인"
-                  className="focus-ring h-12 border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                />
+              <div className="mt-8 grid gap-4 md:grid-cols-2">
+                <Field label="이름">
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  />
+                </Field>
+                <Field label="이메일 (기관 메일)">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  />
+                </Field>
+                <Field label="본부">
+                  <select
+                    value={division}
+                    onChange={(event) => setDivision(event.target.value as Division)}
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  >
+                    {divisions.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="사업유형">
+                  <select
+                    value={programType}
+                    onChange={(event) => setProgramType(event.target.value as ProgramType)}
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  >
+                    {programTypes.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="담당 사업">
+                  <input
+                    value={business}
+                    onChange={(event) => setBusiness(event.target.value)}
+                    placeholder="예: 지역특화콘텐츠개발"
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  />
+                </Field>
+                <Field label="세부사업">
+                  <input
+                    value={subBusiness}
+                    onChange={(event) => setSubBusiness(event.target.value)}
+                    placeholder="예: 뉴콘텐츠 아카데미"
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  />
+                </Field>
+                <Field label="비밀번호 (8자 이상)">
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  />
+                </Field>
+                <Field label="비밀번호 확인">
+                  <input
+                    type="password"
+                    value={passwordConfirm}
+                    onChange={(event) => setPasswordConfirm(event.target.value)}
+                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                  />
+                </Field>
               </div>
 
               {message ? <p className="mt-4 text-sm text-[var(--warning)]">{message}</p> : null}
@@ -133,5 +178,14 @@ export default function RegisterPage() {
         </section>
       </main>
     </>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="label-machined text-[var(--text-muted)]">{label}</label>
+      <div className="mt-2">{children}</div>
+    </div>
   );
 }
