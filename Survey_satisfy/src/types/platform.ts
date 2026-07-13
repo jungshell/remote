@@ -29,7 +29,10 @@ export type SurveyStatus = "작성중" | "진행중" | "종료";
 
 export type QuestionScale = "likert5" | "nps" | "text" | "choice";
 
-export type QuestionGroup = "일반" | "유형" | "커스텀";
+export type QuestionGroup = "일반" | "공통" | "지침" | "유형" | "커스텀";
+
+/** 기본세트(core)는 생성 시 기본 선택, extended는 필요 시만 추가 */
+export type QuestionTier = "core" | "extended";
 
 export interface Project {
   id: string;
@@ -53,6 +56,7 @@ export interface Question {
   required: boolean;
   kpiIncluded: boolean;
   locked?: boolean;
+  tier?: QuestionTier;
   options?: string[];
   orderNo?: number;
 }

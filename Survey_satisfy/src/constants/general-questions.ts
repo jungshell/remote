@@ -1,3 +1,4 @@
+import { getCommonKpiQuestions } from "@/constants/common-kpi-questions";
 import { getQuestionsByIds } from "@/constants/question-pool";
 import type { ProgramType, Question, RespondentType } from "@/types/platform";
 import { getProgramTypeCode } from "@/lib/surveys/program-type";
@@ -101,6 +102,7 @@ export function buildSurveyQuestions(
   selectedTypeQuestionIds: string[],
 ): Question[] {
   const general = getGeneralQuestions(programType, respondentType);
+  const commonKpi = getCommonKpiQuestions();
   const typeQuestions = getQuestionsByIds(programType, selectedTypeQuestionIds);
-  return [...general, ...typeQuestions];
+  return [...general, ...commonKpi, ...typeQuestions];
 }

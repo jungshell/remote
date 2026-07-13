@@ -38,6 +38,10 @@ npm run dev
 - `/manager`: 사업담당자 화면 (설문 생성·운영)
 - `/admin`: 총괄 관리자 화면
 
+## 문항 마스터
+
+공통 KPI + 유형 기본세트/확장 구조는 `docs/QUESTION_MASTER.md`를 참고하세요.
+
 ## 사용자 설정 필요
 
 1. **Supabase** — `docs/SUPABASE.md` 참고 (SQL + env)

@@ -14,6 +14,7 @@ import { authFetch, type PlatformRole } from "@/lib/auth/access";
 import { downloadResponsesCsv } from "@/lib/csv";
 import {
   aggregateByCategory,
+  aggregateByCommonKpi,
   aggregateByDivision,
   aggregateByProgramType,
   aggregateMetrics,
@@ -37,6 +38,7 @@ interface SurveyOption {
   division: string;
   program_type: string;
   target_responses: number;
+  year?: number;
   custom_questions?: unknown;
 }
 
@@ -46,6 +48,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
   const [selectedSurveyId, setSelectedSurveyId] = useState(initialSurveyId ?? "");
   const [selectedDivision, setSelectedDivision] = useState("");
   const [selectedProgramType, setSelectedProgramType] = useState("");
+  const [selectedYear, setSelectedYear] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -104,7 +107,28 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
   useEffect(() => {
     void loadResponses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSurveyId, selectedDivision, selectedProgramType, mode]);
+  }, [selectedSurveyId, selectedDivision, selectedProgramType, selectedYear, mode]);
+
+  const yearFilteredSurveys = useMemo(() => {
+    if (!selectedYear) {
+      return surveys;
+    }
+
+    return surveys.filter((survey) => String(survey.year ?? "") === selectedYear);
+  }, [surveys, selectedYear]);
+
+  const yearScopedSurveyIds = useMemo(
+    () => new Set(yearFilteredSurveys.map((survey) => survey.id)),
+    [yearFilteredSurveys],
+  );
+
+  const filteredRows = useMemo(() => {
+    if (mode !== "admin" || !selectedYear) {
+      return rows;
+    }
+
+    return rows.filter((row) => yearScopedSurveyIds.has(row.survey_id));
+  }, [mode, selectedYear, rows, yearScopedSurveyIds]);
 
   const activeQuestions = useMemo(() => {
     if (initialQuestions?.length) {
@@ -120,21 +144,27 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
       return surveys.find((survey) => survey.id === selectedSurveyId)?.target_responses ?? 80;
     }
 
-    return 80;
-  }, [mode, selectedSurveyId, surveys]);
+    const scoped = selectedYear ? yearFilteredSurveys : surveys;
+    const total = scoped.reduce((sum, survey) => sum + (survey.target_responses ?? 0), 0);
+    return total > 0 ? total : 80;
+  }, [mode, selectedSurveyId, surveys, selectedYear, yearFilteredSurveys]);
 
-  const metrics = useMemo(() => aggregateMetrics(rows, targetResponses), [rows, targetResponses]);
-  const divisionChartData = useMemo(() => aggregateByDivision(rows), [rows]);
-  const programTypeChartData = useMemo(() => aggregateByProgramType(rows), [rows]);
+  const metrics = useMemo(() => aggregateMetrics(filteredRows, targetResponses), [filteredRows, targetResponses]);
+  const divisionChartData = useMemo(() => aggregateByDivision(filteredRows), [filteredRows]);
+  const programTypeChartData = useMemo(() => aggregateByProgramType(filteredRows), [filteredRows]);
   const categoryChartData = useMemo(
-    () => aggregateByCategory(rows, activeQuestions),
-    [rows, activeQuestions],
+    () => aggregateByCategory(filteredRows, activeQuestions),
+    [filteredRows, activeQuestions],
+  );
+  const commonKpiChartData = useMemo(
+    () => aggregateByCommonKpi(filteredRows, activeQuestions),
+    [filteredRows, activeQuestions],
   );
 
   const chartData = useMemo(() => {
     if (mode === "admin") {
       return divisionChartData.map((item) => {
-        const group = rows.filter((row) => row.division === item.name);
+        const group = filteredRows.filter((row) => row.division === item.name);
         return {
           ...item,
           responseRate: aggregateMetrics(group, targetResponses).responseRate,
@@ -156,15 +186,23 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
         responseRate: metrics.responseRate,
       },
     ];
-  }, [mode, divisionChartData, rows, targetResponses, surveys, selectedSurveyId, metrics]);
+  }, [mode, divisionChartData, filteredRows, targetResponses, surveys, selectedSurveyId, metrics]);
 
   const divisionOptions = useMemo(
-    () => Array.from(new Set(surveys.map((survey) => survey.division))),
-    [surveys],
+    () => Array.from(new Set(yearFilteredSurveys.map((survey) => survey.division))),
+    [yearFilteredSurveys],
   );
 
   const programTypeOptions = useMemo(
-    () => Array.from(new Set(surveys.map((survey) => survey.program_type))),
+    () => Array.from(new Set(yearFilteredSurveys.map((survey) => survey.program_type))),
+    [yearFilteredSurveys],
+  );
+
+  const yearOptions = useMemo(
+    () =>
+      Array.from(new Set(surveys.map((survey) => survey.year ?? new Date().getFullYear()))).sort(
+        (a, b) => b - a,
+      ),
     [surveys],
   );
 
@@ -172,9 +210,9 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
     const label =
       mode === "staff"
         ? surveys.find((survey) => survey.id === selectedSurveyId)?.sub_business ?? "설문"
-        : selectedDivision || selectedProgramType || "전체";
+        : [selectedYear, selectedDivision, selectedProgramType].filter(Boolean).join("_") || "전체";
 
-    downloadResponsesCsv(rows, `CCON_설문결과_${label}.csv`);
+    downloadResponsesCsv(filteredRows, `CCON_설문결과_${label}.csv`);
   }
 
   return (
@@ -198,7 +236,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
             </button>
             <button
               type="button"
-              disabled={rows.length === 0}
+              disabled={filteredRows.length === 0}
               onClick={handleDownload}
               className="focus-ring label-machined border border-[var(--hairline)] px-5 py-3 text-[var(--text-body)] transition-colors hover:border-white hover:text-white disabled:opacity-50"
             >
@@ -207,7 +245,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className={`mt-6 grid gap-4 ${mode === "admin" ? "md:grid-cols-3" : "md:grid-cols-1"}`}>
           {mode === "staff" ? (
             <FilterField label="세부사업 / 설문회차">
               <select
@@ -224,6 +262,20 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
             </FilterField>
           ) : (
             <>
+              <FilterField label="연도">
+                <select
+                  value={selectedYear}
+                  onChange={(event) => setSelectedYear(event.target.value)}
+                  className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
+                >
+                  <option value="">전체</option>
+                  {yearOptions.map((year) => (
+                    <option key={year} value={String(year)}>
+                      {year}년
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
               <FilterField label="본부">
                 <select
                   value={selectedDivision}
@@ -262,8 +314,38 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="응답수" value={`${metrics.responseCount}`} caption="현재 필터 기준" />
         <StatCard label="응답률(완료율)" value={`${metrics.responseRate}%`} caption={`목표 ${targetResponses}건`} tone="success" />
-        <StatCard label="만족도" value={`${metrics.satisfaction}`} caption="5점 만점 평균" tone="success" />
-        <StatCard label="NPS" value={`${metrics.nps}`} caption="추천 의향" />
+        <StatCard label="만족도" value={`${metrics.satisfaction}`} caption="공통 KPI 5점 평균" tone="success" />
+        <StatCard label="NPS" value={`${metrics.nps}`} caption="공통 KPI 추천 의향" />
+      </section>
+
+      <section className="panel p-6">
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <p className="label-machined text-[var(--text-muted)]">Common KPI Detail</p>
+            <h2 className="mt-2 text-2xl font-black uppercase">공통 KPI 문항별</h2>
+          </div>
+          <p className="text-sm text-[var(--text-muted)]">취합·비교 기준</p>
+        </div>
+        <div className="h-72">
+          {commonKpiChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%" minWidth={320}>
+              <BarChart data={commonKpiChartData}>
+                <CartesianGrid stroke="#2d2d2d" vertical={false} />
+                <XAxis dataKey="name" stroke="#7d7d7d" tickLine={false} axisLine={false} interval={0} angle={-20} textAnchor="end" height={70} />
+                <YAxis stroke="#7d7d7d" tickLine={false} axisLine={false} domain={[0, 5]} />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  contentStyle={{ background: "#111", border: "1px solid #3a3a3a", borderRadius: 0 }}
+                />
+                <Bar dataKey="satisfaction" fill="#c8f542" radius={0} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="grid h-full place-items-center border border-[var(--hairline)] text-sm text-[var(--text-muted)]">
+              공통 KPI 응답이 아직 없습니다. (신규 생성 설문부터 적용)
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="panel p-6">

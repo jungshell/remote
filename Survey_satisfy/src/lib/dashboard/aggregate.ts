@@ -49,7 +49,22 @@ function parseAnswers(raw: unknown): SurveyAnswer[] {
 }
 
 function isNpsQuestionId(questionId: string) {
-  return questionId.endsWith("_nps");
+  return questionId === "common_nps" || questionId.endsWith("_nps");
+}
+
+/** 취합용 만족도: 공통 KPI 리커트 우선, 없으면 전체 리커트 */
+function satisfactionAnswersForAggregation(answers: SurveyAnswer[]): SurveyAnswer[] {
+  const commonLikert = answers.filter(
+    (answer) => answer.questionId.startsWith("common_") && isLikertScore(answer.value),
+  );
+
+  if (commonLikert.length > 0) {
+    return commonLikert;
+  }
+
+  return answers.filter(
+    (answer) => !isNpsQuestionId(answer.questionId) && isLikertScore(answer.value),
+  );
 }
 
 export function aggregateMetrics(rows: SurveyResponseRow[], targetResponses = 80): DashboardMetrics {
@@ -58,7 +73,9 @@ export function aggregateMetrics(rows: SurveyResponseRow[], targetResponses = 80
     .map((answers) => answers.find((answer) => isNpsQuestionId(answer.questionId))?.value)
     .filter((value): value is number => typeof value === "number");
 
-  const satisfactionValues = groupedByResponse.map((answers) => calculateAverageSatisfaction(answers));
+  const satisfactionValues = groupedByResponse.map((answers) =>
+    calculateAverageSatisfaction(satisfactionAnswersForAggregation(answers)),
+  );
   const satisfaction =
     satisfactionValues.length > 0
       ? Math.round((satisfactionValues.reduce((sum, value) => sum + value, 0) / satisfactionValues.length) * 100) / 100
@@ -128,3 +145,54 @@ export function aggregateByCategory(rows: SurveyResponseRow[], questions: Questi
     responseCount: scores.length,
   }));
 }
+
+/** 공통 KPI 문항별 평균 (취합·사업 비교용) */
+export function aggregateByCommonKpi(
+  rows: SurveyResponseRow[],
+  questions: Question[],
+): CategoryChartPoint[] {
+  const labelById = new Map(
+    questions
+      .filter((question) => question.id.startsWith("common_") && question.scale === "likert5")
+      .map((question) => [question.id, question.label]),
+  );
+
+  if (labelById.size === 0) {
+    const fallbackLabels: Record<string, string> = {
+      common_satisfaction: "전반 만족",
+      common_process: "안내·절차",
+      common_manager: "담당 응대",
+      common_fit: "기대 부합",
+      common_growth: "성장 도움",
+      common_rejoin: "재참여 의향",
+    };
+    for (const [id, label] of Object.entries(fallbackLabels)) {
+      labelById.set(id, label);
+    }
+  }
+
+  const buckets = new Map<string, number[]>();
+
+  for (const row of rows) {
+    for (const answer of parseAnswers(row.answers)) {
+      if (!labelById.has(answer.questionId) || !isLikertScore(answer.value)) {
+        continue;
+      }
+
+      const current = buckets.get(answer.questionId) ?? [];
+      current.push(answer.value);
+      buckets.set(answer.questionId, current);
+    }
+  }
+
+  return Array.from(buckets.entries()).map(([id, scores]) => ({
+    name: shortenLabel(labelById.get(id) ?? id),
+    satisfaction: Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 100) / 100,
+    responseCount: scores.length,
+  }));
+}
+
+function shortenLabel(label: string) {
+  return label.replace(/\?$/, "").replace(/하십니까$/, "").replace(/있습니까$/, "").slice(0, 18);
+}
+
