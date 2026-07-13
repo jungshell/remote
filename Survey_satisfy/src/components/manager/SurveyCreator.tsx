@@ -11,9 +11,11 @@ import {
   resolveRespondentTypeForProgram,
 } from "@/constants/question-pool";
 import { Badge } from "@/components/ui/Badge";
+import { DatePickerField } from "@/components/manager/DatePickerField";
+import { QuestionPicker } from "@/components/manager/QuestionPicker";
 import { authFetch } from "@/lib/auth/access";
 import type { AuthUser } from "@/lib/auth/types";
-import type { Division, ProgramType, Question, RespondentType } from "@/types/platform";
+import type { Division, ProgramType, RespondentType } from "@/types/platform";
 import type { SurveyRow } from "@/lib/supabase/database.types";
 
 interface SurveyCreatorProps {
@@ -98,10 +100,6 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
       return;
     }
     setSelectedIds([]);
-  }
-
-  function toggleQuestion(id: string) {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   }
 
   function toggleCategory(ids: string[], selectAll: boolean) {
@@ -207,22 +205,18 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
               className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
             />
           </Field>
-          <Field label={`${periodLabel} 시작`}>
-            <input
-              type="date"
-              value={startsAt}
-              onChange={(event) => setStartsAt(event.target.value)}
-              className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-            />
-          </Field>
-          <Field label={`${periodLabel} 종료`}>
-            <input
-              type="date"
-              value={endsAt}
-              onChange={(event) => setEndsAt(event.target.value)}
-              className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-            />
-          </Field>
+          <DatePickerField
+            label={`${periodLabel} 시작`}
+            value={startsAt}
+            max={endsAt || undefined}
+            onChange={setStartsAt}
+          />
+          <DatePickerField
+            label={`${periodLabel} 종료`}
+            value={endsAt}
+            min={startsAt || undefined}
+            onChange={setEndsAt}
+          />
           <Field label="목표 응답수">
             <input
               type="number"
@@ -252,11 +246,11 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
             <p className="label-machined text-[var(--text-muted)]">Questions</p>
             <h3 className="mt-2 text-xl font-bold">문항 구성</h3>
             <p className="mt-2 text-sm text-[var(--text-body)]">
-              공통 KPI는 고정 · 유형 기본세트는 이미 선택됨 · 필요 시만 조정
+              공통 KPI는 고정입니다. 추천 포함 문항은 기본으로 켜져 있고, 필요할 때만 추가 선택하면 됩니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <PresetButton label="기본세트" onClick={() => applyPreset("core")} />
+            <PresetButton label="추천 문항만" onClick={() => applyPreset("core")} />
             <PresetButton label="유형 전체" onClick={() => applyPreset("all")} />
             <PresetButton
               label={showAdvancedQuestions ? "문항 접기" : "문항 세부 조정"}
@@ -265,12 +259,18 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
           </div>
         </div>
 
+        <div className="mt-6 grid gap-3 border border-[var(--hairline)] p-4 text-sm text-[var(--text-body)] md:grid-cols-3">
+          <LegendItem title="교육 표준문항" body="교육형 사업의 강의 품질 표준(시간·내용·기법 등)" />
+          <LegendItem title="추천 포함" body="설문 만들 때 기본으로 넣는 핵심 문항" />
+          <LegendItem title="추가 선택" body="필요할 때만 더하는 문항" />
+        </div>
+
         <div className="mt-6 grid gap-3 md:grid-cols-3">
           <SummaryCard label="공통 KPI" value={`${commonKpi.length}문항`} hint="자동 포함 · 고정" />
           <SummaryCard
             label="유형 선택"
             value={`${selectedIds.length}/${pool.length}`}
-            hint="기본세트 권장"
+            hint="추천 포함 권장"
           />
           <SummaryCard label="참여자 최종" value={`${previewCount}문항`} hint="일반사항 포함" />
         </div>
@@ -294,32 +294,32 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
 
         {showAdvancedQuestions ? (
           <div className="mt-6 space-y-4">
-            <QuestionAccordion
-              title="유형 기본세트"
-              hint="사업 분석에 필요한 핵심 문항"
+            <QuestionPicker
+              title="추천 포함 문항"
+              hint="사업 분석에 필요한 핵심 문항 · 박스 클릭 / Shift 구간 / 드래그 다중 선택"
               groups={coreGrouped}
               selectedIds={selectedIds}
               openCategories={openCategories}
               onToggleOpen={toggleCategoryOpen}
-              onToggleQuestion={toggleQuestion}
+              onSetSelectedIds={setSelectedIds}
               onToggleCategory={toggleCategory}
             />
             {extendedGrouped.length > 0 ? (
-              <QuestionAccordion
-                title="유형 확장 문항"
-                hint="필요할 때만 추가"
+              <QuestionPicker
+                title="추가 선택 문항"
+                hint="필요할 때만 더하세요 · 박스 클릭 / Shift 구간 / 드래그 다중 선택"
                 groups={extendedGrouped}
                 selectedIds={selectedIds}
                 openCategories={openCategories}
                 onToggleOpen={toggleCategoryOpen}
-                onToggleQuestion={toggleQuestion}
+                onSetSelectedIds={setSelectedIds}
                 onToggleCategory={toggleCategory}
               />
             ) : null}
           </div>
         ) : (
           <p className="mt-6 text-sm text-[var(--text-muted)]">
-            기본세트로 바로 생성할 수 있습니다. 문항을 바꾸려면 &quot;문항 세부 조정&quot;을 누르세요.
+            추천 포함 문항으로 바로 생성할 수 있습니다. 바꾸려면 &quot;문항 세부 조정&quot;을 누르세요.
           </p>
         )}
 
@@ -337,92 +337,20 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
   );
 }
 
-function QuestionAccordion({
-  title,
-  hint,
-  groups,
-  selectedIds,
-  openCategories,
-  onToggleOpen,
-  onToggleQuestion,
-  onToggleCategory,
-}: {
-  title: string;
-  hint: string;
-  groups: Array<{ category: string; items: Question[] }>;
-  selectedIds: string[];
-  openCategories: Record<string, boolean>;
-  onToggleOpen: (category: string) => void;
-  onToggleQuestion: (id: string) => void;
-  onToggleCategory: (ids: string[], selectAll: boolean) => void;
-}) {
-  return (
-    <div className="border border-[var(--hairline)]">
-      <div className="border-b border-[var(--hairline)] p-4">
-        <p className="label-machined text-[var(--text-muted)]">{title}</p>
-        <p className="mt-2 text-sm text-[var(--text-body)]">{hint}</p>
-      </div>
-      <div className="divide-y divide-[var(--hairline)]">
-        {groups.map((group) => {
-          const ids = group.items.map((item) => item.id);
-          const selectedCount = ids.filter((id) => selectedIds.includes(id)).length;
-          const allSelected = selectedCount === ids.length;
-          const isOpen = openCategories[group.category] ?? true;
-
-          return (
-            <div key={group.category}>
-              <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <button type="button" onClick={() => onToggleOpen(group.category)} className="text-left">
-                  <p className="font-bold text-white">{group.category}</p>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">
-                    {selectedCount}/{ids.length} 선택 · {isOpen ? "접기" : "펼치기"}
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onToggleCategory(ids, !allSelected)}
-                  className="focus-ring label-machined border border-[var(--hairline)] px-3 py-2 text-[var(--text-body)] hover:border-white hover:text-white"
-                >
-                  {allSelected ? "카테고리 해제" : "카테고리 전체"}
-                </button>
-              </div>
-              {isOpen ? (
-                <div className="space-y-2 px-4 pb-4">
-                  {group.items.map((question) => (
-                    <label
-                      key={question.id}
-                      className="flex cursor-pointer items-start gap-3 border border-[var(--hairline)] bg-[var(--surface-soft)] p-3 text-sm leading-6 text-[var(--text-body)]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(question.id)}
-                        onChange={() => onToggleQuestion(question.id)}
-                        className="mt-1"
-                      />
-                      <span className="flex-1">
-                        <span className="text-white">{question.label}</span>
-                        <span className="mt-2 flex flex-wrap gap-2">
-                          {question.group === "지침" ? <Badge tone="info">지침</Badge> : null}
-                          {question.tier === "core" ? <Badge tone="success">기본</Badge> : <Badge>확장</Badge>}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="label-machined text-[var(--text-muted)]">{label}</p>
       <p className="mt-1 text-sm text-white">{value || "-"}</p>
+    </div>
+  );
+}
+
+function LegendItem({ title, body }: { title: string; body: string }) {
+  return (
+    <div>
+      <p className="font-bold text-white">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{body}</p>
     </div>
   );
 }
