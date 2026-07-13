@@ -158,6 +158,68 @@ export interface Database {
           },
         ];
       };
+      improvement_actions: {
+        Row: {
+          id: string;
+          survey_id: string;
+          title: string;
+          source: string;
+          owner_name: string;
+          due_date: string | null;
+          status: string;
+          related_question_id: string | null;
+          related_question_label: string | null;
+          memo: string;
+          division: string;
+          year: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          survey_id: string;
+          title: string;
+          source?: string;
+          owner_name?: string;
+          due_date?: string | null;
+          status?: string;
+          related_question_id?: string | null;
+          related_question_label?: string | null;
+          memo?: string;
+          division: string;
+          year?: number;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          survey_id?: string;
+          title?: string;
+          source?: string;
+          owner_name?: string;
+          due_date?: string | null;
+          status?: string;
+          related_question_id?: string | null;
+          related_question_label?: string | null;
+          memo?: string;
+          division?: string;
+          year?: number;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "improvement_actions_survey_id_fkey";
+            columns: ["survey_id"];
+            isOneToOne: false;
+            referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -169,3 +231,5 @@ export interface Database {
 export type SurveyRow = Database["public"]["Tables"]["surveys"]["Row"];
 export type SurveyResponseRow = Database["public"]["Tables"]["survey_responses"]["Row"];
 export type SurveyResponseInsert = Database["public"]["Tables"]["survey_responses"]["Insert"];
+export type ImprovementActionRow = Database["public"]["Tables"]["improvement_actions"]["Row"];
+export type ImprovementActionInsert = Database["public"]["Tables"]["improvement_actions"]["Insert"];

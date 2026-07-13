@@ -1,4 +1,5 @@
 import { AuthGate } from "@/components/auth/AuthGate";
+import { ImprovementActionPanel } from "@/components/admin/ImprovementActionPanel";
 import { ManagementExportPanel } from "@/components/admin/ManagementExportPanel";
 import { UserApprovalPanel } from "@/components/admin/UserApprovalPanel";
 import { ResponseDashboard } from "@/components/dashboard/ResponseDashboard";
@@ -22,7 +23,7 @@ export default function AdminPage() {
             KPI 관제
           </h1>
           <p className="mt-6 max-w-3xl text-[var(--text-body)]">
-            회원 승인, 본부·사업유형 KPI, 경영평가 Excel보내기를 제공합니다.
+            회원 승인, 본부·사업유형 KPI, 경영평가 Excel보내기, 개선과제 관리를 제공합니다.
           </p>
         </section>
 
@@ -39,13 +40,7 @@ export default function AdminPage() {
         </section>
 
         <section className="pb-12">
-          <div className="panel p-6">
-            <p className="label-machined text-[var(--text-muted)]">Action Loop</p>
-            <h2 className="mt-2 text-2xl font-black uppercase">개선과제 관리</h2>
-            <p className="mt-4 text-sm leading-7 text-[var(--text-body)]">
-              주관식 키워드·낮은 만족도 기반 개선과제 등록 기능은 다음 단계에서 연동됩니다.
-            </p>
-          </div>
+          <ImprovementActionPanel />
         </section>
       </main>
     </AuthGate>
