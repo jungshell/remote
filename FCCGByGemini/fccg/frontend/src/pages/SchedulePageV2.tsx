@@ -2044,8 +2044,12 @@ export default function SchedulePageV2() {
       }
     }
 
-    // 관리자 계정은 분모/분자에서 제외 (세션 목록 집계 기준과 정합)
-    const eligibleMembers = unifiedVoteData.allMembers.filter((member: any) => member?.role !== 'ADMIN');
+    // 활성(ACTIVE) 회원만 투표 대상. 비활성·정지·삭제·관리자는 미참여 집계에서 제외
+    const eligibleMembers = unifiedVoteData.allMembers.filter((member: any) => {
+      const role = member?.role;
+      if (role === 'ADMIN' || role === 'SUPER_ADMIN') return false;
+      return member?.status === 'ACTIVE';
+    });
     const votedMembers = eligibleMembers
       .filter((member: any) => votedUserIds.has(normalizeId(member.id)))
       .map((member: any) => member.name);
@@ -3925,30 +3929,9 @@ export default function SchedulePageV2() {
                   
                   <Tooltip 
                     label={(() => {
-                      if (!voteResults || !voteResults.voteSession || !voteResults.voteSession.votes) return '투표 데이터가 없습니다.';
-                      
-                      // 실제 회원 수
-                      const totalMembers = allMembers.length;
-                      
-                      // 투표에 참여한 고유 인원 수 (실제 회원만)
-                      const participants = new Set<number>();
-                      voteResults.voteSession.votes.forEach(vote => {
-                        const member = allMembers.find(m => m.id === vote.userId);
-                        if (member) {
-                          participants.add(vote.userId);
-                        }
-                      });
-                      
-                      // 투표에 참여하지 않은 인원 수
-                      const absentCount = totalMembers - participants.size;
-                      
-                      if (absentCount === 0) return '모든 회원이 투표에 참여했습니다.';
-                      
-                      // 투표에 참여하지 않은 인원명 수집
-                      const absentMemberIds = allMembers.filter(member => !participants.has(member.id));
-                      const absentMemberNames = absentMemberIds.map(member => member.name);
-                      
-                      return `투표 미참여 인원: ${absentMemberNames.join(', ')}`;
+                      const names = voteParticipationInfo?.nonVotedMembers || [];
+                      if (names.length === 0) return '모든 활성 회원이 투표에 참여했습니다.';
+                      return `투표 미참여 인원: ${names.join(', ')}`;
                     })()}
                     placement="top"
                     hasArrow
@@ -3962,21 +3945,9 @@ export default function SchedulePageV2() {
                     <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="medium"  textAlign={{ base: "center", sm: "left" }}>
                       불참자: 
                       <Badge bg="red.600" color="white" fontSize={{ base: "xs", md: "sm" }} px={1} py={0.5} borderRadius="md" ml={1}>
-                        {(() => {
-                          // 통합 API에서 불참자 수 계산
-                          console.log('🔍 불참자 수 계산:', {
-                            allMembers: unifiedVoteData?.allMembers?.length || 0,
-                            totalParticipants: unifiedVoteData?.activeSession?.totalParticipants || 0,
-                            calculated: unifiedVoteData?.allMembers && unifiedVoteData?.activeSession?.totalParticipants 
-                              ? unifiedVoteData.allMembers.length - unifiedVoteData.activeSession.totalParticipants 
-                              : 0
-                          });
-                          
-                          if (unifiedVoteData?.allMembers && unifiedVoteData?.activeSession?.totalParticipants) {
-                            return unifiedVoteData.allMembers.length - unifiedVoteData.activeSession.totalParticipants;
-                          }
-                          return 0;
-                        })()}명
+                        {voteParticipationInfo
+                          ? Math.max(0, voteParticipationInfo.totalMembers - voteParticipationInfo.uniqueVoters)
+                          : 0}명
                       </Badge>
                     </Text>
                   </Tooltip>
@@ -4347,7 +4318,11 @@ export default function SchedulePageV2() {
                   </Tooltip>
                   
                   <Tooltip 
-                    label={`투표 미참여 인원: ${allMembers.map(member => member.name).join(', ')}`}
+                    label={(() => {
+                      const names = voteParticipationInfo?.nonVotedMembers || [];
+                      if (names.length === 0) return '모든 활성 회원이 투표에 참여했습니다.';
+                      return `투표 미참여 인원: ${names.join(', ')}`;
+                    })()}
                     placement="top"
                     hasArrow
                     bg="red.600"
@@ -4360,21 +4335,9 @@ export default function SchedulePageV2() {
                     <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="medium" textAlign={{ base: "center", sm: "left" }}>
                       불참자: 
                       <Badge bg="red.600" color="white" fontSize={{ base: "xs", md: "sm" }} px={1} py={0.5} borderRadius="md" ml={1}>
-                        {(() => {
-                          // 통합 API에서 불참자 수 계산
-                          console.log('🔍 불참자 수 계산:', {
-                            allMembers: unifiedVoteData?.allMembers?.length || 0,
-                            totalParticipants: unifiedVoteData?.activeSession?.totalParticipants || 0,
-                            calculated: unifiedVoteData?.allMembers && unifiedVoteData?.activeSession?.totalParticipants 
-                              ? unifiedVoteData.allMembers.length - unifiedVoteData.activeSession.totalParticipants 
-                              : 0
-                          });
-                          
-                          if (unifiedVoteData?.allMembers && unifiedVoteData?.activeSession?.totalParticipants) {
-                            return unifiedVoteData.allMembers.length - unifiedVoteData.activeSession.totalParticipants;
-                          }
-                          return 0;
-                        })()}명
+                        {voteParticipationInfo
+                          ? Math.max(0, voteParticipationInfo.totalMembers - voteParticipationInfo.uniqueVoters)
+                          : 0}명
                       </Badge>
                     </Text>
                   </Tooltip>

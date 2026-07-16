@@ -1091,7 +1091,8 @@ console.log('✅ authRoutes 테스트 라우트 등록 완료: /api/auth-test');
 // 투표 데이터 API
 // 중복된 투표 데이터 API 제거 - authRoutes에서 제공됨
 
-// 회원 상태 자동 체크 API
+// 회원 상태 자동 체크 API (관리자)
+// GET/POST ?dryRun=true 이면 변경 없이 대상만 미리보기
 app.post('/api/admin/check-member-status', authenticateToken, async (req, res) => {
   try {
     const userId = (req as any).user?.userId;
@@ -1100,11 +1101,20 @@ app.post('/api/admin/check-member-status', authenticateToken, async (req, res) =
     if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
       return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
     }
+
+    const dryRun =
+      req.query.dryRun === 'true' ||
+      req.query.dryRun === '1' ||
+      req.body?.dryRun === true;
+
+    const result = await checkMemberStatusRules({ dryRun });
     
-    const { checkMemberStatusRules } = require('./controllers/authController');
-    await checkMemberStatusRules();
-    
-    res.json({ message: '회원 상태 체크가 완료되었습니다.' });
+    res.json({
+      message: dryRun
+        ? '회원 상태 체크 미리보기가 완료되었습니다. (변경 없음)'
+        : '회원 상태 체크가 완료되었습니다.',
+      ...result,
+    });
   } catch (error) {
     console.error('회원 상태 체크 API 오류:', error);
     res.status(500).json({ error: '회원 상태 체크 중 오류가 발생했습니다.' });
@@ -1122,9 +1132,23 @@ console.log('✅ 테스트 API 등록 완료: /api/test');
 // 로그인 API 직접 구현
 // 중복된 로그인/회원가입 API 제거 - authRoutes에서 제공됨
 
-// 자동화 기능 제거됨 - 수동 관리로 전환
-
-console.log('✅ 회원 상태 자동 체크 스케줄러 설정 완료: 매일 오전 9시');
+// 매일 09:00 KST — 투표·경기·로그인 기준 회원 상태 자동 반영
+cron.schedule('0 9 * * *', async () => {
+  try {
+    console.log('🕘 [cron] 회원 상태 자동 체크 시작 (매일 09:00 KST)');
+    const result = await checkMemberStatusRules({ dryRun: false });
+    console.log('🕘 [cron] 회원 상태 자동 체크 결과:', {
+      checked: result.checked,
+      changed: result.changed,
+      success: result.success,
+    });
+  } catch (error) {
+    console.error('❌ [cron] 회원 상태 자동 체크 오류:', error);
+  }
+}, {
+  timezone: 'Asia/Seoul'
+});
+console.log('✅ 회원 상태 자동 체크 스케줄러 설정 완료: 매일 오전 9시 (Asia/Seoul)');
 
 async function sendAutoGameReminderEmails() {
   const enabled = (process.env.AUTO_GAME_REMINDER_ENABLED ?? 'true') === 'true';

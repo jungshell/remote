@@ -2708,7 +2708,7 @@ router.get('/unified-vote-data', async (req, res) => {
         role: { in: ['MEMBER', 'ADMIN', 'SUPER_ADMIN'] },
         status: { in: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] }
       },
-      select: { id: true, name: true, status: true }
+      select: { id: true, name: true, status: true, role: true }
     });
 
     const processedActiveSession = buildProcessedVoteSession(filteredActiveSession);

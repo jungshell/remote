@@ -84,6 +84,38 @@ const getVideoClickBadgeStyle = (count: number) => {
 
 const getVideoKey = (item: any) => item?.videoId || item?.id;
 
+/** ISO publishedAt 기준 상대시간 (날짜-only 문자열 파싱 시 자정→N시간 전 오류 방지) */
+const formatVideoRelativeTime = (iso?: string | null) => {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const ms = Date.now() - date.getTime();
+  if (ms < 0) return '방금 전';
+  const m = Math.floor(ms / 60000);
+  const h = Math.floor(ms / 3600000);
+  const days = Math.floor(ms / 86400000);
+  if (m < 1) return '방금 전';
+  if (m < 60) return `${m}분 전`;
+  if (h < 24) return `${h}시간 전`;
+  if (days === 1) return '1일 전';
+  if (days < 7) return `${days}일 전`;
+  if (days < 30) return `${Math.floor(days / 7)}주 전`;
+  if (days < 365) return `${Math.floor(days / 30)}개월 전`;
+  return `${Math.floor(days / 365)}년 전`;
+};
+
+const formatVideoUploadLabel = (iso?: string | null) => {
+  if (!iso) return '업로드: 날짜 없음';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '업로드: 날짜 없음';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+  const weekday = weekdays[date.getDay()];
+  return `업로드: ${year}. ${month}. ${day}. (${weekday})`;
+};
+
 export default function VideoGalleryPage() {
   const { user } = useAuthStore();
   const [sort, setSort] = useState('latest');
@@ -114,24 +146,17 @@ export default function VideoGalleryPage() {
       if (!response.ok) return;
       const payload = await response.json();
       const stats: Record<string, number> = payload?.data || {};
+      // 앱 내 클릭수만 별도 보관 — 카드에 보이는 viewCount(유튜브 조회수)는 덮지 않음
       setItems(prev => {
         const updated = prev.map(item => {
           const key = getVideoKey(item);
           if (key && typeof stats[key] === 'number') {
-            return { ...item, viewCount: stats[key] };
+            return { ...item, appClickCount: stats[key] };
           }
           return item;
         });
         saveItemsToStorage(updated);
         return updated;
-      });
-      setSelectedItem(prev => {
-        if (!prev) return prev;
-        const key = getVideoKey(prev);
-        if (key && typeof stats[key] === 'number') {
-          return { ...prev, viewCount: stats[key] };
-        }
-        return prev;
       });
     } catch (error) {
       console.error('동영상 클릭수 동기화 실패:', error);
@@ -140,44 +165,21 @@ export default function VideoGalleryPage() {
 
   const incrementVideoView = useCallback(async (videoKey?: string) => {
     if (!videoKey) return;
+    // 앱 클릭만 증가 (유튜브 조회수 viewCount는 유지)
     setItems(prev => {
       const updated = prev.map(item => {
         if (getVideoKey(item) === videoKey) {
-          const nextCount = (item.viewCount || 0) + 1;
-          return { ...item, viewCount: nextCount };
+          return { ...item, appClickCount: (item.appClickCount || 0) + 1 };
         }
         return item;
       });
       saveItemsToStorage(updated);
       return updated;
     });
-    setSelectedItem(prev => {
-      if (prev && getVideoKey(prev) === videoKey) {
-        return { ...prev, viewCount: (prev.viewCount || 0) + 1 };
-      }
-      return prev;
-    });
 
     try {
       const url = await getApiUrl(`/videos/${videoKey}/view`);
-      const response = await fetch(url, { method: 'POST' });
-      if (response.ok) {
-        const payload = await response.json();
-        const confirmed = payload?.data?.viewCount;
-        if (typeof confirmed === 'number') {
-          setItems(prev => {
-            const updated = prev.map(item => getVideoKey(item) === videoKey ? { ...item, viewCount: confirmed } : item);
-            saveItemsToStorage(updated);
-            return updated;
-          });
-          setSelectedItem(prev => {
-            if (prev && getVideoKey(prev) === videoKey) {
-              return { ...prev, viewCount: confirmed };
-            }
-            return prev;
-          });
-        }
-      }
+      await fetch(url, { method: 'POST' });
     } catch (error) {
       console.error('동영상 클릭수 업데이트 실패:', error);
     }
@@ -202,9 +204,15 @@ export default function VideoGalleryPage() {
 
     if (!YT_API_KEY) return;
 
-    fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${PLAYLIST_ID}&key=${YT_API_KEY}`)
+    // contentDetails.videoPublishedAt = 실제 영상 게시 시각 (snippet.publishedAt은 재생목록 추가 시각)
+    fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${PLAYLIST_ID}&key=${YT_API_KEY}`)
       .then(res => res.json())
-      .then((data: { items?: { snippet: { resourceId: { videoId: string }, title: string, publishedAt: string } }[] }) => {
+      .then(async (data: {
+        items?: {
+          snippet: { resourceId: { videoId: string }, title: string, publishedAt: string };
+          contentDetails?: { videoPublishedAt?: string };
+        }[];
+      }) => {
         if (data.items && data.items.length > 0) {
           const fetchedVideoItems = data.items
             .filter(item => {
@@ -215,13 +223,18 @@ export default function VideoGalleryPage() {
                      item.snippet.title.trim() !== '';
             })
             .map((item, index) => {
-              const publishedDate = new Date(item.snippet.publishedAt);
-              const formattedDate = publishedDate.toLocaleDateString('ko-KR', { 
-                year: 'numeric', 
-                month: '2-digit', 
-                day: '2-digit', 
-                weekday: 'short' 
-              });
+              // 실제 업로드 시각 우선, 없으면 재생목록 추가 시각
+              const publishedAt =
+                item.contentDetails?.videoPublishedAt || item.snippet.publishedAt;
+              const publishedDate = new Date(publishedAt);
+              const formattedDate = Number.isNaN(publishedDate.getTime())
+                ? ''
+                : publishedDate.toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    weekday: 'short',
+                  });
               
               // 제목에서 매치/자체 정보 추출
               const title = item.snippet.title;
@@ -242,6 +255,7 @@ export default function VideoGalleryPage() {
                 videoId: item.snippet.resourceId.videoId,
                 title: item.snippet.title,
                 date: formattedDate,
+                publishedAt,
                 author: 'tony jung',
                 likes: 0,
                 comments: 0,
@@ -269,16 +283,51 @@ export default function VideoGalleryPage() {
             if (!prev) return item;
             return {
               ...item,
-              likes: prev.likes ?? item.likes,
-              comments: prev.comments ?? item.comments,
+              // 좋아요/조회수는 아래에서 유튜브 statistics로 덮어씀
               isLiked: prev.isLiked ?? item.isLiked,
               commentsList: prev.commentsList ?? item.commentsList,
-              viewCount: typeof prev.viewCount === 'number' ? prev.viewCount : item.viewCount
+              // 앱 내 댓글 수는 로컬 유지 (카드에는 유튜브 댓글수 표시)
+              comments: Array.isArray(prev.commentsList) ? prev.commentsList.length : (prev.comments ?? 0),
             };
           });
 
-          setItems(merged);
-          saveItemsToStorage(merged);
+          // 유튜브 실제 좋아요·조회수·댓글수 조회 (읽기 전용 — 앱→유튜브 숫자 쓰기는 API 불가)
+          const ids = merged.map((v) => v.videoId).filter(Boolean);
+          let withStats = merged;
+          if (ids.length > 0) {
+            try {
+              const statsRes = await fetch(
+                `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${ids.join(',')}&key=${YT_API_KEY}`
+              );
+              const statsData = await statsRes.json();
+              const byId = new Map(
+                (statsData.items || []).map((v: { id: string; statistics?: Record<string, string> }) => [
+                  v.id,
+                  {
+                    likes: Number(v.statistics?.likeCount || 0),
+                    viewCount: Number(v.statistics?.viewCount || 0),
+                    youtubeCommentCount: Number(v.statistics?.commentCount || 0),
+                  },
+                ])
+              );
+              withStats = merged.map((item) => {
+                const s = byId.get(item.videoId);
+                if (!s) return item;
+                return {
+                  ...item,
+                  likes: s.likes,
+                  viewCount: s.viewCount,
+                  youtubeCommentCount: s.youtubeCommentCount,
+                  statsFromYoutube: true,
+                };
+              });
+            } catch (e) {
+              console.warn('유튜브 statistics 조회 실패:', e);
+            }
+          }
+
+          setItems(withStats);
+          saveItemsToStorage(withStats);
         }
       })
       .catch((error) => {
@@ -298,10 +347,10 @@ export default function VideoGalleryPage() {
     
     switch (sort) {
       case 'latest':
-        sorted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        sorted.sort((a, b) => new Date(b.publishedAt || b.date).getTime() - new Date(a.publishedAt || a.date).getTime());
         break;
       case 'oldest':
-        sorted.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        sorted.sort((a, b) => new Date(a.publishedAt || a.date).getTime() - new Date(b.publishedAt || b.date).getTime());
         break;
       case 'likes':
         sorted.sort((a, b) => b.likes - a.likes);
@@ -321,26 +370,19 @@ export default function VideoGalleryPage() {
     incrementVideoView(getVideoKey(item));
   }, [incrementVideoView]);
 
-  // 좋아요 토글
+  // 좋아요: 앱→유튜브 숫자 쓰기는 API로 불가. 유튜브 영상으로 이동해 직접 좋아요
   const handleLikeToggle = useCallback((item: any) => {
-    const updatedItems = items.map(i => {
-      if (i.id === item.id) {
-        return {
-          ...i,
-          isLiked: !i.isLiked,
-          likes: i.isLiked ? i.likes - 1 : i.likes + 1
-        };
-      }
-      return i;
-    });
-    
-    setItems(updatedItems);
-    try { localStorage.setItem('videoItems', JSON.stringify(updatedItems)); } catch (e) { console.warn('videoItems 저장 실패:', e); }
-    
-    if (selectedItem && selectedItem.id === item.id) {
-      setSelectedItem(updatedItems.find(i => i.id === item.id));
+    if (item?.videoId) {
+      window.open(`https://www.youtube.com/watch?v=${item.videoId}`, '_blank', 'noopener,noreferrer');
     }
-  }, [items, selectedItem]);
+    toast({
+      title: '유튜브에서 좋아요',
+      description: '앱 내 좋아요/조회수는 유튜브에 올릴 수 없습니다. 유튜브 페이지에서 좋아요를 눌러 주세요. (표시 숫자는 유튜브 통계입니다)',
+      status: 'info',
+      duration: 4500,
+      isClosable: true,
+    });
+  }, [toast]);
 
   useEffect(() => {
     if (!items || items.length === 0) return;
@@ -458,6 +500,18 @@ export default function VideoGalleryPage() {
 
       {/* 갤러리 그리드 */}
       <Box px={{ base: 2, md: 4, lg: 6 }} pb={10} w="100%" maxW="1400px" mx="auto">
+        {sortedItems.length === 0 && (
+          <Box bg="white" borderRadius="lg" border="1px solid" borderColor="gray.200" p={8} textAlign="center">
+            <Text color="gray.600" fontWeight="medium" mb={2}>
+              표시할 동영상이 없습니다
+            </Text>
+            <Text color="gray.500" fontSize="sm">
+              {!YT_API_KEY
+                ? 'VITE_YOUTUBE_API_KEY가 없어 YouTube 재생목록을 불러오지 못했습니다. frontend/.env.local을 확인한 뒤 개발 서버를 재시작하세요.'
+                : 'YouTube 재생목록을 불러오는 중이거나, 동기화에 실패했습니다. 잠시 후 새로고침해 주세요.'}
+            </Text>
+          </Box>
+        )}
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
           {sortedItems.map((item) => (
             <Box 
@@ -488,25 +542,25 @@ export default function VideoGalleryPage() {
                 <VStack align="start" spacing={0} w="full">
                   {/* 1행+2행 묶음: 간격 최소화 */}
                   <VStack align="start" spacing={0} w="full" mt="-2">
-                    {/* 1행: 행사일(요일 포함) / 우측 좋아요·댓글 수 */}
-                    <Flex w="full" align="center">
-                      <Text fontSize="sm" fontWeight="bold">
-                        {item.date || item.description || '날짜 없음'}
+                    {/* 1행: 유튜브 제목 / 우측 유튜브 좋아요·댓글·조회수 */}
+                    <Flex w="full" align="center" gap={2}>
+                      <Text fontSize="sm" fontWeight="bold" noOfLines={2} flex={1} minW={0}>
+                        {item.title || '제목 없음'}
                       </Text>
-                      <HStack spacing={4} ml="auto">
-                        <Tooltip label={`좋아요 ${item.likes}개`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
+                      <HStack spacing={3} ml="auto" flexShrink={0}>
+                        <Tooltip label={`유튜브 좋아요 ${item.likes}개`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
                           <HStack spacing={1} cursor="default">
                             <AiFillHeart color="#e53e3e" size={16} />
                             <Text fontSize="sm" color="gray.600">{item.likes}</Text>
                           </HStack>
                         </Tooltip>
-                        <Tooltip label={`댓글 ${item.comments}개`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
+                        <Tooltip label={`유튜브 댓글 ${item.youtubeCommentCount ?? item.comments}개`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
                           <HStack spacing={1} cursor="default">
                             <Text fontSize="sm">💬</Text>
-                            <Text fontSize="sm" color="gray.600">{item.comments}</Text>
+                            <Text fontSize="sm" color="gray.600">{item.youtubeCommentCount ?? item.comments}</Text>
                           </HStack>
                         </Tooltip>
-                        <Tooltip label={`클릭 ${formatVideoViewCount(item.viewCount || 0)}회`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
+                        <Tooltip label={`유튜브 조회수 ${formatVideoViewCount(item.viewCount || 0)}회`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
                           <HStack spacing={1} cursor="default">
                             <Text fontSize="sm">⚡</Text>
                             <Text fontSize="sm" color="gray.600">
@@ -518,44 +572,13 @@ export default function VideoGalleryPage() {
                     </Flex>
                   </VStack>
 
-                  {/* 3행: 업로드 날짜+요일 / 우측 상대시간 (정성인과 간격을 날짜-정성인 간격과 동일하게) */}
+                  {/* 3행: 업로드 날짜+요일 / 우측 상대시간 — 반드시 ISO publishedAt 사용 */}
                   <Flex w="full" align="center" mt="-3" mb="0.5">
                     <Text fontSize="xs" color="gray.500">
-                      {(() => {
-                        try {
-                          const date = new Date(item.date || item.publishedAt || new Date());
-                          const year = date.getFullYear();
-                          const month = String(date.getMonth() + 1).padStart(2, '0');
-                          const day = String(date.getDate()).padStart(2, '0');
-                          const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-                          const weekday = weekdays[date.getDay()];
-                          return `업로드: ${year}. ${month}. ${day}. (${weekday})`;
-                        } catch {
-                          return '업로드: 날짜 없음';
-                        }
-                      })()}
+                      {formatVideoUploadLabel(item.publishedAt)}
                     </Text>
                     <Text fontSize="xs" color="gray.500" ml="auto">
-                      {(() => {
-                        try {
-                          const date = new Date(item.date || item.publishedAt || new Date());
-                          const now = new Date();
-                          const ms = now.getTime() - date.getTime();
-                          const m = Math.floor(ms / 60000);
-                          const h = Math.floor(ms / 3600000);
-                          const days = Math.floor(ms / 86400000);
-                          if (m < 1) return '방금 전';
-                          if (m < 60) return `${m}분 전`;
-                          if (h < 24) return `${h}시간 전`;
-                          if (days === 1) return '1일 전';
-                          if (days < 7) return `${days}일 전`;
-                          if (days < 30) return `${Math.floor(days / 7)}주 전`;
-                          if (days < 365) return `${Math.floor(days / 30)}개월 전`;
-                          return `${Math.floor(days / 365)}년 전`;
-                        } catch {
-                          return '';
-                        }
-                      })()}
+                      {formatVideoRelativeTime(item.publishedAt)}
                     </Text>
                   </Flex>
                 </VStack>
@@ -591,17 +614,25 @@ export default function VideoGalleryPage() {
                   <Flex justify="space-between" align="center" w="full" gap={4}>
                     <Text fontSize="md" fontWeight="bold" noOfLines={2} flex={1}>{selectedItem.title}</Text>
                     <HStack spacing={4} flexShrink={0}>
-                      <HStack spacing={1} cursor="pointer" onClick={() => handleLikeToggle(selectedItem)}>
+                      <HStack
+                        spacing={1}
+                        cursor="pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLikeToggle(selectedItem);
+                        }}
+                        title="유튜브에서 좋아요"
+                      >
                         <AiFillHeart color="#e53e3e" size={16} />
                         <Text fontSize="sm">{selectedItem.likes}</Text>
                       </HStack>
                       <Text fontSize="sm" color="gray.400">·</Text>
-                      <HStack spacing={1}>
+                      <HStack spacing={1} title="유튜브 댓글수">
                         <Text fontSize="sm">💬</Text>
-                        <Text fontSize="sm">{selectedItem.comments}</Text>
+                        <Text fontSize="sm">{selectedItem.youtubeCommentCount ?? selectedItem.comments}</Text>
                       </HStack>
                       <Text fontSize="sm" color="gray.400">·</Text>
-                      <HStack spacing={1}>
+                      <HStack spacing={1} title="유튜브 조회수">
                         <Text fontSize="sm">⚡</Text>
                         <Text fontSize="sm">
                           {formatVideoViewCount(selectedItem.viewCount || 0)}
