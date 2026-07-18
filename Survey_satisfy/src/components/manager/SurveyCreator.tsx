@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCommonKpiQuestions } from "@/constants/common-kpi-questions";
 import { buildSurveyQuestions } from "@/constants/general-questions";
 import {
@@ -11,16 +11,21 @@ import {
   resolveRespondentTypeForProgram,
 } from "@/constants/question-pool";
 import { Badge } from "@/components/ui/Badge";
+import { CustomQuestionsEditor } from "@/components/manager/CustomQuestionsEditor";
 import { DatePickerField } from "@/components/manager/DatePickerField";
 import { QuestionPicker } from "@/components/manager/QuestionPicker";
+import { SurveyPhonePreview } from "@/components/manager/SurveyPhonePreview";
 import { authFetch } from "@/lib/auth/access";
+import { parseQuestions, splitStoredSurveyQuestions } from "@/lib/surveys/utils";
 import type { AuthUser } from "@/lib/auth/types";
-import type { Division, ProgramType, RespondentType } from "@/types/platform";
-import type { SurveyRow } from "@/lib/supabase/database.types";
+import type { Division, ProgramType, Question, RespondentType } from "@/types/platform";
+import type { SurveyRow, SurveyTemplateRow } from "@/lib/supabase/database.types";
 
 interface SurveyCreatorProps {
   profile: AuthUser;
   onCreated: (survey: SurveyRow) => void;
+  onCancel?: () => void;
+  cloneSource?: SurveyRow | null;
 }
 
 function buildAutoTitle(year: number, subBusiness: string, round: number) {
@@ -31,7 +36,14 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
+function parseSelectedIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter((item): item is string => typeof item === "string");
+}
+
+export function SurveyCreator({ profile, onCreated, onCancel, cloneSource }: SurveyCreatorProps) {
   const currentYear = new Date().getFullYear();
   const today = useMemo(() => new Date(), []);
   const defaultEnd = useMemo(() => {
@@ -54,8 +66,15 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
   const [showAdvancedQuestions, setShowAdvancedQuestions] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>(getDefaultSelectedQuestionIds(programType));
+  const [customQuestions, setCustomQuestions] = useState<Question[]>([]);
+  const [templates, setTemplates] = useState<SurveyTemplateRow[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [activeTemplateLabel, setActiveTemplateLabel] = useState("");
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const respondentType: RespondentType = resolveRespondentTypeForProgram(programType);
   const autoTitle = buildAutoTitle(year, subBusiness || "세부사업", round);
@@ -67,14 +86,40 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
   const extendedPool = useMemo(() => pool.filter((question) => question.tier !== "core"), [pool]);
   const coreGrouped = useMemo(() => groupQuestionsByCategory(corePool), [corePool]);
   const extendedGrouped = useMemo(() => groupQuestionsByCategory(extendedPool), [extendedPool]);
-  const previewCount = useMemo(
-    () => buildSurveyQuestions(programType, respondentType, selectedIds).length,
-    [programType, respondentType, selectedIds],
+  const previewQuestions = useMemo(
+    () => buildSurveyQuestions(programType, respondentType, selectedIds, customQuestions),
+    [programType, respondentType, selectedIds, customQuestions],
   );
+  const previewCount = previewQuestions.length;
+
+  const loadTemplates = useCallback(async () => {
+    if (!business || !subBusiness) {
+      setTemplates([]);
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({ business, subBusiness, programType });
+      const response = await authFetch(`/api/survey-templates?${params.toString()}`);
+      const data = (await response.json()) as { ok: boolean; rows?: SurveyTemplateRow[]; error?: string };
+      if (response.ok && data.ok) {
+        setTemplates(data.rows ?? []);
+      }
+    } catch {
+      // 템플릿 로드 실패는 설문 생성을 막지 않음
+    }
+  }, [business, subBusiness, programType]);
 
   useEffect(() => {
     setSelectedIds(getDefaultSelectedQuestionIds(programType));
+    setCustomQuestions([]);
+    setSelectedTemplateId("");
+    setActiveTemplateLabel("");
   }, [programType]);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
 
   useEffect(() => {
     const defaults: Record<string, boolean> = {};
@@ -84,11 +129,30 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
     setOpenCategories(defaults);
   }, [coreGrouped, extendedGrouped]);
 
-  const periodLabel = programType.includes("교육")
-    ? "교육 기간"
-    : programType.includes("행사")
-      ? "행사 기간"
-      : "운영 기간";
+  useEffect(() => {
+    if (!cloneSource) {
+      return;
+    }
+
+    const nextRound = (cloneSource.round ?? 1) + 1;
+    const cloneYear = cloneSource.year ?? currentYear;
+    const { selectedQuestionIds, customQuestions: clonedCustom } = splitStoredSurveyQuestions(
+      cloneSource.custom_questions,
+    );
+
+    setRound(nextRound);
+    setYear(cloneYear);
+    setTargetResponses(cloneSource.target_responses ?? 80);
+    setTitleOverride("");
+    setSelectedIds(
+      selectedQuestionIds.length > 0 ? selectedQuestionIds : getDefaultSelectedQuestionIds(programType),
+    );
+    setCustomQuestions(clonedCustom);
+    setShowAdvancedQuestions(false);
+    setStatus(
+      `이전 ${cloneSource.round ?? 1}회차 설문의 문항을 불러왔습니다. 회차·기간을 확인하고 생성하세요.`,
+    );
+  }, [cloneSource, currentYear, programType]);
 
   function applyPreset(mode: "core" | "all" | "clear") {
     if (mode === "core") {
@@ -100,6 +164,15 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
       return;
     }
     setSelectedIds([]);
+  }
+
+  function applyTemplate(template: SurveyTemplateRow) {
+    setSelectedIds(parseSelectedIds(template.selected_question_ids));
+    setCustomQuestions(parseQuestions(template.custom_questions));
+    setSelectedTemplateId(template.id);
+    setActiveTemplateLabel(template.name);
+    setTemplateName(template.name);
+    setStatus(`템플릿 "${template.name}" 문항을 불러왔습니다. 회차·기간만 확인하세요.`);
   }
 
   function toggleCategory(ids: string[], selectAll: boolean) {
@@ -116,19 +189,92 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
   }
 
-  async function handleCreate() {
+  function validateForm(): boolean {
+    if (!business || !subBusiness) {
+      setStatus("담당 사업 프로필이 비어 있습니다. 먼저 프로필을 저장해 주세요.");
+      return false;
+    }
+    if (!startsAt || !endsAt) {
+      setStatus("설문 시작일과 종료일을 입력해 주세요.");
+      return false;
+    }
+    if (new Date(endsAt) < new Date(startsAt)) {
+      setStatus("종료일은 시작일 이후여야 합니다.");
+      return false;
+    }
+    return true;
+  }
+
+  async function handleSaveTemplate() {
+    const name = templateName.trim() || `${subBusiness || "사업"} 기본 문항`;
     if (!business || !subBusiness) {
       setStatus("담당 사업 프로필이 비어 있습니다. 먼저 프로필을 저장해 주세요.");
       return;
     }
 
-    if (!startsAt || !endsAt) {
-      setStatus(`${periodLabel}을 입력해 주세요.`);
-      return;
-    }
+    setIsSavingTemplate(true);
+    setStatus("템플릿을 저장하는 중입니다.");
 
-    if (new Date(endsAt) < new Date(startsAt)) {
-      setStatus("종료일은 시작일 이후여야 합니다.");
+    try {
+      const response = await authFetch("/api/survey-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          division,
+          business,
+          subBusiness,
+          programType,
+          respondentType,
+          selectedQuestionIds: selectedIds,
+          customQuestions,
+        }),
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        template?: SurveyTemplateRow;
+        error?: string;
+      };
+
+      if (!response.ok || !data.ok || !data.template) {
+        setStatus(data.error ?? "템플릿 저장에 실패했습니다.");
+        return;
+      }
+
+      setStatus(`템플릿 "${data.template.name}"을 저장했습니다. 다음 회차에 바로 불러올 수 있습니다.`);
+      setSelectedTemplateId(data.template.id);
+      setActiveTemplateLabel(data.template.name);
+      await loadTemplates();
+    } catch {
+      setStatus("템플릿 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    try {
+      const response = await authFetch(`/api/survey-templates?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        setStatus(data.error ?? "템플릿 삭제에 실패했습니다.");
+        return;
+      }
+      if (selectedTemplateId === id) {
+        setSelectedTemplateId("");
+        setActiveTemplateLabel("");
+      }
+      setStatus("템플릿을 삭제했습니다.");
+      await loadTemplates();
+    } catch {
+      setStatus("템플릿 삭제 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleCreate() {
+    if (!validateForm()) {
       return;
     }
 
@@ -152,6 +298,7 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
           startsAt,
           endsAt,
           selectedQuestionIds: selectedIds,
+          customQuestions,
         }),
       });
 
@@ -172,13 +319,31 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
   }
 
   return (
-    <section className="grid gap-6">
-      <div className="panel p-6">
-        <p className="label-machined text-[var(--text-muted)]">Create Survey</p>
-        <h2 className="mt-3 text-2xl font-black uppercase">빠른 설문 생성</h2>
-        <p className="mt-3 text-sm leading-6 text-[var(--text-body)]">
-          가입 시 등록한 사업 정보가 자동 연동됩니다. 회차와 {periodLabel}만 확인하면 됩니다.
-        </p>
+    <section className="grid gap-6 pb-28">
+      <div className="panel p-4 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="label-machined text-[var(--text-muted)]">Create Survey</p>
+            <h2 className="mt-3 text-2xl font-black uppercase">빠른 설문 생성</h2>
+            <p className="mt-3 text-sm leading-6 text-[var(--text-body)]">
+              회차·기간을 정하고 바로 생성하세요. 동일 사업은 템플릿으로 문항을 재사용할 수 있습니다.
+            </p>
+          </div>
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="focus-ring label-machined text-xs text-[var(--text-muted)] underline-offset-4 hover:text-white hover:underline"
+            >
+              목록으로
+            </button>
+          ) : null}
+        </div>
+        {status ? <p className="mt-4 text-sm text-[var(--text-body)]">{status}</p> : null}
+      </div>
+
+      <div className="panel p-4 sm:p-6">
+        <h3 className="text-xl font-bold">회차·설문 기간</h3>
 
         <div className="mt-6 grid gap-3 border border-[var(--hairline)] bg-[var(--surface-soft)] p-4 md:grid-cols-2">
           <InfoRow label="본부" value={division} />
@@ -193,7 +358,7 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
               type="number"
               value={year}
               onChange={(event) => setYear(Number(event.target.value))}
-              className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+              className="focus-ring min-h-12 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
             />
           </Field>
           <Field label="회차">
@@ -202,28 +367,34 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
               min={1}
               value={round}
               onChange={(event) => setRound(Number(event.target.value))}
-              className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+              className="focus-ring min-h-12 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
             />
           </Field>
-          <DatePickerField
-            label={`${periodLabel} 시작`}
-            value={startsAt}
-            max={endsAt || undefined}
-            onChange={setStartsAt}
-          />
-          <DatePickerField
-            label={`${periodLabel} 종료`}
-            value={endsAt}
-            min={startsAt || undefined}
-            onChange={setEndsAt}
-          />
+          <div>
+            <DatePickerField
+              label="설문 시작일"
+              value={startsAt}
+              max={endsAt || undefined}
+              onChange={setStartsAt}
+            />
+            <p className="mt-2 text-xs text-[var(--text-muted)]">담당자가 수동으로 설정합니다.</p>
+          </div>
+          <div>
+            <DatePickerField
+              label="설문 종료일"
+              value={endsAt}
+              min={startsAt || undefined}
+              onChange={setEndsAt}
+            />
+            <p className="mt-2 text-xs text-[var(--text-muted)]">담당자가 수동으로 설정합니다.</p>
+          </div>
           <Field label="목표 응답수">
             <input
               type="number"
               min={1}
               value={targetResponses}
               onChange={(event) => setTargetResponses(Number(event.target.value))}
-              className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+              className="focus-ring min-h-12 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
             />
           </Field>
           <div className="md:col-span-2 xl:col-span-3">
@@ -232,7 +403,7 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
                 value={titleOverride}
                 onChange={(event) => setTitleOverride(event.target.value)}
                 placeholder={autoTitle}
-                className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                className="focus-ring min-h-12 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
               />
             </Field>
             <p className="mt-2 text-xs text-[var(--text-muted)]">자동 제목 미리보기: {title}</p>
@@ -240,13 +411,69 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
         </div>
       </div>
 
-      <div className="panel p-6">
+      <div className="panel p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-bold">문항 템플릿</h3>
+          {activeTemplateLabel ? <Badge tone="warning">적용중: {activeTemplateLabel}</Badge> : null}
+        </div>
+
+        {templates.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {templates.map((template) => (
+              <div
+                key={template.id}
+                className="flex items-center gap-2 border border-[var(--hairline)] px-3 py-2"
+              >
+                <button
+                  type="button"
+                  onClick={() => applyTemplate(template)}
+                  className="focus-ring text-sm font-bold text-white hover:underline"
+                >
+                  {template.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteTemplate(template.id)}
+                  className="focus-ring label-machined text-[10px] text-[var(--text-muted)] hover:text-white"
+                  aria-label={`${template.name} 삭제`}
+                >
+                  삭제
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-[var(--text-muted)]">저장된 템플릿이 없습니다.</p>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="min-w-[200px] flex-1">
+            <Field label="새 템플릿 이름">
+              <input
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder={`${subBusiness || "세부사업"} 기본 문항`}
+                className="focus-ring min-h-11 h-11 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-sm text-white"
+              />
+            </Field>
+          </div>
+          <button
+            type="button"
+            disabled={isSavingTemplate}
+            onClick={() => void handleSaveTemplate()}
+            className="focus-ring label-machined min-h-11 h-11 border border-[var(--hairline)] px-4 text-[var(--text-body)] hover:border-white hover:text-white disabled:opacity-50"
+          >
+            {isSavingTemplate ? "저장 중" : "현재 문항 저장"}
+          </button>
+        </div>
+      </div>
+
+      <div className="panel p-4 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="label-machined text-[var(--text-muted)]">Questions</p>
-            <h3 className="mt-2 text-xl font-bold">문항 구성</h3>
+            <h3 className="text-xl font-bold">문항 구성</h3>
             <p className="mt-2 text-sm text-[var(--text-body)]">
-              공통 KPI는 고정입니다. 추천 포함 문항은 기본으로 켜져 있고, 필요할 때만 추가 선택하면 됩니다.
+              공통 KPI는 고정입니다. 추천 문항으로 바로 생성하거나 세부 조정하세요.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -256,22 +483,14 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
               label={showAdvancedQuestions ? "문항 접기" : "문항 세부 조정"}
               onClick={() => setShowAdvancedQuestions((prev) => !prev)}
             />
+            <PresetButton label="미리보기" onClick={() => setShowPreview(true)} />
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 border border-[var(--hairline)] p-4 text-sm text-[var(--text-body)] md:grid-cols-3">
-          <LegendItem title="교육 표준문항" body="교육형 사업의 강의 품질 표준(시간·내용·기법 등)" />
-          <LegendItem title="추천 포함" body="설문 만들 때 기본으로 넣는 핵심 문항" />
-          <LegendItem title="추가 선택" body="필요할 때만 더하는 문항" />
-        </div>
-
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
+        <div className="mt-6 grid gap-3 md:grid-cols-4">
           <SummaryCard label="공통 KPI" value={`${commonKpi.length}문항`} hint="자동 포함 · 고정" />
-          <SummaryCard
-            label="유형 선택"
-            value={`${selectedIds.length}/${pool.length}`}
-            hint="추천 포함 권장"
-          />
+          <SummaryCard label="유형 선택" value={`${selectedIds.length}/${pool.length}`} hint="추천 포함 권장" />
+          <SummaryCard label="직접 추가" value={`${customQuestions.length}문항`} hint="템플릿 저장 가능" />
           <SummaryCard label="참여자 최종" value={`${previewCount}문항`} hint="일반사항 포함" />
         </div>
 
@@ -307,7 +526,7 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
             {extendedGrouped.length > 0 ? (
               <QuestionPicker
                 title="추가 선택 문항"
-                hint="필요할 때만 더하세요 · 박스 클릭 / Shift 구간 / 드래그 다중 선택"
+                hint="필요할 때만 더하세요 · 선택 해제로 삭제와 동일"
                 groups={extendedGrouped}
                 selectedIds={selectedIds}
                 openCategories={openCategories}
@@ -316,22 +535,31 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
                 onToggleCategory={toggleCategory}
               />
             ) : null}
+            <CustomQuestionsEditor questions={customQuestions} onChange={setCustomQuestions} />
           </div>
         ) : (
           <p className="mt-6 text-sm text-[var(--text-muted)]">
-            추천 포함 문항으로 바로 생성할 수 있습니다. 바꾸려면 &quot;문항 세부 조정&quot;을 누르세요.
+            추천 포함 문항으로 바로 생성할 수 있습니다. 추가·삭제·직접 문항은 &quot;문항 세부 조정&quot;을
+            누르세요.
           </p>
         )}
+      </div>
 
-        <button
-          type="button"
-          disabled={isSubmitting}
-          onClick={() => void handleCreate()}
-          className="focus-ring label-machined mt-8 w-full border border-white px-6 py-4 transition-colors hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
-        >
-          {isSubmitting ? "생성 중" : "설문 생성"}
-        </button>
-        {status ? <p className="mt-4 text-sm text-[var(--text-body)]">{status}</p> : null}
+      {showPreview ? (
+        <SurveyPhonePreview title={title} questions={previewQuestions} onClose={() => setShowPreview(false)} />
+      ) : null}
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--hairline)] bg-[var(--surface)]/95 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:sticky sm:inset-x-auto sm:bottom-0 sm:z-10 sm:mt-2 sm:border sm:border-[var(--hairline)] sm:bg-[var(--surface-soft)] sm:pb-3 sm:backdrop-blur-none">
+        <div className="mx-auto flex max-w-6xl justify-end px-4 sm:px-6">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => void handleCreate()}
+            className="focus-ring label-machined min-h-12 border border-white px-8 text-white hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
+          >
+            {isSubmitting ? "생성 중" : "설문 생성"}
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -342,15 +570,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div>
       <p className="label-machined text-[var(--text-muted)]">{label}</p>
       <p className="mt-1 text-sm text-white">{value || "-"}</p>
-    </div>
-  );
-}
-
-function LegendItem({ title, body }: { title: string; body: string }) {
-  return (
-    <div>
-      <p className="font-bold text-white">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{body}</p>
     </div>
   );
 }
@@ -379,7 +598,7 @@ function PresetButton({ label, onClick }: { label: string; onClick: () => void }
     <button
       type="button"
       onClick={onClick}
-      className="focus-ring label-machined border border-[var(--hairline)] px-3 py-2 text-[var(--text-body)] transition-colors hover:border-white hover:text-white"
+      className="focus-ring label-machined min-h-11 border border-[var(--hairline)] px-3 py-2 text-[var(--text-body)] transition-colors hover:border-white hover:text-white"
     >
       {label}
     </button>

@@ -31,9 +31,17 @@
 |------|-----------|
 | PRD 7개 사업유형 문항 풀 | ✅ 유형 풀로 반영 (기본/확장 재분류) |
 | 초기 플랫폼 공통 8문항 + 교육 지침 | ✅ 공통 KPI·교육 지침으로 재통합 |
-| 각 부서·사업의 **실제 진행 중 설문지 분석 결과물** | ❌ 저장소·문서에 산출물 없음 — **미반영** |
+| PRD 일반사항 (사업명·종업원·직위·성별 등) | ✅ 일반사항 문항으로 반영 |
+| 담당자 문항 추가·삭제·템플릿 | ✅ 설문 생성 시 커스텀 문항 + 회차 재사용 템플릿 |
+| 각 부서·사업의 **별도 실제 설문지 파일** | ⚠️ 별도 파일 미수신 시 PRD 취합본을 기준으로 사용 |
 
-부서별 실제 문항을 주시면(시트·PDF·목록), 유형 풀에 매핑해 기본/확장에 반영할 수 있습니다.
+## 템플릿 사용
+
+1. 설문 생성 → 문항 세부 조정에서 유형 선택/해제 + 직접 문항 추가
+2. **현재 문항을 템플릿으로 저장**
+3. 동일 사업·다음 회차: 템플릿 **불러오기** → 회차·기간만 변경 후 생성
+
+SQL: `supabase/migration_006_survey_templates.sql`
 
 ## 파일
 
@@ -41,3 +49,5 @@
 - `src/constants/question-pool.ts`
 - `src/constants/general-questions.ts`
 - 설문 생성 UI: `src/components/manager/SurveyCreator.tsx`
+- 커스텀 문항: `src/components/manager/CustomQuestionsEditor.tsx`
+- 템플릿 API: `src/app/api/survey-templates/route.ts`

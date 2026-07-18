@@ -14,6 +14,7 @@ export function GoogleActionPanel({ project, surveyId, questions }: GoogleAction
   const [status, setStatus] = useState("");
   const [reportUrl, setReportUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const isConfigured = Boolean(process.env.NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL);
 
   async function handleCreateRound() {
     setIsLoading(true);
@@ -47,37 +48,44 @@ export function GoogleActionPanel({ project, surveyId, questions }: GoogleAction
   }
 
   return (
-    <section className="panel p-6">
-      <p className="label-machined text-[var(--text-muted)]">Google Test</p>
-      <h2 className="mt-3 text-2xl font-black uppercase">연동 테스트</h2>
+    <section className="panel animate-enter p-4 sm:p-6">
+      <p className="label-machined text-[var(--text-muted)]">Google Reports</p>
+      <h2 className="mt-2 text-xl font-black uppercase sm:text-2xl">Drive · PDF (선택)</h2>
       <p className="mt-3 text-sm leading-6 text-[var(--text-body)]">
-        먼저 회차 생성 버튼을 눌러 Drive 폴더와 응답 Sheet가 만들어지는지 확인하세요.
+        Supabase가 기본 저장소입니다. Google 연동은 보고용 Drive 폴더·PDF가 필요할 때만 사용하세요.
       </p>
+
+      {!isConfigured ? (
+        <p className="mt-4 border border-[var(--warning)] bg-[var(--surface-soft)] p-4 text-sm text-[var(--warning)]">
+          아직 Apps Script URL이 없습니다. `docs/OPTIONAL_FEATURES_GUIDE.md`의 Google 설정 단계를 따라
+          `.env.local`에 `NEXT_PUBLIC_GOOGLE_APPS_SCRIPT_URL`을 넣은 뒤 서버를 재시작하세요.
+        </p>
+      ) : null}
 
       <div className="mt-6 grid gap-3 md:grid-cols-3">
         <button
           type="button"
-          disabled={isLoading}
-          onClick={handleCreateRound}
+          disabled={isLoading || !isConfigured}
+          onClick={() => void handleCreateRound()}
           className="focus-ring label-machined border border-white px-4 py-4 transition-colors hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
         >
-          회차 Sheet 생성
+          Drive·Sheet 생성
         </button>
         <button
           type="button"
-          disabled={isLoading}
-          onClick={() => handleReport("official")}
+          disabled={isLoading || !isConfigured}
+          onClick={() => void handleReport("official")}
           className="focus-ring label-machined border border-[var(--hairline)] px-4 py-4 text-[var(--text-body)] transition-colors hover:border-white hover:text-white disabled:cursor-wait disabled:opacity-50"
         >
-          공식 PDF 테스트
+          공식 PDF
         </button>
         <button
           type="button"
-          disabled={isLoading}
-          onClick={() => handleReport("internal")}
+          disabled={isLoading || !isConfigured}
+          onClick={() => void handleReport("internal")}
           className="focus-ring label-machined border border-[var(--hairline)] px-4 py-4 text-[var(--text-body)] transition-colors hover:border-white hover:text-white disabled:cursor-wait disabled:opacity-50"
         >
-          내부 PDF 테스트
+          내부 PDF
         </button>
       </div>
 

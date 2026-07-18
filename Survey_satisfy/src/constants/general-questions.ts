@@ -15,6 +15,17 @@ const PARTICIPATION_PATH: Question = {
   orderNo: 1,
 };
 
+const BUSINESS_NAME: Question = {
+  id: "cc1",
+  group: "일반",
+  category: "일반사항",
+  label: "사업(교육)명",
+  scale: "text",
+  required: false,
+  kpiIncluded: false,
+  orderNo: 0,
+};
+
 const ORG_QUESTIONS: Question[] = [
   {
     id: "o1",
@@ -48,6 +59,38 @@ const ORG_QUESTIONS: Question[] = [
     options: ["충남 소재", "충남 외 소재"],
     orderNo: 4,
   },
+  {
+    id: "o4",
+    group: "일반",
+    category: "기관 정보",
+    label: "종업원 수",
+    scale: "choice",
+    required: false,
+    kpiIncluded: false,
+    options: ["1~4인", "5~9인", "10~29인", "30인 이상"],
+    orderNo: 5,
+  },
+  {
+    id: "o5",
+    group: "일반",
+    category: "기관 정보",
+    label: "설립 연도 또는 업력",
+    scale: "text",
+    required: false,
+    kpiIncluded: false,
+    orderNo: 6,
+  },
+  {
+    id: "o6",
+    group: "일반",
+    category: "기관 정보",
+    label: "응답자 직위",
+    scale: "choice",
+    required: false,
+    kpiIncluded: false,
+    options: ["대표", "임원", "팀장", "실무자", "기타"],
+    orderNo: 7,
+  },
 ];
 
 const PERSON_QUESTIONS: Question[] = [
@@ -66,12 +109,23 @@ const PERSON_QUESTIONS: Question[] = [
     id: "p2",
     group: "일반",
     category: "개인 정보",
+    label: "성별",
+    scale: "choice",
+    required: false,
+    kpiIncluded: false,
+    options: ["남", "여", "응답하지 않음"],
+    orderNo: 3,
+  },
+  {
+    id: "p3",
+    group: "일반",
+    category: "개인 정보",
     label: "연령대",
     scale: "choice",
     required: false,
     kpiIncluded: false,
     options: ["10대", "20대", "30대", "40대", "50대 이상"],
-    orderNo: 3,
+    orderNo: 4,
   },
 ];
 
@@ -80,7 +134,7 @@ const PERSON_PROGRAM_CODES = new Set(["edu", "event", "living"]);
 
 export function getGeneralQuestions(programType: ProgramType, respondentType: RespondentType): Question[] {
   const code = getProgramTypeCode(programType);
-  const questions: Question[] = [PARTICIPATION_PATH];
+  const questions: Question[] = [BUSINESS_NAME, PARTICIPATION_PATH];
 
   const includeOrg = respondentType === "org" || respondentType === "both" || ORG_PROGRAM_CODES.has(code);
   const includePerson = respondentType === "person" || respondentType === "both" || PERSON_PROGRAM_CODES.has(code);
@@ -100,9 +154,17 @@ export function buildSurveyQuestions(
   programType: ProgramType,
   respondentType: RespondentType,
   selectedTypeQuestionIds: string[],
+  customQuestions: Question[] = [],
 ): Question[] {
   const general = getGeneralQuestions(programType, respondentType);
   const commonKpi = getCommonKpiQuestions();
   const typeQuestions = getQuestionsByIds(programType, selectedTypeQuestionIds);
-  return [...general, ...commonKpi, ...typeQuestions];
+  const customs = customQuestions
+    .filter((question) => question.group === "커스텀" || question.id.startsWith("custom_"))
+    .map((question, index) => ({
+      ...question,
+      group: "커스텀" as const,
+      orderNo: question.orderNo ?? index + 1,
+    }));
+  return [...general, ...commonKpi, ...typeQuestions, ...customs];
 }

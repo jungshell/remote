@@ -45,6 +45,20 @@ export function RoleAwareTopNav() {
         </Link>
 
         <div className="flex items-center gap-4 md:gap-6">
+            <div className="flex items-center gap-3 overflow-x-auto md:hidden">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`label-machined shrink-0 text-xs ${
+                  pathname === link.href ? "text-white" : "text-[var(--text-body)]"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+
           <div className="hidden items-center gap-6 md:flex">
             {links.map((link) => (
               <Link

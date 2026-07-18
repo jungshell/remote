@@ -1,73 +1,72 @@
-import type { SurveyResponseInsert } from "@/lib/supabase/database.types";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { Project, SurveyAnswer } from "@/types/platform";
-
-interface SubmitSurveyResponseInput {
-  surveyId: string;
-  project: Project;
-  phoneLast4: string;
-  answers: SurveyAnswer[];
-}
+import type { SurveyAnswer } from "@/types/platform";
+import { authFetch } from "@/lib/auth/access";
 
 export function buildParticipantSurveyUrl(surveyId: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const envBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : envBase || "http://localhost:3000";
+  const baseUrl = typeof window !== "undefined" ? origin : envBase || origin;
   return `${baseUrl}/survey/${surveyId}?role=user`;
+}
+
+function editTokenStorageKey(surveyId: string, phoneLast4: string) {
+  return `survey-edit-token:${surveyId}:${phoneLast4}`;
+}
+
+export function getStoredEditToken(surveyId: string, phoneLast4: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.localStorage.getItem(editTokenStorageKey(surveyId, phoneLast4));
+}
+
+export function storeEditToken(surveyId: string, phoneLast4: string, token: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(editTokenStorageKey(surveyId, phoneLast4), token);
 }
 
 export async function submitSurveyResponseToSupabase({
   surveyId,
-  project,
   phoneLast4,
   answers,
-}: SubmitSurveyResponseInput) {
-  const supabase = getSupabaseBrowserClient();
+}: {
+  surveyId: string;
+  phoneLast4: string;
+  answers: SurveyAnswer[];
+}) {
+  const editToken = getStoredEditToken(surveyId, phoneLast4);
+  const response = await fetch("/api/survey-responses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      surveyId,
+      phoneLast4,
+      editToken,
+      answers,
+    }),
+  });
 
-  if (!supabase) {
-    throw new Error("Supabase가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL과 ANON_KEY를 확인하세요.");
-  }
-
-  const payload: SurveyResponseInsert = {
-    survey_id: surveyId,
-    division: project.division,
-    business: project.business,
-    sub_business: project.subBusiness,
-    program_type: project.type,
-    phone_last4: phoneLast4,
-    answers: answers as unknown as SurveyResponseInsert["answers"],
-    submitted_at: new Date().toISOString(),
+  const data = (await response.json()) as {
+    ok: boolean;
+    updated?: boolean;
+    editToken?: string;
+    error?: string;
   };
 
-  const { data: existing, error: lookupError } = await supabase
-    .from("survey_responses")
-    .select("id")
-    .eq("survey_id", surveyId)
-    .eq("phone_last4", phoneLast4)
-    .maybeSingle();
-
-  if (lookupError) {
-    throw new Error(lookupError.message);
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error ?? "응답 저장에 실패했습니다.");
   }
 
-  if (existing?.id) {
-    const { error } = await supabase.from("survey_responses").update(payload).eq("id", existing.id);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return { updated: true };
+  if (data.editToken) {
+    storeEditToken(surveyId, phoneLast4, data.editToken);
   }
 
-  const { error } = await supabase.from("survey_responses").insert(payload);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return { updated: false };
+  return { updated: Boolean(data.updated) };
 }
-
-import { authFetch } from "@/lib/auth/access";
 
 export async function activateSurveyStatus(surveyId: string) {
   const response = await authFetch("/api/surveys", {
