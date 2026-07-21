@@ -32,6 +32,15 @@ export interface CategoryChartPoint {
 
 const RECOMMEND_QUESTION_ID = "common_recommend";
 
+export interface YearChartPoint {
+  name: string;
+  year: number;
+  satisfaction: number;
+  responseCount: number;
+  recommendation: number;
+  responseRate: number;
+}
+
 function parseAnswers(raw: unknown): SurveyAnswer[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -187,4 +196,61 @@ export function aggregateByCommonKpi(
 
 function shortenLabel(label: string) {
   return label.replace(/\?$/, "").replace(/하십니까$/, "").replace(/있습니까$/, "").slice(0, 18);
+}
+
+/** 연도별 만족도·응답 비교 (관리자 YoY) */
+export function aggregateByYear(
+  rows: SurveyResponseRow[],
+  yearBySurveyId: Map<string, number>,
+  targetByYear: Map<number, number>,
+): YearChartPoint[] {
+  const buckets = new Map<number, SurveyResponseRow[]>();
+
+  for (const row of rows) {
+    const year = yearBySurveyId.get(row.survey_id);
+    if (!year) continue;
+    const current = buckets.get(year) ?? [];
+    current.push(row);
+    buckets.set(year, current);
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([year, group]) => {
+      const target = targetByYear.get(year) ?? 80;
+      const metrics = aggregateMetrics(group, target);
+      return {
+        name: `${year}`,
+        year,
+        satisfaction: metrics.satisfaction,
+        responseCount: metrics.responseCount,
+        recommendation: metrics.recommendation,
+        responseRate: metrics.responseRate,
+      };
+    });
+}
+
+/** 주관식(text) 응답만 추출 */
+export function extractTextOpinions(rows: SurveyResponseRow[], questions?: Question[]): string[] {
+  const textIds = new Set(
+    (questions ?? [])
+      .filter((question) => question.scale === "text")
+      .map((question) => question.id),
+  );
+
+  const opinions: string[] = [];
+
+  for (const row of rows) {
+    for (const answer of parseAnswers(row.answers)) {
+      if (typeof answer.value !== "string") continue;
+      const text = answer.value.trim();
+      if (!text) continue;
+      if (textIds.size > 0 && !textIds.has(answer.questionId) && !answer.questionId.includes("opinion")) {
+        continue;
+      }
+      opinions.push(text);
+    }
+  }
+
+  return opinions;
 }

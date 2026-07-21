@@ -18,6 +18,18 @@ export function parseQuestions(raw: unknown): Question[] {
   });
 }
 
+/** 저장된 설문 문항에서 유형/지침 선택 ID와 커스텀 문항을 분리 */
+export function splitStoredSurveyQuestions(raw: unknown) {
+  const questions = parseQuestions(raw);
+  const selectedQuestionIds = questions
+    .filter((question) => question.group === "유형" || question.group === "지침")
+    .map((question) => question.id);
+  const customQuestions = questions.filter(
+    (question) => question.group === "커스텀" || question.id.startsWith("custom_"),
+  );
+  return { selectedQuestionIds, customQuestions };
+}
+
 export function generateSurveyId(subBusiness: string, round: number) {
   const slug = subBusiness
     .toLowerCase()
@@ -41,6 +53,7 @@ export function surveyRowToRecord(row: SurveyRow): SurveyRecord {
     respondentType: (row.respondent_type as RespondentType) ?? "both",
     targetResponses: row.target_responses,
     status: row.status as SurveyStatus,
+    startsAt: row.starts_at,
     endsAt: row.ends_at,
     questions: parseQuestions(row.custom_questions),
   };

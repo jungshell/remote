@@ -10,7 +10,7 @@ export default function ManagerPage() {
       description="승인된 사업담당자 계정으로 로그인해야 설문 생성·운영 화면을 이용할 수 있습니다."
     >
       <RoleAwareTopNav />
-      <main className="shell py-12 md:py-16">
+      <main className="shell py-8 md:py-16">
         <ManagerConsole />
       </main>
     </AuthGate>

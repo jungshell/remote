@@ -20,6 +20,7 @@ export interface Database {
           created_at: string;
           starts_at: string | null;
           ends_at: string | null;
+          owner_user_id: string | null;
         };
         Insert: {
           id: string;
@@ -37,6 +38,7 @@ export interface Database {
           created_at?: string;
           starts_at?: string | null;
           ends_at?: string | null;
+          owner_user_id?: string | null;
         };
         Update: {
           id?: string;
@@ -54,6 +56,7 @@ export interface Database {
           created_at?: string;
           starts_at?: string | null;
           ends_at?: string | null;
+          owner_user_id?: string | null;
         };
         Relationships: [];
       };
@@ -137,6 +140,7 @@ export interface Database {
           phone_last4: string | null;
           answers: Json;
           submitted_at: string;
+          edit_token: string | null;
         };
         Insert: {
           id?: string;
@@ -148,6 +152,7 @@ export interface Database {
           phone_last4?: string | null;
           answers?: Json;
           submitted_at?: string;
+          edit_token?: string | null;
         };
         Update: {
           id?: string;
@@ -159,6 +164,7 @@ export interface Database {
           phone_last4?: string | null;
           answers?: Json;
           submitted_at?: string;
+          edit_token?: string | null;
         };
         Relationships: [
           {
@@ -166,6 +172,59 @@ export interface Database {
             columns: ["survey_id"];
             isOneToOne: false;
             referencedRelation: "surveys";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      survey_templates: {
+        Row: {
+          id: string;
+          owner_user_id: string;
+          name: string;
+          division: string;
+          business: string;
+          sub_business: string;
+          program_type: string;
+          respondent_type: string;
+          selected_question_ids: Json;
+          custom_questions: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_user_id: string;
+          name: string;
+          division?: string;
+          business?: string;
+          sub_business?: string;
+          program_type?: string;
+          respondent_type?: string;
+          selected_question_ids?: Json;
+          custom_questions?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_user_id?: string;
+          name?: string;
+          division?: string;
+          business?: string;
+          sub_business?: string;
+          program_type?: string;
+          respondent_type?: string;
+          selected_question_ids?: Json;
+          custom_questions?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "survey_templates_owner_user_id_fkey";
+            columns: ["owner_user_id"];
+            isOneToOne: false;
+            referencedRelation: "platform_users";
             referencedColumns: ["id"];
           },
         ];
@@ -243,5 +302,6 @@ export interface Database {
 export type SurveyRow = Database["public"]["Tables"]["surveys"]["Row"];
 export type SurveyResponseRow = Database["public"]["Tables"]["survey_responses"]["Row"];
 export type SurveyResponseInsert = Database["public"]["Tables"]["survey_responses"]["Insert"];
+export type SurveyTemplateRow = Database["public"]["Tables"]["survey_templates"]["Row"];
 export type ImprovementActionRow = Database["public"]["Tables"]["improvement_actions"]["Row"];
 export type ImprovementActionInsert = Database["public"]["Tables"]["improvement_actions"]["Insert"];

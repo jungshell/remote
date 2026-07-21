@@ -42,7 +42,18 @@ npm run dev
 
 공통 KPI + 유형 기본세트/확장 구조는 `docs/QUESTION_MASTER.md`를 참고하세요.
 
+## 선택 기능 (연도 비교 · AI · Google · 부서 문항)
+
+코드 기본 세팅은 되어 있습니다. **당신이 할 일만** 초보자용으로 정리한 문서:
+
+→ **`docs/OPTIONAL_FEATURES_GUIDE.md`**
+
+부서 실제 문항을 넘길 때 쓰는 빈 표:
+
+→ **`docs/QUESTION_INTAKE_TEMPLATE.md`**
+
 ## 사용자 설정 필요
 
 1. **Supabase** — `docs/SUPABASE.md` 참고 (SQL + env)
-2. **Google 연동(선택, 2단계)** — `docs/SETUP.md` 참고
+2. **Google·Gemini(선택)** — `docs/OPTIONAL_FEATURES_GUIDE.md` 참고
+3. (구버전 상세) `docs/SETUP.md`

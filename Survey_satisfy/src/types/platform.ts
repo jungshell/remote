@@ -82,6 +82,7 @@ export interface SurveyRecord {
   respondentType: RespondentType;
   targetResponses: number;
   status: SurveyStatus;
+  startsAt?: string | null;
   endsAt?: string | null;
   questions: Question[];
 }

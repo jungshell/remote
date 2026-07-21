@@ -48,9 +48,22 @@ PRD에 선택지가 정의되지 않아 임시 기본값을 넣은 choice 문항
 - `prod`: 지원받은 분야 / 가장 만족한 분야 / 만족·불만족 이유 / 글로벌 진출 지역
 - `demand`: 희망 분야 / 선호 지원 방식 / 적정 지원 규모
 
+## 담당자 커스텀 문항 · 템플릿
+
+핵심/선택 문항 외에 담당자가 직접 문항을 추가할 수 있고, 구성한 문항을 템플릿으로 저장해
+다음 회차에 재사용할 수 있습니다.
+
+1. 설문 생성 → 문항 세부 조정에서 유형 선택/해제 + 직접 문항 추가
+2. **현재 문항을 템플릿으로 저장**
+3. 동일 사업·다음 회차: 템플릿 **불러오기** → 회차·기간만 변경 후 생성
+
+SQL: `supabase/migration_006_survey_templates.sql`
+
 ## 파일
 
 - 공통 고정: `src/constants/common-kpi-questions.ts`
 - 유형별 풀: `src/constants/question-pool.ts`
 - 조합 로직(유형 문항 → 공통 고정 순서): `src/constants/general-questions.ts`
 - 설문 생성 UI: `src/components/manager/SurveyCreator.tsx`
+- 커스텀 문항: `src/components/manager/CustomQuestionsEditor.tsx`
+- 템플릿 API: `src/app/api/survey-templates/route.ts`
