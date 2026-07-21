@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth/server";
 import { buildImprovementSuggestions } from "@/lib/improvement/suggest";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import type { SurveyResponseRow, SurveyRow } from "@/lib/supabase/database.types";
 
 export async function GET(request: Request) {
   const auth = await requireAuthUser(request, "staff");
@@ -20,33 +22,34 @@ export async function GET(request: Request) {
   const surveyId = searchParams.get("survey_id");
   const year = searchParams.get("year");
 
-  let surveyQuery = supabase.from("surveys").select("*").order("created_at", { ascending: false });
-  if (surveyId) {
-    surveyQuery = surveyQuery.eq("id", surveyId);
-  }
-  if (year) {
-    surveyQuery = surveyQuery.eq("year", Number(year));
-  }
-
-  const { data: surveys, error: surveyError } = await surveyQuery;
+  const { rows: surveyRows, error: surveyError } = await fetchAllRows<SurveyRow>((from, to) => {
+    let surveyQuery = supabase.from("surveys").select("*").order("created_at", { ascending: false }).range(from, to);
+    if (surveyId) {
+      surveyQuery = surveyQuery.eq("id", surveyId);
+    }
+    if (year) {
+      surveyQuery = surveyQuery.eq("year", Number(year));
+    }
+    return surveyQuery;
+  });
 
   if (surveyError) {
-    return NextResponse.json({ ok: false, error: surveyError.message }, { status: 500 });
+    console.error("[improvement-actions/suggest] 설문 조회 실패:", surveyError);
+    return NextResponse.json({ ok: false, error: "설문 조회 중 오류가 발생했습니다." }, { status: 500 });
   }
 
-  const surveyRows = surveys ?? [];
   if (surveyRows.length === 0) {
     return NextResponse.json({ ok: true, suggestions: [] });
   }
 
   const ids = surveyRows.map((survey) => survey.id);
-  const { data: responses, error: responseError } = await supabase
-    .from("survey_responses")
-    .select("*")
-    .in("survey_id", ids);
+  const { rows: responses, error: responseError } = await fetchAllRows<SurveyResponseRow>((from, to) =>
+    supabase.from("survey_responses").select("*").in("survey_id", ids).order("submitted_at").range(from, to),
+  );
 
   if (responseError) {
-    return NextResponse.json({ ok: false, error: responseError.message }, { status: 500 });
+    console.error("[improvement-actions/suggest] 응답 조회 실패:", responseError);
+    return NextResponse.json({ ok: false, error: "응답 조회 중 오류가 발생했습니다." }, { status: 500 });
   }
 
   const { data: existing } = await supabase
@@ -60,7 +63,7 @@ export async function GET(request: Request) {
     ),
   );
 
-  const suggestions = buildImprovementSuggestions(surveyRows, responses ?? []).filter((item) => {
+  const suggestions = buildImprovementSuggestions(surveyRows, responses).filter((item) => {
     const key = `${item.surveyId}|${item.source}|${item.relatedQuestionId ?? item.title}`;
     return !existingKeys.has(key);
   });

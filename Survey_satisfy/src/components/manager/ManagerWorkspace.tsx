@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { GoogleActionPanel } from "@/components/manager/GoogleActionPanel";
 import { QrPreview } from "@/components/manager/QrPreview";
 import { ResponseDashboard } from "@/components/dashboard/ResponseDashboard";
@@ -23,13 +23,16 @@ export function ManagerWorkspace({ survey, onBack, onRefresh }: ManagerWorkspace
   const configured = isAppsScriptConfigured();
   const project = surveyRecordToProject(survey);
   const [isActivated, setIsActivated] = useState(survey.status === "진행중");
+  const [prevSurveyStatus, setPrevSurveyStatus] = useState(survey.status);
   const [status, setStatus] = useState("");
   const [isActivating, setIsActivating] = useState(false);
   const surveyUrl = buildParticipantSurveyUrl(survey.id);
 
-  useEffect(() => {
+  // 부모가 넘겨준 설문 상태가 바뀌면 렌더 중에 로컬 상태를 맞춤 (effect 없이 동기화)
+  if (prevSurveyStatus !== survey.status) {
+    setPrevSurveyStatus(survey.status);
     setIsActivated(survey.status === "진행중");
-  }, [survey.status]);
+  }
 
   async function handleActivateSurvey() {
     setIsActivating(true);
@@ -158,7 +161,7 @@ export function ManagerWorkspace({ survey, onBack, onRefresh }: ManagerWorkspace
       </section>
 
       <section className="pb-12">
-        <ResponseDashboard role="staff" mode="staff" initialSurveyId={survey.id} questions={survey.questions} />
+        <ResponseDashboard mode="staff" initialSurveyId={survey.id} questions={survey.questions} />
       </section>
     </>
   );

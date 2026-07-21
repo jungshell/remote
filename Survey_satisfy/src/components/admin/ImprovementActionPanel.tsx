@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { authFetch } from "@/lib/auth/access";
+import { Field, FilterSelect } from "@/components/ui/FormField";
 import type { ImprovementSuggestion, ImprovementStatus } from "@/lib/improvement/suggest";
 import type { ImprovementActionRow, SurveyRow } from "@/lib/supabase/database.types";
 
@@ -16,6 +17,7 @@ export function ImprovementActionPanel() {
   const [statusFilter, setStatusFilter] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
 
   const [draftSurveyId, setDraftSurveyId] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
@@ -40,138 +42,197 @@ export function ImprovementActionPanel() {
     [surveys],
   );
 
-  async function loadAll() {
-    setIsLoading(true);
-    const params = new URLSearchParams();
-    if (yearFilter) params.set("year", yearFilter);
-    if (divisionFilter) params.set("division", divisionFilter);
-    if (statusFilter) params.set("status", statusFilter);
-
-    try {
-      const [actionRes, surveyRes, suggestRes] = await Promise.all([
-        authFetch(`/api/improvement-actions?${params.toString()}`),
-        authFetch("/api/surveys"),
-        authFetch(`/api/improvement-actions/suggest?year=${yearFilter || ""}`),
-      ]);
-
-      const actionData = (await actionRes.json()) as { ok: boolean; rows?: ImprovementActionRow[]; error?: string };
-      const surveyData = (await surveyRes.json()) as { ok: boolean; rows?: SurveyRow[]; error?: string };
-      const suggestData = (await suggestRes.json()) as {
-        ok: boolean;
-        suggestions?: ImprovementSuggestion[];
-        error?: string;
-      };
-
-      if (actionData.ok && actionData.rows) {
-        setRows(actionData.rows);
-      } else {
-        setStatus(actionData.error ?? "개선과제를 불러오지 못했습니다. migration_004 SQL을 실행했는지 확인해 주세요.");
-      }
-
-      if (surveyData.ok && surveyData.rows) {
-        setSurveys(surveyData.rows);
-        if (!draftSurveyId && surveyData.rows[0]) {
-          setDraftSurveyId(surveyData.rows[0].id);
-        }
-      }
-
-      if (suggestData.ok && suggestData.suggestions) {
-        setSuggestions(suggestData.suggestions);
-      }
-    } catch {
-      setStatus("데이터 조회 중 오류가 발생했습니다.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadAll() {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (yearFilter) params.set("year", yearFilter);
+      if (divisionFilter) params.set("division", divisionFilter);
+      if (statusFilter) params.set("status", statusFilter);
+
+      try {
+        const [actionRes, surveyRes, suggestRes] = await Promise.all([
+          authFetch(`/api/improvement-actions?${params.toString()}`, { signal: controller.signal }),
+          authFetch("/api/surveys", { signal: controller.signal }),
+          authFetch(`/api/improvement-actions/suggest?year=${yearFilter || ""}`, { signal: controller.signal }),
+        ]);
+
+        const actionData = (await actionRes.json()) as { ok: boolean; rows?: ImprovementActionRow[]; error?: string };
+        const surveyData = (await surveyRes.json()) as { ok: boolean; rows?: SurveyRow[]; error?: string };
+        const suggestData = (await suggestRes.json()) as {
+          ok: boolean;
+          suggestions?: ImprovementSuggestion[];
+          error?: string;
+        };
+
+        if (actionData.ok && actionData.rows) {
+          setRows(actionData.rows);
+        } else {
+          setStatus(actionData.error ?? "개선과제를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+
+        if (surveyData.ok && surveyData.rows) {
+          setSurveys(surveyData.rows);
+          const firstId = surveyData.rows[0]?.id;
+          if (firstId) {
+            setDraftSurveyId((prev) => prev || firstId);
+          }
+        }
+
+        if (suggestData.ok && suggestData.suggestions) {
+          setSuggestions(suggestData.suggestions);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setStatus("데이터 조회 중 오류가 발생했습니다.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
     void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yearFilter, divisionFilter, statusFilter]);
+
+    return () => controller.abort();
+  }, [yearFilter, divisionFilter, statusFilter, reloadKey]);
 
   async function handleCreate() {
+    if (isMutating) {
+      return;
+    }
+
     if (!draftSurveyId || !draftTitle.trim()) {
       setStatus("설문과 과제명을 입력해 주세요.");
       return;
     }
 
+    setIsMutating(true);
     setStatus("과제를 등록하는 중입니다.");
-    const response = await authFetch("/api/improvement-actions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        surveyId: draftSurveyId,
-        title: draftTitle,
-        ownerName: draftOwner,
-        dueDate: draftDue || null,
-        memo: draftMemo,
-        source: "manual",
-      }),
-    });
 
-    const data = (await response.json()) as { ok: boolean; error?: string };
-    if (!response.ok || !data.ok) {
-      setStatus(data.error ?? "등록에 실패했습니다.");
-      return;
+    try {
+      const response = await authFetch("/api/improvement-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          surveyId: draftSurveyId,
+          title: draftTitle,
+          ownerName: draftOwner,
+          dueDate: draftDue || null,
+          memo: draftMemo,
+          source: "manual",
+        }),
+      });
+
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        setStatus(data.error ?? "등록에 실패했습니다.");
+        return;
+      }
+
+      setDraftTitle("");
+      setDraftMemo("");
+      setStatus("개선과제를 등록했습니다.");
+      setReloadKey((key) => key + 1);
+    } catch {
+      setStatus("등록 중 오류가 발생했습니다.");
+    } finally {
+      setIsMutating(false);
     }
-
-    setDraftTitle("");
-    setDraftMemo("");
-    setStatus("개선과제를 등록했습니다.");
-    void loadAll();
   }
 
   async function handleStatusChange(id: string, nextStatus: ImprovementStatus) {
-    const response = await authFetch(`/api/improvement-actions/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: nextStatus }),
-    });
-    const data = (await response.json()) as { ok: boolean; error?: string };
-    if (!response.ok || !data.ok) {
-      setStatus(data.error ?? "상태 변경에 실패했습니다.");
+    if (isMutating) {
       return;
     }
-    void loadAll();
+
+    setIsMutating(true);
+
+    try {
+      const response = await authFetch(`/api/improvement-actions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        setStatus(data.error ?? "상태 변경에 실패했습니다.");
+        return;
+      }
+      setReloadKey((key) => key + 1);
+    } catch {
+      setStatus("상태 변경 중 오류가 발생했습니다.");
+    } finally {
+      setIsMutating(false);
+    }
   }
 
   async function handleDelete(id: string) {
+    if (isMutating) {
+      return;
+    }
+
     if (!window.confirm("이 개선과제를 삭제할까요?")) {
       return;
     }
 
-    const response = await authFetch(`/api/improvement-actions/${id}`, { method: "DELETE" });
-    const data = (await response.json()) as { ok: boolean; error?: string };
-    if (!response.ok || !data.ok) {
-      setStatus(data.error ?? "삭제에 실패했습니다.");
-      return;
+    setIsMutating(true);
+
+    try {
+      const response = await authFetch(`/api/improvement-actions/${id}`, { method: "DELETE" });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!response.ok || !data.ok) {
+        setStatus(data.error ?? "삭제에 실패했습니다.");
+        return;
+      }
+      setStatus("삭제했습니다.");
+      setReloadKey((key) => key + 1);
+    } catch {
+      setStatus("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setIsMutating(false);
     }
-    setStatus("삭제했습니다.");
-    void loadAll();
   }
 
   async function handleRegisterSuggestions() {
+    if (isMutating) {
+      return;
+    }
+
     if (suggestions.length === 0) {
       setStatus("등록할 초안이 없습니다.");
       return;
     }
 
+    setIsMutating(true);
     setStatus("초안을 개선과제로 등록하는 중입니다.");
-    const response = await authFetch("/api/improvement-actions/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ suggestions }),
-    });
-    const data = (await response.json()) as { ok: boolean; rows?: ImprovementActionRow[]; error?: string };
 
-    if (!response.ok || !data.ok) {
-      setStatus(data.error ?? "초안 등록에 실패했습니다.");
-      return;
+    try {
+      const response = await authFetch("/api/improvement-actions/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ suggestions }),
+      });
+      const data = (await response.json()) as { ok: boolean; rows?: ImprovementActionRow[]; error?: string };
+
+      if (!response.ok || !data.ok) {
+        setStatus(data.error ?? "초안 등록에 실패했습니다.");
+        return;
+      }
+
+      setStatus(`${data.rows?.length ?? 0}건의 초안을 등록했습니다.`);
+      setReloadKey((key) => key + 1);
+    } catch {
+      setStatus("초안 등록 중 오류가 발생했습니다.");
+    } finally {
+      setIsMutating(false);
     }
-
-    setStatus(`${data.rows?.length ?? 0}건의 초안을 등록했습니다.`);
-    void loadAll();
   }
 
   const counts = useMemo(() => {
@@ -231,11 +292,11 @@ export function ImprovementActionPanel() {
           </div>
           <button
             type="button"
-            disabled={isLoading || suggestions.length === 0}
+            disabled={isLoading || isMutating || suggestions.length === 0}
             onClick={() => void handleRegisterSuggestions()}
             className="focus-ring label-machined border border-white px-5 py-3 transition-colors hover:bg-white hover:text-black disabled:opacity-50"
           >
-            초안 일괄 등록 ({suggestions.length})
+            {isMutating ? "등록 중" : `초안 일괄 등록 (${suggestions.length})`}
           </button>
         </div>
 
@@ -310,10 +371,11 @@ export function ImprovementActionPanel() {
         </div>
         <button
           type="button"
+          disabled={isMutating}
           onClick={() => void handleCreate()}
-          className="focus-ring label-machined mt-4 border border-white px-5 py-3 transition-colors hover:bg-white hover:text-black"
+          className="focus-ring label-machined mt-4 border border-white px-5 py-3 transition-colors hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
         >
-          과제 등록
+          {isMutating ? "등록 중" : "과제 등록"}
         </button>
       </div>
 
@@ -338,8 +400,9 @@ export function ImprovementActionPanel() {
               <div className="flex flex-wrap gap-2">
                 <select
                   value={row.status}
+                  disabled={isMutating}
                   onChange={(event) => void handleStatusChange(row.id, event.target.value as ImprovementStatus)}
-                  className="focus-ring h-11 border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
+                  className="focus-ring h-11 border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white disabled:opacity-50"
                 >
                   {STATUSES.map((item) => (
                     <option key={item} value={item}>
@@ -349,8 +412,9 @@ export function ImprovementActionPanel() {
                 </select>
                 <button
                   type="button"
+                  disabled={isMutating}
                   onClick={() => void handleDelete(row.id)}
-                  className="focus-ring label-machined border border-[var(--hairline)] px-4 py-2 text-[var(--text-body)] hover:border-white hover:text-white"
+                  className="focus-ring label-machined border border-[var(--hairline)] px-4 py-2 text-[var(--text-body)] hover:border-white hover:text-white disabled:opacity-50"
                 >
                   삭제
                 </button>
@@ -380,41 +444,3 @@ function Summary({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="focus-ring mt-2 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
-      >
-        <option value="">전체</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
-      <div className="mt-2">{children}</div>
-    </div>
-  );
-}

@@ -101,7 +101,6 @@ export function SurveyForm({ survey }: SurveyFormProps) {
       if (isSupabaseConfigured()) {
         await submitSurveyResponseToSupabase({
           surveyId: survey.id,
-          project,
           phoneLast4,
           answers: normalizedAnswers,
         });
@@ -120,7 +119,14 @@ export function SurveyForm({ survey }: SurveyFormProps) {
 
   return (
     <section className="mx-auto max-w-2xl">
-      <div className="mb-5 h-1 bg-[var(--surface-card)]">
+      <div
+        className="mb-5 h-1 bg-[var(--surface-card)]"
+        role="progressbar"
+        aria-label="설문 진행률"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={step === "questions" ? progress : step === "complete" ? 100 : 8}
+      >
         <div className="h-full bg-white transition-all duration-500" style={{ width: `${step === "questions" ? progress : step === "complete" ? 100 : 8}%` }} />
       </div>
 
@@ -252,6 +258,7 @@ function QuestionField({
             <button
               key={item.score}
               type="button"
+              aria-pressed={value === item.score}
               className={`focus-ring grid grid-cols-[48px_1fr] items-center border px-4 py-3 text-left transition-colors ${
                 value === item.score
                   ? "border-white bg-white text-black"
@@ -272,6 +279,7 @@ function QuestionField({
             <button
               key={score}
               type="button"
+              aria-pressed={value === score}
               className={`focus-ring h-12 border text-sm font-black transition-colors ${
                 value === score
                   ? "border-white bg-white text-black"
@@ -291,6 +299,7 @@ function QuestionField({
             <button
               key={option}
               type="button"
+              aria-pressed={value === option}
               className={`focus-ring border px-4 py-3 text-left text-sm transition-colors ${
                 value === option
                   ? "border-white bg-white text-black"

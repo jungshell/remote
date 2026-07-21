@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/api/http";
 import { hashPassword } from "@/lib/auth/password";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
@@ -27,7 +28,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase가 설정되지 않았습니다." }, { status: 503 });
   }
 
-  const body = (await request.json()) as SetupBody;
+  const body = await readJsonBody<SetupBody>(request);
+
+  if (!body) {
+    return NextResponse.json({ ok: false, error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
+  }
 
   if (body.secret !== setupSecret) {
     return NextResponse.json({ ok: false, error: "설정 키가 올바르지 않습니다." }, { status: 403 });

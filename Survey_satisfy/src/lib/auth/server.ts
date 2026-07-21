@@ -45,8 +45,3 @@ export async function requireAuthUser(request: Request, requiredRole: PlatformRo
 
   return { user, response: null };
 }
-
-/** @deprecated 공유 비밀번호 방식 — 계정 로그인으로 대체됨 */
-export function resolveAuthorizedRole(_request: Request): PlatformRole | null {
-  return null;
-}

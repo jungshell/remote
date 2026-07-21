@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkRateLimit, getClientIp } from "@/lib/api/http";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -8,6 +9,16 @@ export async function GET(request: Request) {
 
   if (!surveyId || !phoneLast4 || !/^\d{4}$/.test(phoneLast4)) {
     return NextResponse.json({ ok: false, error: "survey_id와 phone_last4가 필요합니다." }, { status: 400 });
+  }
+
+  // 뒤 4자리는 조합이 1만 개뿐이므로 무차별 대입 열람을 막기 위해 조회 횟수를 강하게 제한
+  const ip = getClientIp(request);
+
+  if (!checkRateLimit(`lookup:${ip}`, 10, 60_000) || !checkRateLimit(`lookup:${ip}:${surveyId}`, 6, 60_000)) {
+    return NextResponse.json(
+      { ok: false, error: "조회 시도가 너무 잦습니다. 잠시 후 다시 시도해 주세요." },
+      { status: 429 },
+    );
   }
 
   const supabase = getSupabaseAdminClient();

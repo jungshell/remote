@@ -12,25 +12,14 @@ export interface ManagementExportRow {
   division: string;
   responseCount: number;
   satisfaction: number;
-  nps: number;
+  recommendation: number;
   targetResponses: number;
   responseRate: number;
   commonSatisfaction: number | null;
-  commonProcess: number | null;
-  commonManager: number | null;
-  commonFit: number | null;
-  commonGrowth: number | null;
-  commonRejoin: number | null;
+  commonRecommend: number | null;
 }
 
-const COMMON_KPI_KEYS = [
-  "common_satisfaction",
-  "common_process",
-  "common_manager",
-  "common_fit",
-  "common_growth",
-  "common_rejoin",
-] as const;
+const COMMON_KPI_KEYS = ["common_satisfaction", "common_recommend"] as const;
 
 type CommonKpiKey = (typeof COMMON_KPI_KEYS)[number];
 
@@ -84,15 +73,11 @@ export function buildManagementExportRows(surveys: SurveyRow[], responses: Surve
       division: survey.division,
       responseCount: metrics.responseCount,
       satisfaction: metrics.satisfaction,
-      nps: metrics.nps,
+      recommendation: metrics.recommendation,
       targetResponses: survey.target_responses,
       responseRate: metrics.responseRate,
       commonSatisfaction: kpiScores.common_satisfaction,
-      commonProcess: kpiScores.common_process,
-      commonManager: kpiScores.common_manager,
-      commonFit: kpiScores.common_fit,
-      commonGrowth: kpiScores.common_growth,
-      commonRejoin: kpiScores.common_rejoin,
+      commonRecommend: kpiScores.common_recommend,
     };
   });
 }
@@ -115,9 +100,11 @@ export function buildDivisionSummaryRows(rows: ManagementExportRow[]) {
             (group.reduce((sum, item) => sum + item.satisfaction * item.responseCount, 0) / responseCount) * 100,
           ) / 100
         : 0;
-    const weightedNps =
+    const weightedRecommendation =
       responseCount > 0
-        ? Math.round((group.reduce((sum, item) => sum + item.nps * item.responseCount, 0) / responseCount) * 10) / 10
+        ? Math.round(
+            (group.reduce((sum, item) => sum + item.recommendation * item.responseCount, 0) / responseCount) * 100,
+          ) / 100
         : 0;
 
     return {
@@ -126,32 +113,33 @@ export function buildDivisionSummaryRows(rows: ManagementExportRow[]) {
       응답인원: responseCount,
       목표응답수: targetResponses,
       "만족도평균(5점)": weightedSatisfaction,
-      NPS: weightedNps,
+      "추천평균(5점)": weightedRecommendation,
       "응답률(%)": targetResponses > 0 ? Math.round((responseCount / targetResponses) * 1000) / 10 : 0,
     };
   });
+}
+
+/** 수식 인젝션 방지: Excel이 수식으로 해석하는 문자로 시작하는 텍스트는 ' 프리픽스로 강제 텍스트화 */
+function sanitizeCell(value: string) {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 
 export function downloadManagementExcel(rows: ManagementExportRow[], filename: string) {
   const detailRows = rows.map((row) => ({
     연도: row.year,
     회차: row.round,
-    본부: row.division,
-    사업: row.business,
-    세부사업: row.subBusiness,
-    사업명: row.title,
-    사업유형: row.programType,
+    본부: sanitizeCell(row.division),
+    사업: sanitizeCell(row.business),
+    세부사업: sanitizeCell(row.subBusiness),
+    사업명: sanitizeCell(row.title),
+    사업유형: sanitizeCell(row.programType),
     응답인원: row.responseCount,
     목표응답수: row.targetResponses,
     "응답률(%)": row.responseRate,
     "만족도평균(5점)": row.satisfaction,
-    NPS: row.nps,
+    "추천평균(5점)": row.recommendation,
     "공통_전반만족": row.commonSatisfaction ?? "",
-    "공통_안내절차": row.commonProcess ?? "",
-    "공통_담당응대": row.commonManager ?? "",
-    "공통_기대부합": row.commonFit ?? "",
-    "공통_성장도움": row.commonGrowth ?? "",
-    "공통_재참여": row.commonRejoin ?? "",
+    "공통_추천의향": row.commonRecommend ?? "",
   }));
 
   const workbook = XLSX.utils.book_new();

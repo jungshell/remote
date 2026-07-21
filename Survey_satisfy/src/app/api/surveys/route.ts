@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { buildSurveyQuestions } from "@/constants/general-questions";
 import { getDefaultSelectedQuestionIds } from "@/constants/question-pool";
+import { readJsonBody } from "@/lib/api/http";
 import { requireAuthUser } from "@/lib/auth/server";
 import { generateSurveyId } from "@/lib/surveys/utils";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import type { Division, ProgramType, RespondentType } from "@/types/platform";
-import type { Json } from "@/lib/supabase/database.types";
+import type { Json, SurveyRow } from "@/lib/supabase/database.types";
+
+const SURVEY_STATUSES = new Set(["작성중", "진행중", "종료"]);
 
 interface CreateSurveyBody {
   title?: string;
@@ -38,13 +42,16 @@ export async function GET(request: Request) {
     );
   }
 
-  const { data, error } = await supabase.from("surveys").select("*").order("created_at", { ascending: false });
+  const { rows, error } = await fetchAllRows<SurveyRow>((from, to) =>
+    supabase.from("surveys").select("*").order("created_at", { ascending: false }).range(from, to),
+  );
 
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    console.error("[surveys] 조회 실패:", error);
+    return NextResponse.json({ ok: false, error: "설문 조회 중 오류가 발생했습니다." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, rows: data ?? [] });
+  return NextResponse.json({ ok: true, rows });
 }
 
 export async function POST(request: Request) {
@@ -60,9 +67,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase service role이 설정되지 않았습니다." }, { status: 503 });
   }
 
-  const body = (await request.json()) as CreateSurveyBody;
+  const body = await readJsonBody<CreateSurveyBody>(request);
 
-  if (!body.title || !body.division || !body.business || !body.subBusiness || !body.programType) {
+  if (!body || !body.title || !body.division || !body.business || !body.subBusiness || !body.programType) {
     return NextResponse.json({ ok: false, error: "필수 항목을 입력해 주세요." }, { status: 400 });
   }
 
@@ -116,10 +123,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase service role이 설정되지 않았습니다." }, { status: 503 });
   }
 
-  const body = (await request.json()) as { id?: string; status?: string };
+  const body = await readJsonBody<{ id?: string; status?: string }>(request);
 
-  if (!body.id || !body.status) {
+  if (!body || !body.id || !body.status) {
     return NextResponse.json({ ok: false, error: "id와 status가 필요합니다." }, { status: 400 });
+  }
+
+  if (!SURVEY_STATUSES.has(body.status)) {
+    return NextResponse.json({ ok: false, error: "허용되지 않은 상태값입니다." }, { status: 400 });
   }
 
   const { data, error } = await supabase

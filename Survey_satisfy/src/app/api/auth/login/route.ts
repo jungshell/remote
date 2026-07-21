@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkRateLimit, getClientIp, readJsonBody } from "@/lib/api/http";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
@@ -15,12 +16,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase가 설정되지 않았습니다." }, { status: 503 });
   }
 
-  const body = (await request.json()) as LoginBody;
-  const email = body.email?.trim().toLowerCase();
-  const password = body.password ?? "";
+  const body = await readJsonBody<LoginBody>(request);
+  const email = body?.email?.trim().toLowerCase();
+  const password = body?.password ?? "";
 
   if (!email || !password) {
     return NextResponse.json({ ok: false, error: "이메일과 비밀번호를 입력해 주세요." }, { status: 400 });
+  }
+
+  // 무차별 대입 방어: IP 기준 + 계정 기준 이중 제한
+  const ip = getClientIp(request);
+
+  if (!checkRateLimit(`login:${ip}`, 10, 60_000) || !checkRateLimit(`login:${email}`, 8, 300_000)) {
+    return NextResponse.json(
+      { ok: false, error: "로그인 시도가 너무 잦습니다. 잠시 후 다시 시도해 주세요." },
+      { status: 429 },
+    );
   }
 
   const { data: user, error } = await supabase

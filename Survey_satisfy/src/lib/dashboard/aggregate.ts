@@ -1,9 +1,5 @@
-import {
-  calculateAverageSatisfaction,
-  calculateNps,
-  calculateResponseRate,
-  isLikertScore,
-} from "@/lib/kpi";
+import { calculateAverageSatisfaction, calculateResponseRate, isLikertScore } from "@/lib/kpi";
+import { isDemandProgramType } from "@/lib/surveys/program-type";
 import type { SurveyResponseRow } from "@/lib/supabase/database.types";
 import type { Question, SurveyAnswer } from "@/types/platform";
 
@@ -12,7 +8,8 @@ export interface DashboardMetrics {
   targetResponses: number;
   responseRate: number;
   satisfaction: number;
-  nps: number;
+  /** 공통 고정 문항 "추천 의향" 평균 (5점) */
+  recommendation: number;
 }
 
 export interface DivisionChartPoint {
@@ -33,6 +30,8 @@ export interface CategoryChartPoint {
   responseCount: number;
 }
 
+const RECOMMEND_QUESTION_ID = "common_recommend";
+
 function parseAnswers(raw: unknown): SurveyAnswer[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -48,34 +47,24 @@ function parseAnswers(raw: unknown): SurveyAnswer[] {
   );
 }
 
-function isNpsQuestionId(questionId: string) {
-  return questionId === "common_nps" || questionId.endsWith("_nps");
-}
-
-/** 취합용 만족도: 공통 KPI 리커트 우선, 없으면 전체 리커트 */
-function satisfactionAnswersForAggregation(answers: SurveyAnswer[]): SurveyAnswer[] {
-  const commonLikert = answers.filter(
-    (answer) => answer.questionId.startsWith("common_") && isLikertScore(answer.value),
-  );
-
-  if (commonLikert.length > 0) {
-    return commonLikert;
-  }
-
-  return answers.filter(
-    (answer) => !isNpsQuestionId(answer.questionId) && isLikertScore(answer.value),
-  );
-}
-
 export function aggregateMetrics(rows: SurveyResponseRow[], targetResponses = 80): DashboardMetrics {
-  const groupedByResponse = rows.map((row) => parseAnswers(row.answers));
-  const npsValues = groupedByResponse
-    .map((answers) => answers.find((answer) => isNpsQuestionId(answer.questionId))?.value)
-    .filter((value): value is number => typeof value === "number");
+  // 수요조사 응답은 만족도·추천 점수 집계에서 제외 (PRD v2 §11)
+  const scoredRows = rows.filter((row) => !isDemandProgramType(row.program_type));
+  const groupedByResponse = scoredRows.map((row) => parseAnswers(row.answers));
 
-  const satisfactionValues = groupedByResponse.map((answers) =>
-    calculateAverageSatisfaction(satisfactionAnswersForAggregation(answers)),
-  );
+  const recommendValues = groupedByResponse
+    .map((answers) => answers.find((answer) => answer.questionId === RECOMMEND_QUESTION_ID)?.value)
+    .filter(isLikertScore);
+  const recommendation =
+    recommendValues.length > 0
+      ? Math.round((recommendValues.reduce((sum, value) => sum + value, 0) / recommendValues.length) * 100) / 100
+      : 0;
+
+  // 만족도: 응답별 전체 리커트(5점) 평균 — 리커트 응답이 없는 행(주관식만 답변 등)은 모수에서 제외
+  const satisfactionValues = groupedByResponse
+    .map((answers) => answers.filter((answer) => isLikertScore(answer.value)))
+    .filter((answers) => answers.length > 0)
+    .map((answers) => calculateAverageSatisfaction(answers));
   const satisfaction =
     satisfactionValues.length > 0
       ? Math.round((satisfactionValues.reduce((sum, value) => sum + value, 0) / satisfactionValues.length) * 100) / 100
@@ -86,7 +75,7 @@ export function aggregateMetrics(rows: SurveyResponseRow[], targetResponses = 80
     targetResponses,
     responseRate: calculateResponseRate(rows.length, targetResponses),
     satisfaction,
-    nps: calculateNps(npsValues),
+    recommendation,
   };
 }
 
@@ -127,6 +116,10 @@ export function aggregateByCategory(rows: SurveyResponseRow[], questions: Questi
   const buckets = new Map<string, number[]>();
 
   for (const row of rows) {
+    if (isDemandProgramType(row.program_type)) {
+      continue;
+    }
+
     for (const answer of parseAnswers(row.answers)) {
       if (!isLikertScore(answer.value)) {
         continue;
@@ -146,7 +139,7 @@ export function aggregateByCategory(rows: SurveyResponseRow[], questions: Questi
   }));
 }
 
-/** 공통 KPI 문항별 평균 (취합·사업 비교용) */
+/** 공통 고정 문항별 평균 (취합·사업 비교용) */
 export function aggregateByCommonKpi(
   rows: SurveyResponseRow[],
   questions: Question[],
@@ -160,11 +153,7 @@ export function aggregateByCommonKpi(
   if (labelById.size === 0) {
     const fallbackLabels: Record<string, string> = {
       common_satisfaction: "전반 만족",
-      common_process: "안내·절차",
-      common_manager: "담당 응대",
-      common_fit: "기대 부합",
-      common_growth: "성장 도움",
-      common_rejoin: "재참여 의향",
+      common_recommend: "추천 의향",
     };
     for (const [id, label] of Object.entries(fallbackLabels)) {
       labelById.set(id, label);
@@ -174,6 +163,10 @@ export function aggregateByCommonKpi(
   const buckets = new Map<string, number[]>();
 
   for (const row of rows) {
+    if (isDemandProgramType(row.program_type)) {
+      continue;
+    }
+
     for (const answer of parseAnswers(row.answers)) {
       if (!labelById.has(answer.questionId) || !isLikertScore(answer.value)) {
         continue;
@@ -195,4 +188,3 @@ export function aggregateByCommonKpi(
 function shortenLabel(label: string) {
   return label.replace(/\?$/, "").replace(/하십니까$/, "").replace(/있습니까$/, "").slice(0, 18);
 }
-

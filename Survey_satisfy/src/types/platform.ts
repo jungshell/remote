@@ -7,14 +7,23 @@ export type Division =
 
 export type ProgramType =
   | "교육·인력양성형"
-  | "제작·사업화 지원형"
-  | "자금·마케팅 지원형"
+  | "인턴십형(교육생)"
+  | "인턴십형(참여기업)"
+  | "제작·사업화/자금·마케팅 지원형"
   | "입주·인프라형"
   | "행사·네트워킹형"
-  | "공모전·선발형"
-  | "스마트시티·리빙랩·현장서비스형";
+  | "시설운영형"
+  | "수요조사";
 
-export type ProgramTypeCode = "edu" | "prod" | "fund" | "space" | "event" | "contest" | "living";
+export type ProgramTypeCode =
+  | "edu"
+  | "intern_student"
+  | "intern_company"
+  | "prod"
+  | "space"
+  | "event"
+  | "facility"
+  | "demand";
 
 export type RespondentType = "org" | "person" | "both";
 

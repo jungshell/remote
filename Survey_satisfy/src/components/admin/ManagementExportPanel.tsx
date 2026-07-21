@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildManagementExportRows, downloadManagementExcel } from "@/lib/export-excel";
 import { authFetch } from "@/lib/auth/access";
+import { FilterSelect } from "@/components/ui/FormField";
 import type { SurveyResponseRow, SurveyRow } from "@/lib/supabase/database.types";
 
 export function ManagementExportPanel() {
@@ -81,13 +82,14 @@ export function ManagementExportPanel() {
             (previewRows.reduce((sum, row) => sum + row.satisfaction * row.responseCount, 0) / responseCount) * 100,
           ) / 100
         : 0;
-    const nps =
+    const recommendation =
       responseCount > 0
-        ? Math.round((previewRows.reduce((sum, row) => sum + row.nps * row.responseCount, 0) / responseCount) * 10) /
-          10
+        ? Math.round(
+            (previewRows.reduce((sum, row) => sum + row.recommendation * row.responseCount, 0) / responseCount) * 100,
+          ) / 100
         : 0;
 
-    return { responseCount, targetResponses, satisfaction, nps, surveyCount: previewRows.length };
+    return { responseCount, targetResponses, satisfaction, recommendation, surveyCount: previewRows.length };
   }, [previewRows]);
 
   function toggleSurvey(id: string) {
@@ -131,7 +133,7 @@ export function ManagementExportPanel() {
         <p className="label-machined text-[var(--text-muted)]">Management Export</p>
         <h2 className="mt-2 text-2xl font-black uppercase">경영평가·취합보내기</h2>
         <p className="mt-3 text-sm leading-6 text-[var(--text-body)]">
-          연도·본부·사업유형으로 걸러 공통 KPI 기준 만족도·NPS를 Excel로 취합합니다. (사업별 시트 + 본부 요약 시트)
+          연도·본부·사업유형으로 걸러 만족도·추천 의향을 Excel로 취합합니다. (사업별 시트 + 본부 요약 시트)
         </p>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -200,14 +202,14 @@ export function ManagementExportPanel() {
         <SummaryStat label="선택 사업" value={`${totals.surveyCount}`} />
         <SummaryStat label="응답 합계" value={`${totals.responseCount}`} />
         <SummaryStat label="취합 만족도" value={`${totals.satisfaction}`} />
-        <SummaryStat label="취합 NPS" value={`${totals.nps}`} />
+        <SummaryStat label="취합 추천의향" value={`${totals.recommendation}`} />
       </div>
 
       <div className="overflow-x-auto border-t border-[var(--hairline)]">
         <table className="min-w-full text-sm">
           <thead className="bg-[var(--surface-soft)] text-left">
             <tr>
-              {["연도", "사업명", "본부", "사업유형", "응답인원", "만족도(5점)", "NPS", "응답률"].map((header) => (
+              {["연도", "사업명", "본부", "사업유형", "응답인원", "만족도(5점)", "추천(5점)", "응답률"].map((header) => (
                 <th key={header} className="px-4 py-3 font-medium text-[var(--text-muted)]">
                   {header}
                 </th>
@@ -223,7 +225,7 @@ export function ManagementExportPanel() {
                 <td className="px-4 py-3">{row.programType}</td>
                 <td className="px-4 py-3">{row.responseCount}</td>
                 <td className="px-4 py-3">{row.satisfaction}</td>
-                <td className="px-4 py-3">{row.nps}</td>
+                <td className="px-4 py-3">{row.recommendation}</td>
                 <td className="px-4 py-3">{row.responseRate}%</td>
               </tr>
             ))}
@@ -243,36 +245,6 @@ export function ManagementExportPanel() {
         {status ? <p className="mt-4 text-sm text-[var(--text-body)]">{status}</p> : null}
       </div>
     </section>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="focus-ring mt-2 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
-      >
-        <option value="">전체</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
   );
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { divisions, programTypes } from "@/constants/divisions";
 import { authFetch } from "@/lib/auth/access";
+import { Field } from "@/components/ui/FormField";
 import { RoleAwareTopNav } from "@/components/ui/RoleAwareTopNav";
 import type { Division, ProgramType } from "@/types/platform";
 
@@ -21,6 +22,11 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit() {
+    if (password.length < 8) {
+      setMessage("비밀번호는 8자 이상이어야 합니다.");
+      return;
+    }
+
     if (password !== passwordConfirm) {
       setMessage("비밀번호 확인이 일치하지 않습니다.");
       return;
@@ -181,11 +187,3 @@ export default function RegisterPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
-      <div className="mt-2">{children}</div>
-    </div>
-  );
-}

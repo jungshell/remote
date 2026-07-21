@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/api/http";
 import { requireAuthUser } from "@/lib/auth/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import type { ImprovementStatus } from "@/lib/improvement/suggest";
 import type { Database } from "@/lib/supabase/database.types";
+
+const IMPROVEMENT_STATUSES = new Set<ImprovementStatus>(["등록", "진행중", "완료", "보류"]);
 
 interface PatchBody {
   title?: string;
@@ -26,7 +29,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   const { id } = await context.params;
-  const body = (await request.json()) as PatchBody;
+  const body = await readJsonBody<PatchBody>(request);
+
+  if (!body) {
+    return NextResponse.json({ ok: false, error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
+  }
+
+  if (body.status && !IMPROVEMENT_STATUSES.has(body.status)) {
+    return NextResponse.json({ ok: false, error: "허용되지 않은 상태값입니다." }, { status: 400 });
+  }
+
   const patch: Database["public"]["Tables"]["improvement_actions"]["Update"] = {
     updated_at: new Date().toISOString(),
   };

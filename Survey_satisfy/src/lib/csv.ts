@@ -1,7 +1,13 @@
 import type { SurveyResponseRow } from "@/lib/supabase/database.types";
 
 function escapeCsvCell(value: unknown) {
-  const text = value === null || value === undefined ? "" : String(value);
+  let text = value === null || value === undefined ? "" : String(value);
+
+  // 수식 인젝션 방지: Excel이 수식으로 해석하는 문자로 시작하면 텍스트로 강제
+  if (/^[=+\-@\t\r]/.test(text)) {
+    text = `'${text}`;
+  }
+
   return `"${text.replace(/"/g, '""')}"`;
 }
 

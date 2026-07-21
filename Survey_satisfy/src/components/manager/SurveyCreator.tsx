@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getCommonKpiQuestions } from "@/constants/common-kpi-questions";
 import { buildSurveyQuestions } from "@/constants/general-questions";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/constants/question-pool";
 import { Badge } from "@/components/ui/Badge";
 import { DatePickerField } from "@/components/manager/DatePickerField";
+import { Field } from "@/components/ui/FormField";
 import { QuestionPicker } from "@/components/manager/QuestionPicker";
 import { authFetch } from "@/lib/auth/access";
 import type { AuthUser } from "@/lib/auth/types";
@@ -29,6 +30,14 @@ function buildAutoTitle(year: number, subBusiness: string, round: number) {
 
 function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function buildDefaultOpenCategories(programType: ProgramType) {
+  const defaults: Record<string, boolean> = {};
+  for (const group of groupQuestionsByCategory(getQuestionPool(programType))) {
+    defaults[group.category] = true;
+  }
+  return defaults;
 }
 
 export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
@@ -52,16 +61,26 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
   const [targetResponses, setTargetResponses] = useState(80);
   const [titleOverride, setTitleOverride] = useState("");
   const [showAdvancedQuestions, setShowAdvancedQuestions] = useState(false);
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() =>
+    buildDefaultOpenCategories(programType),
+  );
   const [selectedIds, setSelectedIds] = useState<string[]>(getDefaultSelectedQuestionIds(programType));
+  const [prevProgramType, setPrevProgramType] = useState(programType);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 프로필의 사업유형이 바뀌면 렌더 중에 선택 문항·카테고리 상태를 재설정 (effect 없이 동기화)
+  if (prevProgramType !== programType) {
+    setPrevProgramType(programType);
+    setSelectedIds(getDefaultSelectedQuestionIds(programType));
+    setOpenCategories(buildDefaultOpenCategories(programType));
+  }
 
   const respondentType: RespondentType = resolveRespondentTypeForProgram(programType);
   const autoTitle = buildAutoTitle(year, subBusiness || "세부사업", round);
   const title = titleOverride.trim() || autoTitle;
 
-  const commonKpi = useMemo(() => getCommonKpiQuestions(), []);
+  const commonKpi = useMemo(() => getCommonKpiQuestions(respondentType), [respondentType]);
   const pool = useMemo(() => getQuestionPool(programType), [programType]);
   const corePool = useMemo(() => pool.filter((question) => question.tier === "core"), [pool]);
   const extendedPool = useMemo(() => pool.filter((question) => question.tier !== "core"), [pool]);
@@ -71,18 +90,6 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
     () => buildSurveyQuestions(programType, respondentType, selectedIds).length,
     [programType, respondentType, selectedIds],
   );
-
-  useEffect(() => {
-    setSelectedIds(getDefaultSelectedQuestionIds(programType));
-  }, [programType]);
-
-  useEffect(() => {
-    const defaults: Record<string, boolean> = {};
-    for (const group of [...coreGrouped, ...extendedGrouped]) {
-      defaults[group.category] = true;
-    }
-    setOpenCategories(defaults);
-  }, [coreGrouped, extendedGrouped]);
 
   const periodLabel = programType.includes("교육")
     ? "교육 기간"
@@ -260,25 +267,25 @@ export function SurveyCreator({ profile, onCreated }: SurveyCreatorProps) {
         </div>
 
         <div className="mt-6 grid gap-3 border border-[var(--hairline)] p-4 text-sm text-[var(--text-body)] md:grid-cols-3">
-          <LegendItem title="교육 표준문항" body="교육형 사업의 강의 품질 표준(시간·내용·기법 등)" />
-          <LegendItem title="추천 포함" body="설문 만들 때 기본으로 넣는 핵심 문항" />
-          <LegendItem title="추가 선택" body="필요할 때만 더하는 문항" />
+          <LegendItem title="핵심 문항" body="사업유형별 기본 문항 (기본 선택)" />
+          <LegendItem title="추가 선택" body="필요할 때만 더하는 선택 문항" />
+          <LegendItem title="공통 고정" body="모든 설문 마지막에 자동 배치되는 공통 문항" />
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <SummaryCard label="공통 KPI" value={`${commonKpi.length}문항`} hint="자동 포함 · 고정" />
+          <SummaryCard label="공통 고정" value={`${commonKpi.length}문항`} hint="자동 포함 · 마지막 배치" />
           <SummaryCard
             label="유형 선택"
             value={`${selectedIds.length}/${pool.length}`}
-            hint="추천 포함 권장"
+            hint="핵심 문항 포함 권장"
           />
-          <SummaryCard label="참여자 최종" value={`${previewCount}문항`} hint="일반사항 포함" />
+          <SummaryCard label="참여자 최종" value={`${previewCount}문항`} hint="공통 고정 포함" />
         </div>
 
         <div className="mt-6 rounded border border-[var(--hairline)] p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="warning">공통 KPI 고정</Badge>
-            <span className="text-sm text-[var(--text-body)]">만족도·절차·응대·NPS 등 취합 기준 문항</span>
+            <Badge tone="warning">공통 고정 문항</Badge>
+            <span className="text-sm text-[var(--text-body)]">참여횟수·경로·전반만족·추천의향 등 설문 마지막 자동 배치</span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {commonKpi.map((question) => (
@@ -361,15 +368,6 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
       <p className="label-machined text-[var(--text-muted)]">{label}</p>
       <p className="mt-2 text-2xl font-black text-white">{value}</p>
       <p className="mt-1 text-xs text-[var(--text-muted)]">{hint}</p>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
-      <div className="mt-2">{children}</div>
     </div>
   );
 }

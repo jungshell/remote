@@ -158,6 +158,7 @@ export function QuestionPicker({
                       <button
                         key={question.id}
                         type="button"
+                        aria-pressed={selected}
                         data-question-id={question.id}
                         onPointerDown={(event) => handleItemPointerDown(event, question.id, ids)}
                         className={`focus-ring grid grid-cols-[28px_1fr] gap-3 border p-4 text-left transition-colors ${

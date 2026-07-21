@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/api/http";
 import { requireAuthUser } from "@/lib/auth/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import type { ImprovementActionRow } from "@/lib/supabase/database.types";
 import type { ImprovementSource, ImprovementStatus } from "@/lib/improvement/suggest";
 
 interface CreateBody {
@@ -36,28 +39,35 @@ export async function GET(request: Request) {
   const year = searchParams.get("year");
   const status = searchParams.get("status");
 
-  let query = supabase.from("improvement_actions").select("*").order("created_at", { ascending: false });
+  const { rows, error } = await fetchAllRows<ImprovementActionRow>((from, to) => {
+    let query = supabase
+      .from("improvement_actions")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
-  if (surveyId) {
-    query = query.eq("survey_id", surveyId);
-  }
-  if (division) {
-    query = query.eq("division", division);
-  }
-  if (year) {
-    query = query.eq("year", Number(year));
-  }
-  if (status) {
-    query = query.eq("status", status);
-  }
+    if (surveyId) {
+      query = query.eq("survey_id", surveyId);
+    }
+    if (division) {
+      query = query.eq("division", division);
+    }
+    if (year) {
+      query = query.eq("year", Number(year));
+    }
+    if (status) {
+      query = query.eq("status", status);
+    }
 
-  const { data, error } = await query;
+    return query;
+  });
 
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    console.error("[improvement-actions] 조회 실패:", error);
+    return NextResponse.json({ ok: false, error: "개선과제 조회 중 오류가 발생했습니다." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, rows: data ?? [] });
+  return NextResponse.json({ ok: true, rows });
 }
 
 export async function POST(request: Request) {
@@ -73,9 +83,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase service role이 설정되지 않았습니다." }, { status: 503 });
   }
 
-  const body = (await request.json()) as CreateBody;
+  const body = await readJsonBody<CreateBody>(request);
 
-  if (!body.surveyId || !body.title?.trim()) {
+  if (!body || !body.surveyId || !body.title?.trim()) {
     return NextResponse.json({ ok: false, error: "설문과 과제명을 입력해 주세요." }, { status: 400 });
   }
 

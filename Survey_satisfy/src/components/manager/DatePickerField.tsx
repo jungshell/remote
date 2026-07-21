@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useId, useRef } from "react";
 
 interface DatePickerFieldProps {
   label: string;
@@ -13,6 +13,7 @@ interface DatePickerFieldProps {
 /** 달력 팝업 + 직접 입력을 함께 지원 */
 export function DatePickerField({ label, value, onChange, min, max }: DatePickerFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
 
   function openCalendar() {
     const input = inputRef.current;
@@ -33,10 +34,11 @@ export function DatePickerField({ label, value, onChange, min, max }: DatePicker
 
   return (
     <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
+      <label htmlFor={inputId} className="label-machined text-[var(--text-muted)]">{label}</label>
       <div className="mt-2 flex gap-2">
         <input
           ref={inputRef}
+          id={inputId}
           type="date"
           value={value}
           min={min}

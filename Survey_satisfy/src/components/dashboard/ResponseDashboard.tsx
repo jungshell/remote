@@ -1,16 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { authFetch, type PlatformRole } from "@/lib/auth/access";
+import { authFetch } from "@/lib/auth/access";
 import { downloadResponsesCsv } from "@/lib/csv";
 import {
   aggregateByCategory,
@@ -22,10 +13,11 @@ import {
 import { parseQuestions } from "@/lib/surveys/utils";
 import type { SurveyResponseRow } from "@/lib/supabase/database.types";
 import type { Question } from "@/types/platform";
+import { KpiBarChart } from "@/components/dashboard/KpiBarChart";
+import { Field } from "@/components/ui/FormField";
 import { StatCard } from "@/components/ui/StatCard";
 
 interface ResponseDashboardProps {
-  role: PlatformRole;
   mode: "staff" | "admin";
   initialSurveyId?: string;
   questions?: Question[];
@@ -42,7 +34,7 @@ interface SurveyOption {
   custom_questions?: unknown;
 }
 
-export function ResponseDashboard({ role, mode, initialSurveyId, questions: initialQuestions }: ResponseDashboardProps) {
+export function ResponseDashboard({ mode, initialSurveyId, questions: initialQuestions }: ResponseDashboardProps) {
   const [rows, setRows] = useState<SurveyResponseRow[]>([]);
   const [surveys, setSurveys] = useState<SurveyOption[]>([]);
   const [selectedSurveyId, setSelectedSurveyId] = useState(initialSurveyId ?? "");
@@ -51,6 +43,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
   const [selectedYear, setSelectedYear] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     void authFetch("/api/surveys")
@@ -65,49 +58,60 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
           }
         }
       })
-      .catch(() => undefined);
+      .catch(() => setStatus("설문 목록을 불러오지 못했습니다. 새로고침해 주세요."));
   }, [initialSurveyId]);
 
-  async function loadResponses() {
-    setIsLoading(true);
-    setStatus("Supabase 응답 데이터를 불러오는 중입니다.");
+  useEffect(() => {
+    // 필터를 빠르게 바꿀 때 이전 요청이 나중에 도착해 화면을 덮어쓰지 않도록 요청을 취소
+    const controller = new AbortController();
 
-    const params = new URLSearchParams();
+    async function loadResponses() {
+      setIsLoading(true);
+      setStatus("Supabase 응답 데이터를 불러오는 중입니다.");
 
-    if (mode === "staff" && selectedSurveyId) {
-      params.set("survey_id", selectedSurveyId);
-    }
+      const params = new URLSearchParams();
 
-    if (mode === "admin" && selectedDivision) {
-      params.set("division", selectedDivision);
-    }
-
-    if (mode === "admin" && selectedProgramType) {
-      params.set("program_type", selectedProgramType);
-    }
-
-    try {
-      const response = await authFetch(`/api/survey-responses?${params.toString()}`);
-      const data = (await response.json()) as { ok: boolean; rows?: SurveyResponseRow[]; error?: string };
-
-      if (!response.ok || !data.ok) {
-        setStatus(data.error ?? "데이터 조회에 실패했습니다.");
-        return;
+      if (mode === "staff" && selectedSurveyId) {
+        params.set("survey_id", selectedSurveyId);
       }
 
-      setRows(data.rows ?? []);
-      setStatus(`${data.rows?.length ?? 0}건의 응답을 불러왔습니다.`);
-    } catch {
-      setStatus("데이터 조회 중 오류가 발생했습니다.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
+      if (mode === "admin" && selectedDivision) {
+        params.set("division", selectedDivision);
+      }
 
-  useEffect(() => {
+      if (mode === "admin" && selectedProgramType) {
+        params.set("program_type", selectedProgramType);
+      }
+
+      try {
+        const response = await authFetch(`/api/survey-responses?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as { ok: boolean; rows?: SurveyResponseRow[]; error?: string };
+
+        if (!response.ok || !data.ok) {
+          setStatus(data.error ?? "데이터 조회에 실패했습니다.");
+          return;
+        }
+
+        setRows(data.rows ?? []);
+        setStatus(`${data.rows?.length ?? 0}건의 응답을 불러왔습니다.`);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setStatus("데이터 조회 중 오류가 발생했습니다.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
     void loadResponses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSurveyId, selectedDivision, selectedProgramType, selectedYear, mode]);
+
+    return () => controller.abort();
+  }, [selectedSurveyId, selectedDivision, selectedProgramType, mode, reloadKey]);
 
   const yearFilteredSurveys = useMemo(() => {
     if (!selectedYear) {
@@ -229,7 +233,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
             <button
               type="button"
               disabled={isLoading}
-              onClick={() => void loadResponses()}
+              onClick={() => setReloadKey((key) => key + 1)}
               className="focus-ring label-machined border border-white px-5 py-3 transition-colors hover:bg-white hover:text-black disabled:opacity-50"
             >
               새로고침
@@ -247,7 +251,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
 
         <div className={`mt-6 grid gap-4 ${mode === "admin" ? "md:grid-cols-3" : "md:grid-cols-1"}`}>
           {mode === "staff" ? (
-            <FilterField label="세부사업 / 설문회차">
+            <Field label="세부사업 / 설문회차">
               <select
                 value={selectedSurveyId}
                 onChange={(event) => setSelectedSurveyId(event.target.value)}
@@ -259,10 +263,10 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
                   </option>
                 ))}
               </select>
-            </FilterField>
+            </Field>
           ) : (
             <>
-              <FilterField label="연도">
+              <Field label="연도">
                 <select
                   value={selectedYear}
                   onChange={(event) => setSelectedYear(event.target.value)}
@@ -275,8 +279,8 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
                     </option>
                   ))}
                 </select>
-              </FilterField>
-              <FilterField label="본부">
+              </Field>
+              <Field label="본부">
                 <select
                   value={selectedDivision}
                   onChange={(event) => setSelectedDivision(event.target.value)}
@@ -289,8 +293,8 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
                     </option>
                   ))}
                 </select>
-              </FilterField>
-              <FilterField label="사업유형">
+              </Field>
+              <Field label="사업유형">
                 <select
                   value={selectedProgramType}
                   onChange={(event) => setSelectedProgramType(event.target.value)}
@@ -303,7 +307,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
                     </option>
                   ))}
                 </select>
-              </FilterField>
+              </Field>
             </>
           )}
         </div>
@@ -314,37 +318,25 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="응답수" value={`${metrics.responseCount}`} caption="현재 필터 기준" />
         <StatCard label="응답률(완료율)" value={`${metrics.responseRate}%`} caption={`목표 ${targetResponses}건`} tone="success" />
-        <StatCard label="만족도" value={`${metrics.satisfaction}`} caption="공통 KPI 5점 평균" tone="success" />
-        <StatCard label="NPS" value={`${metrics.nps}`} caption="공통 KPI 추천 의향" />
+        <StatCard label="만족도" value={`${metrics.satisfaction}`} caption="리커트 전체 5점 평균" tone="success" />
+        <StatCard label="추천 의향" value={`${metrics.recommendation}`} caption="공통 문항 추천 평균 (5점)" />
       </section>
 
       <section className="panel p-6">
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
             <p className="label-machined text-[var(--text-muted)]">Common KPI Detail</p>
-            <h2 className="mt-2 text-2xl font-black uppercase">공통 KPI 문항별</h2>
+            <h2 className="mt-2 text-2xl font-black uppercase">공통 문항별 평균</h2>
           </div>
           <p className="text-sm text-[var(--text-muted)]">취합·비교 기준</p>
         </div>
         <div className="h-72">
-          {commonKpiChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={320}>
-              <BarChart data={commonKpiChartData}>
-                <CartesianGrid stroke="#2d2d2d" vertical={false} />
-                <XAxis dataKey="name" stroke="#7d7d7d" tickLine={false} axisLine={false} interval={0} angle={-20} textAnchor="end" height={70} />
-                <YAxis stroke="#7d7d7d" tickLine={false} axisLine={false} domain={[0, 5]} />
-                <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                  contentStyle={{ background: "#111", border: "1px solid #3a3a3a", borderRadius: 0 }}
-                />
-                <Bar dataKey="satisfaction" fill="#c8f542" radius={0} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="grid h-full place-items-center border border-[var(--hairline)] text-sm text-[var(--text-muted)]">
-              공통 KPI 응답이 아직 없습니다. (신규 생성 설문부터 적용)
-            </div>
-          )}
+          <KpiBarChart
+            data={commonKpiChartData}
+            fill="#c8f542"
+            angledLabels
+            emptyText="공통 문항 응답이 아직 없습니다. (신규 생성 설문부터 적용)"
+          />
         </div>
       </section>
 
@@ -359,24 +351,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
           <p className="text-sm text-[var(--text-muted)]">단위: 5점</p>
         </div>
         <div className="h-72">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={320}>
-              <BarChart data={chartData}>
-                <CartesianGrid stroke="#2d2d2d" vertical={false} />
-                <XAxis dataKey="name" stroke="#7d7d7d" tickLine={false} axisLine={false} />
-                <YAxis stroke="#7d7d7d" tickLine={false} axisLine={false} domain={[0, 5]} />
-                <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                  contentStyle={{ background: "#111", border: "1px solid #3a3a3a", borderRadius: 0 }}
-                />
-                <Bar dataKey="satisfaction" fill="#ffffff" radius={0} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="grid h-full place-items-center border border-[var(--hairline)] text-sm text-[var(--text-muted)]">
-              표시할 응답 데이터가 없습니다.
-            </div>
-          )}
+          <KpiBarChart data={chartData} />
         </div>
       </section>
 
@@ -390,18 +365,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
             <p className="text-sm text-[var(--text-muted)]">단위: 5점</p>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%" minWidth={320}>
-              <BarChart data={categoryChartData}>
-                <CartesianGrid stroke="#2d2d2d" vertical={false} />
-                <XAxis dataKey="name" stroke="#7d7d7d" tickLine={false} axisLine={false} />
-                <YAxis stroke="#7d7d7d" tickLine={false} axisLine={false} domain={[0, 5]} />
-                <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                  contentStyle={{ background: "#111", border: "1px solid #3a3a3a", borderRadius: 0 }}
-                />
-                <Bar dataKey="satisfaction" fill="#2f7dff" radius={0} />
-              </BarChart>
-            </ResponsiveContainer>
+            <KpiBarChart data={categoryChartData} fill="#2f7dff" />
           </div>
         </section>
       ) : null}
@@ -416,18 +380,7 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
             <p className="text-sm text-[var(--text-muted)]">단위: 5점</p>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%" minWidth={320}>
-              <BarChart data={programTypeChartData}>
-                <CartesianGrid stroke="#2d2d2d" vertical={false} />
-                <XAxis dataKey="name" stroke="#7d7d7d" tickLine={false} axisLine={false} />
-                <YAxis stroke="#7d7d7d" tickLine={false} axisLine={false} domain={[0, 5]} />
-                <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                  contentStyle={{ background: "#111", border: "1px solid #3a3a3a", borderRadius: 0 }}
-                />
-                <Bar dataKey="satisfaction" fill="#ffffff" radius={0} />
-              </BarChart>
-            </ResponsiveContainer>
+            <KpiBarChart data={programTypeChartData} />
           </div>
         </section>
       ) : null}
@@ -438,35 +391,10 @@ export function ResponseDashboard({ role, mode, initialSurveyId, questions: init
           <h2 className="mt-2 text-2xl font-black uppercase">응답률(완료율)</h2>
         </div>
         <div className="h-72">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={320}>
-              <BarChart data={chartData}>
-                <CartesianGrid stroke="#2d2d2d" vertical={false} />
-                <XAxis dataKey="name" stroke="#7d7d7d" tickLine={false} axisLine={false} />
-                <YAxis stroke="#7d7d7d" tickLine={false} axisLine={false} domain={[0, 100]} />
-                <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                  contentStyle={{ background: "#111", border: "1px solid #3a3a3a", borderRadius: 0 }}
-                />
-                <Bar dataKey="responseRate" fill="#2f7dff" radius={0} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="grid h-full place-items-center border border-[var(--hairline)] text-sm text-[var(--text-muted)]">
-              표시할 응답 데이터가 없습니다.
-            </div>
-          )}
+          <KpiBarChart data={chartData} dataKey="responseRate" fill="#2f7dff" domainMax={100} />
         </div>
       </section>
     </section>
   );
 }
 
-function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
-      <div className="mt-2">{children}</div>
-    </div>
-  );
-}

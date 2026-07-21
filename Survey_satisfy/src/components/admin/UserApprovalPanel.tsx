@@ -9,23 +9,30 @@ export function UserApprovalPanel() {
   const [rows, setRows] = useState<PublicUser[]>([]);
   const [status, setStatus] = useState("");
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
-
-  async function loadUsers() {
-    const query = filter === "all" ? "" : `?status=${filter}`;
-    const response = await authFetch(`/api/auth/users${query}`);
-    const data = (await response.json()) as { ok: boolean; rows?: PublicUser[]; error?: string };
-
-    if (data.ok && data.rows) {
-      setRows(data.rows);
-    } else {
-      setStatus(data.error ?? "회원 목록을 불러오지 못했습니다.");
-    }
-  }
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    void loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+    const controller = new AbortController();
+    const query = filter === "all" ? "" : `?status=${filter}`;
+
+    authFetch(`/api/auth/users${query}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data: { ok: boolean; rows?: PublicUser[]; error?: string }) => {
+        if (data.ok && data.rows) {
+          setRows(data.rows);
+        } else {
+          setStatus(data.error ?? "회원 목록을 불러오지 못했습니다.");
+        }
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setStatus("회원 목록을 불러오지 못했습니다.");
+      });
+
+    return () => controller.abort();
+  }, [filter, reloadKey]);
 
   async function handleDecision(userId: string, decision: "approved" | "rejected") {
     setStatus("처리 중입니다.");
@@ -44,7 +51,7 @@ export function UserApprovalPanel() {
     }
 
     setStatus(decision === "approved" ? "승인했습니다." : "거절했습니다.");
-    void loadUsers();
+    setReloadKey((key) => key + 1);
   }
 
   return (

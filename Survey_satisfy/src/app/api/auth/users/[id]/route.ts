@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/api/http";
 import { requireAuthUser } from "@/lib/auth/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -18,7 +19,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   const { id } = await params;
-  const body = (await request.json()) as PatchBody;
+  const body = await readJsonBody<PatchBody>(request);
+
+  if (!body) {
+    return NextResponse.json({ ok: false, error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
+  }
 
   if (body.status !== "approved" && body.status !== "rejected") {
     return NextResponse.json({ ok: false, error: "status는 approved 또는 rejected여야 합니다." }, { status: 400 });

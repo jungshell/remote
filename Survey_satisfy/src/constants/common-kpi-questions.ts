@@ -1,63 +1,68 @@
-import type { Question } from "@/types/platform";
+import type { Question, RespondentType } from "@/types/platform";
 
 /**
- * 전 사업 공통 KPI 문항.
+ * 공통 고정 문항 (PRD v2 §4) — 모든 설문의 마지막에 자동 배치.
  * ID를 고정해 본부·유형·연도 취합 시 동일 지표로 비교할 수 있게 합니다.
+ * 연령대·성별은 개인 응답자(person/both)에게만 노출됩니다.
  */
 export const COMMON_KPI_QUESTIONS: Question[] = [
   {
-    id: "common_satisfaction",
+    id: "common_repeat",
     group: "공통",
-    category: "공통 KPI",
-    label: "본 사업에 전반적으로 만족하십니까?",
-    scale: "likert5",
+    category: "공통 고정",
+    label: "이 사업에 참여한 것은 몇 번째입니까?",
+    scale: "choice",
     required: true,
-    kpiIncluded: true,
+    kpiIncluded: false,
     locked: true,
     tier: "core",
+    options: ["첫 참여", "2회", "3회 이상"],
     orderNo: 1,
   },
   {
-    id: "common_process",
+    id: "common_path",
     group: "공통",
-    category: "공통 KPI",
-    label: "사업 안내와 신청 절차는 편리했습니까?",
-    scale: "likert5",
+    category: "공통 고정",
+    label: "참여 경로는 무엇입니까?",
+    scale: "choice",
     required: true,
-    kpiIncluded: true,
+    kpiIncluded: false,
     locked: true,
     tier: "core",
+    options: ["홈페이지", "SNS·인스타그램", "문자", "포스터", "온라인커뮤니티", "기타"],
     orderNo: 2,
   },
   {
-    id: "common_manager",
+    id: "common_age",
     group: "공통",
-    category: "공통 KPI",
-    label: "담당자의 안내와 응대에 만족하십니까?",
-    scale: "likert5",
-    required: true,
-    kpiIncluded: true,
+    category: "공통 고정",
+    label: "연령대는 어떻게 되십니까?",
+    scale: "choice",
+    required: false,
+    kpiIncluded: false,
     locked: true,
     tier: "core",
+    options: ["10대", "20대", "30대", "40대", "50대 이상"],
     orderNo: 3,
   },
   {
-    id: "common_fit",
+    id: "common_gender",
     group: "공통",
-    category: "공통 KPI",
-    label: "지원 내용이 신청 목적과 기대에 부합했습니까?",
-    scale: "likert5",
-    required: true,
-    kpiIncluded: true,
+    category: "공통 고정",
+    label: "성별은 어떻게 되십니까?",
+    scale: "choice",
+    required: false,
+    kpiIncluded: false,
     locked: true,
     tier: "core",
+    options: ["남", "여", "응답하지 않음"],
     orderNo: 4,
   },
   {
-    id: "common_growth",
+    id: "common_satisfaction",
     group: "공통",
-    category: "공통 KPI",
-    label: "본 사업이 본인 또는 기업의 성장에 도움이 되었습니까?",
+    category: "공통 고정",
+    label: "전반적인 만족도는 어떠십니까?",
     scale: "likert5",
     required: true,
     kpiIncluded: true,
@@ -66,10 +71,10 @@ export const COMMON_KPI_QUESTIONS: Question[] = [
     orderNo: 5,
   },
   {
-    id: "common_rejoin",
+    id: "common_recommend",
     group: "공통",
-    category: "공통 KPI",
-    label: "향후 진흥원 사업에 다시 참여할 의향이 있습니까?",
+    category: "공통 고정",
+    label: "이 사업을 주변에 추천하시겠습니까?",
     scale: "likert5",
     required: true,
     kpiIncluded: true,
@@ -78,33 +83,28 @@ export const COMMON_KPI_QUESTIONS: Question[] = [
     orderNo: 6,
   },
   {
-    id: "common_nps",
-    group: "공통",
-    category: "공통 KPI",
-    label: "본 사업을 동료 또는 타 기업·참여자에게 추천하시겠습니까? (0~10점)",
-    scale: "nps",
-    required: true,
-    kpiIncluded: true,
-    locked: true,
-    tier: "core",
-    orderNo: 7,
-  },
-  {
     id: "common_opinion",
     group: "공통",
-    category: "공통 KPI",
-    label: "개선이 필요한 점이나 추가 의견을 자유롭게 적어 주십시오.",
+    category: "공통 고정",
+    label: "개선 의견이나 건의 사항을 자유롭게 작성해 주세요.",
     scale: "text",
     required: false,
     kpiIncluded: false,
     locked: true,
     tier: "core",
-    orderNo: 8,
+    orderNo: 7,
   },
 ];
 
+/** 개인 응답자에게만 묻는 문항 (PRD target: person) */
+const PERSON_ONLY_IDS = new Set(["common_age", "common_gender"]);
+
 export const COMMON_KPI_QUESTION_IDS = COMMON_KPI_QUESTIONS.map((question) => question.id);
 
-export function getCommonKpiQuestions(): Question[] {
+export function getCommonKpiQuestions(respondentType: RespondentType = "both"): Question[] {
+  if (respondentType === "org") {
+    return COMMON_KPI_QUESTIONS.filter((question) => !PERSON_ONLY_IDS.has(question.id));
+  }
+
   return COMMON_KPI_QUESTIONS;
 }

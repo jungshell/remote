@@ -32,7 +32,7 @@ export default function AdminPage() {
         </section>
 
         <section className="py-12">
-          <ResponseDashboard role="admin" mode="admin" />
+          <ResponseDashboard mode="admin" />
         </section>
 
         <section className="pb-12">

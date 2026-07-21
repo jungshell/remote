@@ -46,11 +46,13 @@ create index if not exists idx_survey_responses_sub_business
 create index if not exists idx_survey_responses_program_type
   on public.survey_responses(program_type);
 
+-- upsert(on conflict) 기반 중복 방지용. NULLS DISTINCT라 익명 응답(null)은 제약 없음.
 create unique index if not exists idx_survey_responses_survey_phone
-  on public.survey_responses(survey_id, phone_last4)
-  where phone_last4 is not null;
+  on public.survey_responses(survey_id, phone_last4);
 
 -- ─── RLS ───
+-- 응답 제출·조회·수정은 모두 서버 라우트(서비스 롤)에서 처리합니다.
+-- anon 키에는 어떤 정책도 열지 않아 기본 거부(deny-all) 상태를 유지합니다.
 alter table public.surveys enable row level security;
 alter table public.survey_responses enable row level security;
 
@@ -58,24 +60,3 @@ alter table public.survey_responses enable row level security;
 create policy "surveys_public_read_active"
   on public.surveys for select
   using (status = '진행중');
-
--- 참여자: 응답 제출 (insert only)
-create policy "responses_public_insert"
-  on public.survey_responses for insert
-  with check (
-    exists (
-      select 1 from public.surveys s
-      where s.id = survey_id and s.status = '진행중'
-    )
-  );
-
--- 참여자: 본인 phone_last4로 기존 응답 조회 (수정용)
-create policy "responses_read_own_by_phone"
-  on public.survey_responses for select
-  using (phone_last4 is not null);
-
--- 참여자: 본인 응답 수정
-create policy "responses_update_own_by_phone"
-  on public.survey_responses for update
-  using (phone_last4 is not null)
-  with check (phone_last4 is not null);

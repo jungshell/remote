@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { divisions, programTypes } from "@/constants/divisions";
 import { authFetch } from "@/lib/auth/access";
+import { Field } from "@/components/ui/FormField";
 import type { AuthUser } from "@/lib/auth/types";
 import type { Division, ProgramType } from "@/types/platform";
 
@@ -34,7 +35,7 @@ export function StaffProfileSetup({ user, onSaved }: StaffProfileSetupProps) {
       const data = (await response.json()) as { ok: boolean; user?: AuthUser; error?: string };
 
       if (!response.ok || !data.ok || !data.user) {
-        setStatus(data.error ?? "프로필 저장에 실패했습니다. migration_005 SQL 실행 여부를 확인해 주세요.");
+        setStatus(data.error ?? "프로필 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
         return;
       }
 
@@ -109,14 +110,5 @@ export function StaffProfileSetup({ user, onSaved }: StaffProfileSetupProps) {
       </button>
       {status ? <p className="mt-4 text-sm text-[var(--warning)]">{status}</p> : null}
     </section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="label-machined text-[var(--text-muted)]">{label}</label>
-      <div className="mt-2">{children}</div>
-    </div>
   );
 }
