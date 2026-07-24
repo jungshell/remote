@@ -1,5 +1,7 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { readJsonBody } from "@/lib/api/http";
+import { hashPassword } from "@/lib/auth/password";
 import { requireAuthUser } from "@/lib/auth/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import type { PlatformRole, UserStatus } from "@/lib/auth/types";
@@ -17,6 +19,18 @@ interface PatchBody {
   business?: string;
   subBusiness?: string;
   programType?: string;
+  resetPassword?: boolean;
+}
+
+/** 헷갈리는 문자를 뺀 임시 비밀번호 생성 (0/O/1/l/I 제외) */
+function generateTempPassword(length = 10) {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const bytes = randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i += 1) {
+    out += alphabet[bytes[i] % alphabet.length];
+  }
+  return out;
 }
 
 export async function PATCH(request: Request, { params }: RouteParams) {
@@ -41,12 +55,37 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   const { data: target, error: targetError } = await supabase
     .from("platform_users")
-    .select("id, role, status, email")
+    .select("id, role, status, email, name")
     .eq("id", id)
     .maybeSingle();
 
   if (targetError || !target) {
     return NextResponse.json({ ok: false, error: "사용자를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  // 비밀번호 초기화: 임시 비번 발급 + 기존 세션 무효화 (다른 수정과 분리 처리)
+  if (body.resetPassword) {
+    const tempPassword = generateTempPassword();
+    const passwordHash = await hashPassword(tempPassword);
+
+    const { error: pwError } = await supabase
+      .from("platform_users")
+      .update({ password_hash: passwordHash })
+      .eq("id", id);
+
+    if (pwError) {
+      console.error("[users/reset-password] 실패:", pwError.message);
+      return NextResponse.json({ ok: false, error: "비밀번호 초기화 중 오류가 발생했습니다." }, { status: 500 });
+    }
+
+    // 해당 사용자의 기존 로그인 세션을 모두 만료시켜 이전 비번 접근 차단
+    await supabase.from("user_sessions").delete().eq("user_id", id);
+
+    return NextResponse.json({
+      ok: true,
+      tempPassword,
+      user: { id: target.id, email: target.email, name: target.name },
+    });
   }
 
   const patch: Database["public"]["Tables"]["platform_users"]["Update"] = {};

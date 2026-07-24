@@ -15,6 +15,7 @@ export function UserApprovalPanel() {
   const [reloadKey, setReloadKey] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [resetInfo, setResetInfo] = useState<{ email: string; tempPassword: string } | null>(null);
 
   const [editName, setEditName] = useState("");
   const [editDivision, setEditDivision] = useState<Division>(divisions[0]);
@@ -127,6 +128,33 @@ export function UserApprovalPanel() {
     }
   }
 
+  async function handleResetPassword(user: PublicUser) {
+    const confirmed = window.confirm(
+      `"${user.name}" (${user.email})의 비밀번호를 임시 비번으로 초기화할까요?\n초기화하면 이 사용자의 기존 로그인은 모두 해제됩니다.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setStatus("비밀번호 초기화 중...");
+    try {
+      const response = await authFetch(`/api/auth/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resetPassword: true }),
+      });
+      const data = (await response.json()) as { ok: boolean; tempPassword?: string; error?: string };
+      if (!response.ok || !data.ok || !data.tempPassword) {
+        setStatus(data.error ?? "비밀번호 초기화에 실패했습니다.");
+        return;
+      }
+      setResetInfo({ email: user.email, tempPassword: data.tempPassword });
+      setStatus("");
+    } catch {
+      setStatus("비밀번호 초기화 중 오류가 발생했습니다.");
+    }
+  }
+
   async function handleDelete(user: PublicUser) {
     if (me?.id === user.id) {
       setStatus("본인 계정은 삭제할 수 없습니다.");
@@ -181,6 +209,39 @@ export function UserApprovalPanel() {
           ))}
         </div>
       </div>
+
+      {resetInfo ? (
+        <div className="border-b border-[var(--accent)] bg-[var(--surface-soft)] p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="label-machined text-[var(--accent)]">임시 비밀번호 발급됨</p>
+              <p className="mt-2 text-sm text-[var(--text-body)]">
+                <span className="text-white">{resetInfo.email}</span> 계정의 임시 비밀번호입니다. 이 화면을 닫으면 다시 볼 수 없으니
+                지금 사용자에게 안전하게 전달하세요. (사용자는 로그인 후 &quot;보안 · 비밀번호 변경&quot;에서 바꾸면 됩니다.)
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <code className="select-all border border-[var(--hairline)] bg-black px-4 py-2 text-lg font-black tracking-widest text-white">
+                  {resetInfo.tempPassword}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard?.writeText(resetInfo.tempPassword)}
+                  className="focus-ring label-machined min-h-10 border border-[var(--hairline)] px-4 text-[var(--text-body)] hover:border-white hover:text-white"
+                >
+                  복사
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setResetInfo(null)}
+              className="focus-ring label-machined min-h-10 border border-white px-4 hover:bg-white hover:text-black"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="divide-y divide-[var(--hairline)]">
         {rows.length === 0 ? (
@@ -239,6 +300,15 @@ export function UserApprovalPanel() {
                     >
                       {isEditing ? "닫기" : "수정"}
                     </button>
+                    {me?.id !== user.id ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleResetPassword(user)}
+                        className="focus-ring label-machined min-h-11 border border-[var(--hairline)] px-4 py-2 text-[var(--text-body)] hover:border-white hover:text-white"
+                      >
+                        비번 초기화
+                      </button>
+                    ) : null}
                     {me?.id !== user.id ? (
                       <button
                         type="button"
