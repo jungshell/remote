@@ -23,6 +23,8 @@ drop policy if exists "responses_public_insert" on public.survey_responses;
 
 -- anon/authenticated 클라이언트는 응답 테이블 직접 접근 불가
 -- (앱 서버 service_role로만 읽고 씀)
+-- create policy는 if not exists를 지원하지 않으므로 재실행 안전을 위해 먼저 drop
+drop policy if exists "responses_deny_all_client" on public.survey_responses;
 create policy "responses_deny_all_client"
   on public.survey_responses
   for all
