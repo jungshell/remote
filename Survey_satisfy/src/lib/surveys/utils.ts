@@ -31,13 +31,15 @@ export function splitStoredSurveyQuestions(raw: unknown) {
 }
 
 export function generateSurveyId(subBusiness: string, round: number) {
+  // URL·QR·유니코드 정규화 문제를 피하기 위해 ID는 ASCII(영문·숫자)만 사용.
+  // 한글 세부사업명은 slug에서 제거되고, 고유성은 랜덤 접미사로 보장.
   const slug = subBusiness
     .toLowerCase()
-    .replace(/[^a-z0-9가-힣]+/g, "-")
+    .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 24);
-  const suffix = Math.random().toString(36).slice(2, 6);
-  return `survey-${slug || "round"}-${round}-${suffix}`;
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `survey-${slug || `r${round}`}-${suffix}`;
 }
 
 export function surveyRowToRecord(row: SurveyRow): SurveyRecord {

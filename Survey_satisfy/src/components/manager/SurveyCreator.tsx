@@ -132,6 +132,29 @@ export function SurveyCreator({ profile, onCreated, onCancel, cloneSource }: Sur
     void loadTemplates();
   }, [loadTemplates]);
 
+  // 같은 사업·세부사업의 기존 설문이 있으면 회차를 자동으로 다음 차순으로 (복제 중이면 건너뜀)
+  useEffect(() => {
+    if (cloneSource || !business || !subBusiness) {
+      return;
+    }
+    const controller = new AbortController();
+    authFetch("/api/surveys", { signal: controller.signal })
+      .then((res) => res.json())
+      .then((data: { ok: boolean; rows?: SurveyRow[] }) => {
+        if (!data.ok || !data.rows) {
+          return;
+        }
+        const rounds = data.rows
+          .filter((s) => s.business?.trim() === business && s.sub_business?.trim() === subBusiness)
+          .map((s) => s.round ?? 0);
+        if (rounds.length > 0) {
+          setRound(Math.max(...rounds) + 1);
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [business, subBusiness, cloneSource]);
+
   useEffect(() => {
     const defaults: Record<string, boolean> = {};
     for (const group of [...coreGrouped, ...extendedGrouped]) {

@@ -4,19 +4,17 @@ import { useState } from "react";
 import { ImprovementActionPanel } from "@/components/admin/ImprovementActionPanel";
 import { ManagementExportPanel } from "@/components/admin/ManagementExportPanel";
 import { UserApprovalPanel } from "@/components/admin/UserApprovalPanel";
-import { ChangePasswordPanel } from "@/components/auth/ChangePasswordPanel";
 import { ResponseDashboard } from "@/components/dashboard/ResponseDashboard";
 import { Badge } from "@/components/ui/Badge";
 import { BrandMark } from "@/components/ui/BrandMark";
 
-type AdminTab = "members" | "kpi" | "excel" | "improvements" | "security";
+type AdminTab = "members" | "kpi" | "excel" | "improvements";
 
 const TABS: Array<{ id: AdminTab; label: string; hint: string }> = [
   { id: "members", label: "회원·권한", hint: "승인·정보수정·권한부여" },
   { id: "kpi", label: "KPI", hint: "본부·유형 지표" },
   { id: "excel", label: "Excel", hint: "경영평가 내보내기" },
   { id: "improvements", label: "개선과제", hint: "과제 등록·추적" },
-  { id: "security", label: "보안", hint: "비밀번호 변경" },
 ];
 
 export function AdminConsole() {
@@ -62,7 +60,6 @@ export function AdminConsole() {
         {tab === "kpi" ? <ResponseDashboard mode="admin" /> : null}
         {tab === "excel" ? <ManagementExportPanel /> : null}
         {tab === "improvements" ? <ImprovementActionPanel /> : null}
-        {tab === "security" ? <ChangePasswordPanel /> : null}
       </section>
     </>
   );

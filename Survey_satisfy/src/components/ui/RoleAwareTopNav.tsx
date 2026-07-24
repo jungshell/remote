@@ -73,10 +73,16 @@ export function RoleAwareTopNav() {
 
           {user ? (
             <div className="flex items-center gap-3">
-              <span className="hidden text-sm text-[var(--text-body)] sm:inline">
+              <Link
+                href="/account"
+                title="내 계정 · 비밀번호 변경"
+                className={`focus-ring hidden text-sm transition-colors hover:text-white sm:inline ${
+                  pathname === "/account" ? "text-white" : "text-[var(--text-body)]"
+                }`}
+              >
                 {user.name}
                 <span className="text-[var(--text-muted)]"> · {user.role}</span>
-              </span>
+              </Link>
               <button
                 type="button"
                 onClick={() => void handleLogout()}

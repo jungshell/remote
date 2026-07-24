@@ -6,7 +6,6 @@ import { ManagerWorkspace } from "@/components/manager/ManagerWorkspace";
 import { QrPreview } from "@/components/manager/QrPreview";
 import { StaffProfileSetup } from "@/components/manager/StaffProfileSetup";
 import { SurveyCreator } from "@/components/manager/SurveyCreator";
-import { ChangePasswordPanel } from "@/components/auth/ChangePasswordPanel";
 import { Badge } from "@/components/ui/Badge";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { authFetch, fetchCurrentUser } from "@/lib/auth/access";
@@ -30,7 +29,6 @@ export function ManagerConsole() {
   const [busySurveyId, setBusySurveyId] = useState<string | null>(null);
   const [qrSurvey, setQrSurvey] = useState<SurveyRow | null>(null);
   const [cloneSource, setCloneSource] = useState<SurveyRow | null>(null);
-  const [showChangePassword, setShowChangePassword] = useState(false);
 
   async function loadSurveys() {
     try {
@@ -222,22 +220,6 @@ export function ManagerConsole() {
                 ))
               )}
             </div>
-          </div>
-
-          <div className="mt-8">
-            <button
-              type="button"
-              onClick={() => setShowChangePassword((prev) => !prev)}
-              className="focus-ring label-machined min-h-12 border border-[var(--hairline)] px-6 py-4 text-[var(--text-body)] transition-colors hover:border-white hover:text-white"
-              aria-expanded={showChangePassword}
-            >
-              비밀번호 변경
-            </button>
-            {showChangePassword ? (
-              <div className="mt-4">
-                <ChangePasswordPanel />
-              </div>
-            ) : null}
           </div>
         </section>
       )}
