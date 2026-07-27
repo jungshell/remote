@@ -52,6 +52,7 @@ interface SurveyOption {
   program_type: string;
   target_responses: number;
   year?: number;
+  round?: number;
   custom_questions?: unknown;
 }
 
@@ -75,6 +76,7 @@ export function ResponseDashboard({
   const [selectedDivision, setSelectedDivision] = useState("");
   const [selectedProgramType, setSelectedProgramType] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
+  const [selectedRound, setSelectedRound] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -149,15 +151,18 @@ export function ResponseDashboard({
     return surveys.filter((survey) => String(survey.year ?? "") === selectedYear);
   }, [surveys, selectedYear]);
 
-  const yearScopedSurveyIds = useMemo(
-    () => new Set(yearFilteredSurveys.map((survey) => survey.id)),
-    [yearFilteredSurveys],
-  );
+  const surveyById = useMemo(() => new Map(surveys.map((survey) => [survey.id, survey] as const)), [surveys]);
 
   const filteredRows = useMemo(() => {
-    if (mode !== "admin" || !selectedYear) return rows;
-    return rows.filter((row) => yearScopedSurveyIds.has(row.survey_id));
-  }, [mode, selectedYear, rows, yearScopedSurveyIds]);
+    if (mode !== "admin" || (!selectedYear && !selectedRound)) return rows;
+    return rows.filter((row) => {
+      const survey = surveyById.get(row.survey_id);
+      if (!survey) return false;
+      if (selectedYear && String(survey.year ?? "") !== selectedYear) return false;
+      if (selectedRound && String(survey.round ?? "") !== selectedRound) return false;
+      return true;
+    });
+  }, [mode, selectedYear, selectedRound, rows, surveyById]);
 
   const activeQuestions = useMemo(() => {
     if (initialQuestions?.length) return initialQuestions;
@@ -238,6 +243,10 @@ export function ResponseDashboard({
       Array.from(new Set(surveys.map((survey) => survey.year ?? new Date().getFullYear()))).sort((a, b) => b - a),
     [surveys],
   );
+  const roundOptions = useMemo(
+    () => Array.from(new Set(yearFilteredSurveys.map((survey) => survey.round ?? 1))).sort((a, b) => a - b),
+    [yearFilteredSurveys],
+  );
 
   const isEmpty = !isLoading && metrics.responseCount === 0;
   const heroTitle =
@@ -317,7 +326,7 @@ export function ResponseDashboard({
       </div>
 
       <div className="panel animate-enter p-4 sm:p-6" style={{ animationDelay: "60ms" }}>
-        <div className={`grid gap-4 ${mode === "admin" ? "md:grid-cols-3" : ""}`}>
+        <div className={`grid gap-4 ${mode === "admin" ? "grid-cols-2 md:grid-cols-4" : ""}`}>
           {mode === "staff" ? (
             !initialSurveyId ? (
               <FilterField label="설문 선택">
@@ -374,6 +383,20 @@ export function ResponseDashboard({
                   {programTypeOptions.map((programType) => (
                     <option key={programType} value={programType}>
                       {programType}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField label="회차">
+                <select
+                  value={selectedRound}
+                  onChange={(event) => setSelectedRound(event.target.value)}
+                  className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
+                >
+                  <option value="">전체</option>
+                  {roundOptions.map((round) => (
+                    <option key={round} value={String(round)}>
+                      {round}회차
                     </option>
                   ))}
                 </select>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { divisions, programTypes } from "@/constants/divisions";
 import { authFetch } from "@/lib/auth/access";
 import { Field } from "@/components/ui/FormField";
@@ -17,9 +17,40 @@ export default function RegisterPage() {
   const [business, setBusiness] = useState("");
   const [subBusiness, setSubBusiness] = useState("");
   const [programType, setProgramType] = useState<ProgramType>(programTypes[0]);
+  const [businessTypeMap, setBusinessTypeMap] = useState<Record<string, string>>({});
+  const [typeAutoFilled, setTypeAutoFilled] = useState(false);
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 기존 등록된 사업명 → 유형 매핑을 불러와 자동 채움에 사용
+  useEffect(() => {
+    void authFetch("/api/business-types")
+      .then((response) => response.json())
+      .then((data: { ok: boolean; map?: Record<string, string> }) => {
+        if (data.ok && data.map) {
+          setBusinessTypeMap(data.map);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const knownType = useMemo(() => {
+    const key = business.trim();
+    const mapped = businessTypeMap[key];
+    return mapped && programTypes.includes(mapped as ProgramType) ? (mapped as ProgramType) : null;
+  }, [business, businessTypeMap]);
+
+  function handleBusinessChange(value: string) {
+    setBusiness(value);
+    const mapped = businessTypeMap[value.trim()];
+    if (mapped && programTypes.includes(mapped as ProgramType)) {
+      setProgramType(mapped as ProgramType);
+      setTypeAutoFilled(true);
+    } else {
+      setTypeAutoFilled(false);
+    }
+  }
 
   async function handleSubmit() {
     if (password.length < 8) {
@@ -115,27 +146,37 @@ export default function RegisterPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="사업유형">
-                  <select
-                    value={programType}
-                    onChange={(event) => setProgramType(event.target.value as ProgramType)}
-                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                  >
-                    {programTypes.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="담당 사업">
+                <Field label="담당 사업 (사업명)">
                   <input
                     value={business}
-                    onChange={(event) => setBusiness(event.target.value)}
+                    onChange={(event) => handleBusinessChange(event.target.value)}
                     placeholder="예: 지역특화콘텐츠개발"
                     className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
                   />
                 </Field>
+                <div>
+                  <Field label="사업유형">
+                    <select
+                      value={programType}
+                      onChange={(event) => {
+                        setProgramType(event.target.value as ProgramType);
+                        setTypeAutoFilled(false);
+                      }}
+                      className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+                    >
+                      {programTypes.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {typeAutoFilled && knownType ? (
+                    <p className="mt-1 text-xs text-[var(--success)]">
+                      이전에 등록된 &quot;{business.trim()}&quot; 사업의 유형을 자동 선택했습니다. (수정 가능)
+                    </p>
+                  ) : null}
+                </div>
                 <Field label="세부사업">
                   <input
                     value={subBusiness}
