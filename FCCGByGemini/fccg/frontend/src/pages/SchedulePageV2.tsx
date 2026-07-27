@@ -2044,12 +2044,11 @@ export default function SchedulePageV2() {
       }
     }
 
-    // 활성(ACTIVE) 회원만 투표 대상. 비활성·정지·삭제·관리자는 미참여 집계에서 제외
-    const eligibleMembers = unifiedVoteData.allMembers.filter((member: any) => {
-      const role = member?.role;
-      if (role === 'ADMIN' || role === 'SUPER_ADMIN') return false;
-      return member?.status === 'ACTIVE';
-    });
+    // 활성(ACTIVE) 계정은 역할과 관계없이 모두 투표 집계에 포함한다.
+    // 비활성·정지 계정만 참여율과 공유 명단에서 제외한다.
+    const eligibleMembers = unifiedVoteData.allMembers.filter(
+      (member: any) => member?.status === 'ACTIVE'
+    );
     const votedMembers = eligibleMembers
       .filter((member: any) => votedUserIds.has(normalizeId(member.id)))
       .map((member: any) => member.name);
@@ -4884,4 +4883,3 @@ export default function SchedulePageV2() {
     </Box>
 );
 }
-
