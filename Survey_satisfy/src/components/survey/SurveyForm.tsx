@@ -296,21 +296,22 @@ function QuestionField({
       </p>
 
       {question.scale === "likert5" ? (
-        <div className="mt-5 grid gap-2">
+        <div className="mt-5 grid grid-cols-5 gap-1.5 sm:gap-2">
           {LIKERT_LABELS.map((item) => (
             <button
               key={item.score}
               type="button"
               aria-pressed={value === item.score}
-              className={`focus-ring grid min-h-14 grid-cols-[48px_1fr] items-center border px-4 py-3.5 text-left transition-colors ${
+              aria-label={`${item.score}점 · ${item.label}`}
+              className={`focus-ring flex min-h-[4.5rem] flex-col items-center justify-center gap-1 border px-0.5 py-2 text-center transition-colors ${
                 value === item.score
                   ? "border-white bg-white text-black"
                   : "border-[var(--hairline)] bg-[var(--surface-soft)] text-white hover:border-white"
               }`}
               onClick={() => onChange(item.score)}
             >
-              <span className="text-lg font-black">{item.short}</span>
-              <span className="text-sm leading-5">{item.label}</span>
+              <span className="text-xl font-black leading-none">{item.score}</span>
+              <span className="text-[10px] leading-tight opacity-80">{item.label}</span>
             </button>
           ))}
         </div>

@@ -62,7 +62,7 @@ export const COMMON_KPI_QUESTIONS: Question[] = [
     id: "common_satisfaction",
     group: "공통",
     category: "공통 고정",
-    label: "전반적인 만족도는 어떠십니까?",
+    label: "이 사업에 전반적으로 만족하십니까?",
     scale: "likert5",
     required: true,
     kpiIncluded: true,

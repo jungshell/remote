@@ -38,13 +38,13 @@ export function SurveyPhonePreview({ title, questions, onClose }: SurveyPhonePre
                 <p className="mt-2 text-sm font-bold leading-6 text-white">{question.label}</p>
                 <p className="mt-3 text-xs text-[var(--text-muted)]">{scaleLabel(question.scale)}</p>
                 {question.scale === "likert5" ? (
-                  <div className="mt-3 grid gap-1.5">
+                  <div className="mt-3 grid grid-cols-5 gap-1">
                     {[1, 2, 3, 4, 5].map((score) => (
                       <div
                         key={score}
-                        className="min-h-10 border border-[var(--hairline)] px-3 py-2 text-xs text-[var(--text-body)]"
+                        className="grid min-h-9 place-items-center border border-[var(--hairline)] text-xs text-[var(--text-body)]"
                       >
-                        {score}점
+                        {score}
                       </div>
                     ))}
                   </div>
