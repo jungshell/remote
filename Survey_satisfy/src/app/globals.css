@@ -30,6 +30,9 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
+  /* 모바일 가로 넘침 방지 안전장치 (내부 스크롤 컨테이너는 각자 overflow-x-auto 사용) */
+  overflow-x: hidden;
+  max-width: 100%;
   background:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(47, 125, 255, 0.12), transparent 55%),
     var(--canvas);

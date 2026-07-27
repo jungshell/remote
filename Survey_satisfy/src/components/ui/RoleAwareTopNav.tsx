@@ -35,17 +35,17 @@ export function RoleAwareTopNav() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--hairline)] bg-black/92 backdrop-blur">
-      <nav className="shell flex h-16 items-center justify-between gap-6">
-        <Link href="/" className="group flex items-center gap-3">
-          <span className="grid h-8 w-8 place-items-center border border-white text-sm font-black">K</span>
-          <span>
+      <nav className="shell flex h-16 items-center justify-between gap-3 md:gap-6">
+        <Link href="/" className="group flex shrink-0 items-center gap-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center border border-white text-sm font-black">K</span>
+          <span className="min-w-0">
             <span className="label-machined block text-white">KPI Survey</span>
-            <span className="block text-xs text-[var(--text-muted)]">Satisfaction Command Platform</span>
+            <span className="hidden text-xs text-[var(--text-muted)] sm:block">Satisfaction Command Platform</span>
           </span>
         </Link>
 
-        <div className="flex items-center gap-4 md:gap-6">
-            <div className="flex items-center gap-3 overflow-x-auto md:hidden">
+        <div className="flex min-w-0 items-center gap-3 md:gap-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto md:hidden">
             {links.map((link) => (
               <Link
                 key={link.href}
