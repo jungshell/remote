@@ -2054,7 +2054,8 @@ export default function SchedulePageV2() {
       .map((member: any) => member.name);
     const nonVotedMembers = eligibleMembers
       .filter((member: any) => !votedUserIds.has(normalizeId(member.id)))
-      .map((member: any) => member.name);
+      .map((member: any) => member.name)
+      .sort((a: string, b: string) => a.localeCompare(b, 'ko-KR'));
 
     const uniqueVoters = votedMembers.length;
     const totalMembers = eligibleMembers.length;
