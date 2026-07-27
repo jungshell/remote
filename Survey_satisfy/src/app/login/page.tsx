@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth/access";
 import { RoleAwareTopNav } from "@/components/ui/RoleAwareTopNav";
 
@@ -11,12 +11,21 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? "/manager";
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // 자동완성(모바일 저장 비번)이 React onChange를 안 거치는 경우가 있어 ref로 직접 읽음
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit() {
+    const email = emailRef.current?.value.trim() ?? "";
+    const password = passwordRef.current?.value ?? "";
+
+    if (!email || !password) {
+      setMessage("이메일과 비밀번호를 입력해 주세요.");
+      return;
+    }
+
     setIsLoading(true);
     setMessage("");
 
@@ -55,16 +64,21 @@ function LoginForm() {
 
         <div className="mt-8 grid gap-4">
           <input
+            ref={emailRef}
             type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            name="email"
+            autoComplete="username"
+            inputMode="email"
+            autoCapitalize="none"
+            autoCorrect="off"
             placeholder="이메일"
             className="focus-ring h-12 border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
           />
           <input
+            ref={passwordRef}
             type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            name="password"
+            autoComplete="current-password"
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 void handleSubmit();
@@ -79,7 +93,7 @@ function LoginForm() {
 
         <button
           type="button"
-          disabled={isLoading || !email || !password}
+          disabled={isLoading}
           onClick={() => void handleSubmit()}
           className="focus-ring label-machined mt-6 w-full border border-white px-6 py-4 transition-colors hover:bg-white hover:text-black disabled:opacity-50"
         >
