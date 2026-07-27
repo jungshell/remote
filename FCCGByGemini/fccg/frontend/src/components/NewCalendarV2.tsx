@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { Flex, Badge, Tooltip } from '@chakra-ui/react';
 import { useAuthStore } from '../store/auth';
 import { API_ENDPOINTS } from '../constants';
+import { getApiBaseUrl } from '../config/api';
 
 // 애니메이션 정의
 const fadeIn = keyframes`
@@ -589,7 +590,6 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
         const nextYear = currentYear + 1;
         
         // API BASE URL 가져오기
-        const { getApiBaseUrl } = await import('../config/api');
         const baseUrl = await getApiBaseUrl();
         const apiUrl = baseUrl.replace('/api/auth', '');
         

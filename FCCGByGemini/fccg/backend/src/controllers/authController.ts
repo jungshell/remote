@@ -6,6 +6,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { getHolidaysByYear } from '../utils/holidayApi';
+import { getJwtSecret } from '../utils/jwtSecret';
 
 // 투표 데이터 파일 경로
 const VOTE_DATA_FILE = path.join(__dirname, '../../voteData.json');
@@ -508,7 +509,7 @@ export const register = async (req: Request, res: Response) => {
     name = req.body.name;
   }
   
-  console.log('register body:', JSON.stringify({ email, password, name }));
+  console.log('register request:', { email, name, hasPassword: !!password });
   
   try {
     // 이메일 중복 확인
@@ -567,7 +568,7 @@ export const login = async (req: Request, res: Response) => {
     email = req.body.email;
     password = req.body.password;
   }
-  console.log('login body:', JSON.stringify({ email, password }));
+  console.log('login request:', { email, hasPassword: !!password });
   
   try {
     // 사용자 찾기
@@ -594,7 +595,7 @@ export const login = async (req: Request, res: Response) => {
     // JWT 토큰 생성
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'fc-chalggyeo-secret',
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -1828,7 +1829,6 @@ export const resetVoteData = async (req: Request, res: Response) => {
 export const searchMembers = async (req: Request, res: Response) => {
   try {
     console.log('searchMembers API 호출됨');
-    console.log('요청 헤더:', req.headers);
     console.log('인증된 사용자:', (req as any).user);
     
     const { name, email, role, status } = req.query;
@@ -2734,4 +2734,4 @@ export const searchLocation = async (req: Request, res: Response) => {
 };
 
 // Export functions for use in other modules
-export { calculateVoteAttendanceDetails, calculateGameAttendanceDetails }; 
+export { calculateVoteAttendanceDetails, calculateGameAttendanceDetails };

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getProfile } from '../api/auth';
 
 export interface User {
   id: number;
@@ -163,7 +164,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     
     try {
-      const { getProfile } = await import('../api/auth');
       const response = await getProfile();
       set({ user: response });
       localStorage.setItem('user', JSON.stringify(response));
@@ -173,4 +173,4 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error; // 에러를 다시 던져서 호출자가 처리할 수 있도록 함
     }
   },
-})); 
+}));

@@ -7,7 +7,6 @@
     "dev": "vite",
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
-    "postbuild": "node scripts/postbuild.js || true",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "type-check": "tsc --noEmit",

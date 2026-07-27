@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Flex, Text, Button, HStack, Badge, Modal, ModalOverlay, ModalContent, ModalBody, useDisclosure, Box, FormControl, FormLabel, Input, useToast, Tooltip, IconButton, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerCloseButton, VStack, StackDivider, useBreakpointValue } from '@chakra-ui/react';
 import { CalendarIcon, ViewIcon, SettingsIcon, AttachmentIcon, ExternalLinkIcon, InfoIcon, HamburgerIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
-import { changePassword } from '../api/auth';
+import { changePassword, updateProfile } from '../api/auth';
 import Signup from '../pages/Signup';
 import Login from '../pages/Login';
 import { useNavigate, useLocation } from 'react-router-dom';
 import eventBus, { EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
 import ManualModal from './ManualModal';
+import { getApiBaseUrl } from '../config/api';
 
 type NavItem = {
   label: string;
@@ -95,7 +96,7 @@ export default function Header() {
       console.log('🔄 헤더: 사용자 데이터 새로고침 시작');
       
       // API BASE URL 가져오기 (환경별 자동 감지)
-      const baseUrl = await import('../config/api').then(m => m.getApiBaseUrl());
+      const baseUrl = await getApiBaseUrl();
       
       // 캐시를 무시하고 강제로 새로고침
       const response = await fetch(`${baseUrl}/profile`, {
@@ -161,7 +162,6 @@ export default function Header() {
     setNameLoading(true);
     setNameError(null);
     try {
-      const { updateProfile } = await import('../api/auth');
       const response = await updateProfile({ name: editName });
       // 백엔드 응답 형식: { success: true, message: '...', user: {...} }
       const updatedUser = response.user || response;
@@ -194,7 +194,6 @@ export default function Header() {
     setPasswordError(null);
     try {
       // 비밀번호 변경 API 호출
-      const { changePassword } = await import('../api/auth');
       await changePassword(newPassword);
       
       setIsPasswordModalOpen(false);
@@ -654,4 +653,4 @@ export default function Header() {
       </Modal>
     </>
   );
-} 
+}

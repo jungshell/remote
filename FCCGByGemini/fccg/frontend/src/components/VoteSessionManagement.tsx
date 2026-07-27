@@ -27,6 +27,7 @@ import {
 } from '@chakra-ui/react';
 import { EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
+import { ensureApiBaseUrl } from '../constants';
 
 interface VoteSessionManagementProps {
   unifiedVoteData: any;
@@ -109,7 +110,7 @@ const VoteSessionManagement: React.FC<VoteSessionManagementProps> = ({
 
     setIsLoading(true);
     try {
-      const baseUrl = await import('../constants').then(m => m.ensureApiBaseUrl()).catch(() => '/api/auth');
+      const baseUrl = await ensureApiBaseUrl().catch(() => '/api/auth');
       const authToken = token || localStorage.getItem('token') || '';
       if (!authToken) {
         throw new Error('인증 토큰이 없습니다. 다시 로그인해주세요.');
@@ -160,7 +161,7 @@ const VoteSessionManagement: React.FC<VoteSessionManagementProps> = ({
   const handleUpdateDisabledDays = async () => {
     setIsLoading(true);
     try {
-      const baseUrl = await import('../constants').then(m => m.ensureApiBaseUrl()).catch(() => '/api/auth');
+      const baseUrl = await ensureApiBaseUrl().catch(() => '/api/auth');
       const authToken = token || localStorage.getItem('token') || '';
       if (!authToken) {
         throw new Error('인증 토큰이 없습니다. 다시 로그인해주세요.');

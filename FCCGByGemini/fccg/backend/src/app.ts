@@ -14,6 +14,7 @@ import nodemailer from 'nodemailer';
 import { securityHeaders, apiLimiter } from './middlewares/security';
 import { monitoring } from './utils/monitoring';
 import { aggregateVotesByWeekday, getKstDateKey, getVoteSessionSundayDeadline, type WeekdayKey } from './utils/voteUtils';
+import { getJwtSecret } from './utils/jwtSecret';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -55,10 +56,9 @@ const corsOptions = {
             callback(null, true);
             return;
           }
-          // 프로덕션 환경에서는 차단하되, 에러 대신 로그만 남기기
+          // 프로덕션 환경에서는 허용 목록에 없는 브라우저 출처를 차단
           console.log('⚠️ CORS 차단:', origin, '허용 목록:', allowedOrigins);
-          // 에러를 던지지 않고 허용 (일시적 조치)
-          callback(null, true);
+          callback(null, false);
         }
       }
   },
@@ -125,7 +125,7 @@ function authenticateToken(req: any, res: any, next: any) {
     return res.status(401).json({ message: '액세스 토큰이 필요합니다.' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'fc-chalggyeo-secret', (err: any, user: any) => {
+  jwt.verify(token, getJwtSecret(), (err: any, user: any) => {
     if (err) {
       return res.status(403).json({ message: '유효하지 않은 토큰입니다.' });
     }
@@ -181,7 +181,7 @@ app.get('/auth/google/callback', async (req, res) => {
     }
 
     console.log('✅ Gmail OAuth 인증 성공');
-    console.log('Refresh Token:', tokenData.refresh_token);
+    console.log('✅ Gmail OAuth refresh token 발급 완료');
     
     // 성공 페이지 반환
     res.send(`

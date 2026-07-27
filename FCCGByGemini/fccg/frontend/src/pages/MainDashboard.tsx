@@ -8,6 +8,8 @@ import type { Member } from '../api/auth';
 import { getUnifiedVoteDataNew } from '../api/auth';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
+import { getApiBaseUrl } from '../config/api';
+import { ensureApiBaseUrl } from '../constants';
 
 const getKstDateKey = (dateLike: string | Date) => {
   const date = new Date(dateLike);
@@ -500,7 +502,7 @@ export default function MainDashboard() {
       console.log('🔄 MainDashboard - 회원 데이터 로드 시작');
       
       // API BASE URL 가져오기 (환경별 자동 감지)
-      const baseUrl = await import('../config/api').then(m => m.getApiBaseUrl());
+      const baseUrl = await getApiBaseUrl();
       
       const response = await fetch(`${baseUrl}/members`, {
         headers: getAuthHeaders(),
@@ -540,7 +542,7 @@ export default function MainDashboard() {
       console.log('🔄 MainDashboard - 통합 투표 데이터 로드 시작');
       
       // API BASE URL 가져오기 (환경별 자동 감지)
-      const baseUrl = await import('../config/api').then(m => m.getApiBaseUrl());
+      const baseUrl = await getApiBaseUrl();
       
       // 통합 API에서 투표 데이터 가져오기
       const unifiedData = await fetch(`${baseUrl}/votes/unified`, {
@@ -715,7 +717,7 @@ export default function MainDashboard() {
       console.log('🔄 MainDashboard - 경기 데이터 로드 시작');
       
       // API BASE URL 가져오기 (환경별 자동 감지)
-      const baseUrl = await import('../config/api').then(m => m.getApiBaseUrl());
+      const baseUrl = await getApiBaseUrl();
       
       const response = await fetch(`${baseUrl}/games`, {
         headers: getAuthHeaders(),
@@ -845,7 +847,7 @@ export default function MainDashboard() {
     
     // 런타임에서 BASE_URL 가져오기
     const loadData = async () => {
-      const baseUrl = await import('../constants').then(m => m.ensureApiBaseUrl()).catch(() => '/api/auth');
+      const baseUrl = await ensureApiBaseUrl().catch(() => '/api/auth');
       const withTimeout = async <T,>(promise: Promise<T>, timeoutMs = 8000, fallback: T): Promise<T> => {
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
         const timeoutPromise = new Promise<T>((resolve) => {
@@ -1176,7 +1178,7 @@ export default function MainDashboard() {
       (async () => {
         try {
           // 런타임에서 BASE_URL 가져오기
-          const baseUrl = await import('../constants').then(m => m.ensureApiBaseUrl()).catch(() => '/api/auth');
+          const baseUrl = await ensureApiBaseUrl().catch(() => '/api/auth');
           
           const response = await fetch(`${baseUrl}/members`, {
             headers: getAuthHeaders(),
@@ -2093,4 +2095,4 @@ export default function MainDashboard() {
 
     </Box>
   );
-} 
+}

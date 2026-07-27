@@ -8,7 +8,7 @@
 DATABASE_URL=
 (Neon에서 제공하는 PostgreSQL 연결 문자열 전체 복사)
 
-JWT_SECRET=fc-chalggyeo-secret-production-key
+JWT_SECRET=replace_with_a_strong_random_secret_at_least_32_characters
 (또는 로컬과 동일하게 사용)
 
 FRONTEND_URL=https://fccg-inoi.vercel.app

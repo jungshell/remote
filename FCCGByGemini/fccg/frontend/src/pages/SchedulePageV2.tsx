@@ -35,7 +35,7 @@ import { WarningIcon } from '@chakra-ui/icons';
 import { getUnifiedVoteDataNew, deleteVote } from '../api/auth';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
-import { getApiUrl } from '../config/api';
+import { getApiBaseUrl, getApiUrl } from '../config/api';
 import { EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { CalendarSkeleton, VoteSectionSkeleton } from '../components/common/SkeletonLoader';
 import { shareKakaoText } from '../utils/kakaoShare';
@@ -230,9 +230,16 @@ export default function SchedulePageV2() {
   // 통합 API 데이터 상태
   const [unifiedVoteData, setUnifiedVoteData] = useState<{
     activeSession: any;
-    allMembers: Array<{id: number, name: string}>;
+    allMembers: Array<{id: number, name: string, status?: string, role?: string}>;
     lastWeekResults: any;
     allSessions?: any[];
+    voteParticipation?: {
+      totalMembers: number;
+      uniqueVoters: number;
+      participationRate: number;
+      votedMembers: string[];
+      nonVotedMembers: string[];
+    } | null;
   } | null>(null);
   const [allMembers, setAllMembers] = useState<Array<{id: number, name: string}>>([]);
   const [games, setGames] = useState<GameData[]>([]);
@@ -299,7 +306,6 @@ export default function SchedulePageV2() {
         const nextYear = currentYear + 1;
         
         // API BASE URL 가져오기
-        const { getApiBaseUrl } = await import('../config/api');
         const baseUrl = await getApiBaseUrl();
         const apiUrl = baseUrl.replace('/api/auth', '');
         
@@ -1142,7 +1148,11 @@ export default function SchedulePageV2() {
         activeSession: activeSession || null,
         allMembers: allMembers,
         lastWeekResults: unifiedData.lastWeekResults || null,
-        allSessions
+        allSessions,
+        voteParticipation:
+          activeSession?.participation ||
+          (unifiedData as any).voteParticipation ||
+          null
       };
       setAllMembers(allMembers);
       setVoteResults(voteResults);
@@ -2011,6 +2021,11 @@ export default function SchedulePageV2() {
   }, [isVoteClosed, unifiedVoteData]);
 
   const voteParticipationInfo = useMemo(() => {
+    const serverSummary =
+      unifiedVoteData?.activeSession?.participation ||
+      unifiedVoteData?.voteParticipation;
+    if (serverSummary) return serverSummary;
+
     if (!unifiedVoteData?.allMembers || unifiedVoteData.allMembers.length === 0) return null;
 
     const normalizeId = (value: any): number => {

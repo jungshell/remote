@@ -29,14 +29,25 @@ import { cacheManager } from './utils/cache';
 import { backupUtils } from './utils/backup';
 import { initializePushNotifications, isNotificationSupported } from './utils/pushNotifications';
 import { getApiBaseUrl } from './config/api';
+import { refreshToken } from './api/auth';
 
 // 보호된 라우트 컴포넌트 (관리자 페이지, 프로필 페이지 등)
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+}) {
   const { user, token } = useAuthStore();
   
   if (!user || !token) {
     // 로그인 페이지로 리다이렉트하면서 현재 경로 정보 전달
     return <Navigate to="/login" state={{ from: { pathname: window.location.pathname } }} replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />;
   }
   
   return <>{children}</>;
@@ -96,7 +107,6 @@ function AppLayout() {
     let alive = true;
     const refreshAuth = async () => {
       try {
-        const { refreshToken } = await import('./api/auth');
         const refreshed = await refreshToken();
         if (!alive) return;
         if (refreshed?.token) setToken(refreshed.token);
@@ -129,7 +139,14 @@ function AppLayout() {
           <Route path="/gallery/photos" element={<PhotoGalleryPage />} />
           <Route path="/gallery/videos" element={<VideoGalleryPage />} />
           {/* 인증이 필요한 보호된 페이지들 */}
-          <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']}>
+                <AdminPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

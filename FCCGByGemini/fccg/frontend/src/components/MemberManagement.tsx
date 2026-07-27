@@ -39,7 +39,6 @@ import {
 import { AddIcon, EditIcon, DeleteIcon, SearchIcon, ViewIcon, RepeatIcon } from '@chakra-ui/icons';
 import { updateMember, deleteMember, resetMemberPassword, getValidToken } from '../api/auth';
 import { useAuthStore } from '../store/auth';
-import { API_ENDPOINTS } from '../constants';
 import { getApiUrl } from '../config/api';
 import { eventBus, EVENT_TYPES, emitMemberAdded, emitDataRefreshNeeded, emitLoadingStart, emitLoadingEnd, emitAlert } from '../utils/eventBus';
 
@@ -55,6 +54,12 @@ interface Member {
 interface MemberManagementProps {
   userList: Member[];
   onUserListChange: (users: Member[]) => void;
+}
+
+function generateClientTempPassword(length = 12): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  const randomValues = crypto.getRandomValues(new Uint32Array(length));
+  return Array.from(randomValues, (value) => chars[value % chars.length]).join('');
 }
 
 export default function MemberManagement({ userList, onUserListChange }: MemberManagementProps) {
@@ -75,6 +80,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
   
   // 전역 사용자 정보 업데이트를 위한 store
   const { user, setUser } = useAuthStore();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   // editingMember 상태 보존을 위한 useEffect
   React.useEffect(() => {
@@ -166,16 +172,22 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
 
         // 백엔드 API 호출
         try {
-          const response = await fetch(`${API_ENDPOINTS.BASE_URL}/register`, {
+          const token = getValidToken();
+          if (!token) throw new Error('로그인이 필요합니다.');
+          const initialPassword = generateClientTempPassword();
+          const createMemberUrl = await getApiUrl('/members');
+          const response = await fetch(createMemberUrl, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
               name: editingMember.name,
               email: editingMember.email,
-              password: 'password123',
-              role: editingMember.role
+              password: initialPassword,
+              role: editingMember.role,
+              status: editingMember.status
             })
           });
           
@@ -189,9 +201,9 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
           // 성공 메시지
           toast({
             title: '회원 추가 완료',
-            description: '새 회원이 추가되었습니다.',
+            description: `새 회원이 추가되었습니다. 임시 비밀번호: ${result.initialPassword || initialPassword}`,
             status: 'success',
-            duration: 2000,
+            duration: 8000,
             isClosable: true,
           });
           
@@ -203,14 +215,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
           // 회원 목록 새로고침 (페이지 이동 없이)
           try {
             // 새로 추가된 회원 정보를 포함하여 목록 업데이트
-            const newMember = {
-              id: result.id || Date.now(), // 임시 ID 생성
-              name: editingMember.name,
-              email: editingMember.email,
-              role: editingMember.role,
-              status: 'ACTIVE' as const,
-              createdAt: new Date().toISOString()
-            };
+            const newMember = result.member;
             
             const updatedList = [...userList, newMember];
             onUserListChange(updatedList);
@@ -258,9 +263,6 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
           });
           return;
         }
-        
-        console.log('토큰 확인:', token);
-        console.log('토큰 길이:', token.length);
         
         // 직접 백엔드 API 호출
         try {
@@ -587,7 +589,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                         />
                       </Tooltip>
                       <Tooltip 
-                        label="회원 정보 수정" 
+                        label={!isSuperAdmin && member.role !== 'MEMBER' ? '관리자 계정 수정은 슈퍼관리자만 가능합니다.' : '회원 정보 수정'}
                         placement="top" 
                         hasArrow
                         bg="gray.700"
@@ -601,30 +603,33 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                           bg="#004ea8"
                           color="white"
                           _hover={{ bg: "#003d7a" }}
+                          isDisabled={!isSuperAdmin && member.role !== 'MEMBER'}
                           onClick={() => handleEditMember(member)}
                         />
                       </Tooltip>
-                      <Tooltip 
-                        label="회원 삭제" 
-                        placement="top" 
-                        hasArrow
-                        bg="red.600"
-                        color="white"
-                        fontSize="sm"
-                      >
-                        <IconButton
-                          aria-label="회원 삭제"
-                          icon={<DeleteIcon />}
-                          size="sm"
-                          bg="#004ea8"
+                      {isSuperAdmin && (
+                        <Tooltip
+                          label="회원 삭제"
+                          placement="top"
+                          hasArrow
+                          bg="red.600"
                           color="white"
-                          _hover={{ bg: "#003d7a" }}
-                          onClick={() => {
-                            setSelectedMember(member);
-                            onDeleteModalOpen();
-                          }}
-                        />
-                      </Tooltip>
+                          fontSize="sm"
+                        >
+                          <IconButton
+                            aria-label="회원 삭제"
+                            icon={<DeleteIcon />}
+                            size="sm"
+                            bg="#004ea8"
+                            color="white"
+                            _hover={{ bg: "#003d7a" }}
+                            onClick={() => {
+                              setSelectedMember(member);
+                              onDeleteModalOpen();
+                            }}
+                          />
+                        </Tooltip>
+                      )}
                     </HStack>
                   </Td>
                 </Tr>
@@ -675,6 +680,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                 <Select
                   value={editingMember?.role || 'MEMBER'}
                   onChange={(e) => setEditingMember(prev => prev ? {...prev, role: e.target.value as any} : null)}
+                  isDisabled={!isSuperAdmin}
                 >
                   <option value="MEMBER">회원</option>
                   <option value="ADMIN">관리자</option>
@@ -691,12 +697,11 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                   <option value="ACTIVE">활성</option>
                   <option value="INACTIVE">비활성</option>
                   <option value="SUSPENDED">정지</option>
-                  <option value="DELETED">삭제됨</option>
                 </Select>
               </FormControl>
               
               {/* 비밀번호 초기화 버튼 (기존 회원 수정 시에만 표시) */}
-              {editingMember?.id !== 0 && (
+              {isSuperAdmin && editingMember?.id !== 0 && (
                 <FormControl>
                   <FormLabel>비밀번호 관리</FormLabel>
                   <Button

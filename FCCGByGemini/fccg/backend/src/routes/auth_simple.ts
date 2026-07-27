@@ -1,5 +1,12 @@
 import express from 'express';
-import { authenticateToken } from '../middlewares/authMiddleware';
+import { authenticateToken, optionalAuthenticateToken } from '../middlewares/authMiddleware';
+import {
+  canCreateRole,
+  canUpdateMemberRole,
+  requireAdmin,
+  requireSuperAdmin,
+  USER_ROLES
+} from '../middlewares/authorization';
 import { PrismaClient } from '@prisma/client';
 import { v2 as cloudinary } from 'cloudinary';
 import { authLimiter } from '../middlewares/security';
@@ -27,6 +34,9 @@ import {
   validateAndFixSessionState
 } from '../utils/voteSessionManager';
 import { renderGameReminderMailPng, type GameMailImageInput } from '../utils/gameReminderImage';
+import { buildVoteParticipationSummary } from '../services/voteParticipation';
+import { getJwtSecret } from '../utils/jwtSecret';
+import { generateTempPassword } from '../utils/password';
 
 const prisma = new PrismaClient();
 const AUTH_TOKEN_EXPIRES_IN = (process.env.AUTH_TOKEN_EXPIRES_IN || '365d') as import('jsonwebtoken').SignOptions['expiresIn'];
@@ -155,7 +165,7 @@ const formatDateWithDay = (date: Date) => {
 };
 
 /** 활성/차주 세션 공통 직렬화 (votes 없음도 0표로 반환) */
-function buildProcessedVoteSession(filteredActiveSession: any): any | null {
+function buildProcessedVoteSession(filteredActiveSession: any, allMembers: any[] = []): any | null {
   if (!filteredActiveSession) {
     return null;
   }
@@ -227,6 +237,7 @@ function buildProcessedVoteSession(filteredActiveSession: any): any | null {
     isActive: filteredActiveSession.isActive,
     isCompleted: filteredActiveSession.isCompleted,
     participants,
+    participation: buildVoteParticipationSummary(allMembers, participants),
     results,
     disabledDays: disabledDaysArray,
     totalParticipants: participants.length,
@@ -278,7 +289,7 @@ router.get('/auth/google/callback', async (req, res) => {
     }
 
     console.log('✅ Gmail OAuth 인증 성공');
-    console.log('Refresh Token:', tokenData.refresh_token);
+    console.log('✅ Gmail OAuth refresh token 발급 완료');
     
     // 성공 페이지 반환
     res.send(`
@@ -432,7 +443,7 @@ router.post('/login', authLimiter, async (req, res) => {
         email: user.email,
         name: user.name 
       },
-      process.env.JWT_SECRET || 'fc-chalggyeo-secret',
+      getJwtSecret(),
       { expiresIn: AUTH_TOKEN_EXPIRES_IN }
     );
 
@@ -477,7 +488,7 @@ router.post('/refresh-token', authenticateToken, async (req, res) => {
         name: user.name,
         role: user.role
       },
-      process.env.JWT_SECRET || 'fc-chalggyeo-secret',
+      getJwtSecret(),
       { expiresIn: AUTH_TOKEN_EXPIRES_IN }
     );
 
@@ -509,7 +520,7 @@ router.post('/refresh-token', authenticateToken, async (req, res) => {
 // convertKoreanDateToDayCode는 voteUtils에서 import하여 사용
 
 // 투표 생성 API
-router.post('/votes', async (req, res) => {
+router.post('/votes', authenticateToken, async (req, res) => {
   try {
     const { selectedDays } = req.body;
     
@@ -536,7 +547,7 @@ router.post('/votes', async (req, res) => {
     const jwt = require('jsonwebtoken');
     
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fc-chalggyeo-secret');
+      const decoded = jwt.verify(token, getJwtSecret());
       const userId = decoded.userId;
 
       // 비활성 회원은 투표 차단
@@ -628,7 +639,7 @@ router.post('/votes', async (req, res) => {
 });
 
 // 투표 삭제 API
-router.delete('/votes/:userId', async (req, res) => {
+router.delete('/votes/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -644,7 +655,7 @@ router.delete('/votes/:userId', async (req, res) => {
     const jwt = require('jsonwebtoken');
     
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fc-chalggyeo-secret');
+      const decoded = jwt.verify(token, getJwtSecret());
       const currentUserId = decoded.userId;
 
       
@@ -692,7 +703,7 @@ router.delete('/votes/:userId', async (req, res) => {
 });
 
 // 투표 리셋 API (전체 투표 데이터 삭제)
-router.delete('/votes/reset', async (req, res) => {
+router.delete('/votes/reset', authenticateToken, async (req, res) => {
   try {
     // JWT 토큰에서 사용자 ID 추출
     const authHeader = req.headers.authorization;
@@ -706,7 +717,7 @@ router.delete('/votes/reset', async (req, res) => {
     const jwt = require('jsonwebtoken');
     
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fc-chalggyeo-secret');
+      const decoded = jwt.verify(token, getJwtSecret());
       const userId = decoded.userId;
 
       
@@ -735,11 +746,13 @@ router.delete('/votes/reset', async (req, res) => {
 
 
 // 회원/경기 데이터 통합 조회 API (GET)
-router.get('/members', async (req, res) => {
+router.get('/members', optionalAuthenticateToken, async (req, res) => {
   try {
+    const canSeePrivateMemberFields =
+      req.user?.role === USER_ROLES.ADMIN || req.user?.role === USER_ROLES.SUPER_ADMIN;
     
     // 1. 회원 목록 조회
-    const members = await prisma.user.findMany({
+    const memberRows = await prisma.user.findMany({
       where: { 
         role: { in: ['MEMBER', 'ADMIN', 'SUPER_ADMIN'] },
         status: { in: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] }
@@ -757,6 +770,9 @@ router.get('/members', async (req, res) => {
       },
       orderBy: { name: 'asc' }
     });
+    const members = canSeePrivateMemberFields
+      ? memberRows
+      : memberRows.map(({ email, createdAt, updatedAt, lastLoginAt, ...publicMember }) => publicMember);
     
     console.log('📊 /members API - 조회된 회원 수:', members.length);
     console.log('📊 /members API - 회원 목록:', members.map(m => ({ id: m.id, name: m.name, role: m.role, status: m.status })));
@@ -877,9 +893,23 @@ const processedGames = games.map(game => {
 });
 
 // 회원 추가 API (관리자용)
-router.post('/members', async (req, res) => {
+router.post('/members', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { name, email, password, role, status } = req.body;
+    const requesterRole = String(req.user?.role || '').toUpperCase();
+    const requestedRole = String(role || USER_ROLES.MEMBER).toUpperCase();
+    const allowedRoles = [USER_ROLES.MEMBER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN];
+    const allowedStatuses = ['ACTIVE', 'INACTIVE', 'SUSPENDED'];
+
+    if (!allowedRoles.includes(requestedRole as any)) {
+      return res.status(400).json({ error: '유효하지 않은 회원 역할입니다.' });
+    }
+    if (status && !allowedStatuses.includes(String(status).toUpperCase())) {
+      return res.status(400).json({ error: '유효하지 않은 회원 상태입니다.' });
+    }
+    if (!canCreateRole(requesterRole, requestedRole)) {
+      return res.status(403).json({ error: '관리자 권한 부여는 슈퍼관리자만 할 수 있습니다.' });
+    }
     
     console.log('회원 추가 요청:', { name, email, role, status });
     
@@ -908,8 +938,11 @@ router.post('/members', async (req, res) => {
       return res.status(400).json({ error: '이미 존재하는 이메일입니다.' });
     }
     
-    // 비밀번호 해시화
-    const hashedPassword = await bcrypt.hash(password || 'password123', 10);
+    const passwordToSet =
+      typeof password === 'string' && password.trim().length >= 6
+        ? password.trim()
+        : generateTempPassword();
+    const hashedPassword = await bcrypt.hash(passwordToSet, 10);
     
     // 새 회원 생성
     const newMember = await prisma.user.create({
@@ -917,8 +950,8 @@ router.post('/members', async (req, res) => {
         name,
         email,
         password: hashedPassword,
-        role: role || 'MEMBER',
-        status: status || 'ACTIVE'
+        role: requestedRole,
+        status: status ? String(status).toUpperCase() : 'ACTIVE'
       }
     });
     
@@ -934,7 +967,8 @@ router.post('/members', async (req, res) => {
         role: newMember.role,
         status: newMember.status,
         createdAt: newMember.createdAt
-      }
+      },
+      initialPassword: passwordToSet
     });
   } catch (error) {
     console.error('회원 추가 오류:', error);
@@ -946,11 +980,7 @@ router.post('/members', async (req, res) => {
 router.post('/register', authLimiter, async (req, res) => {
   try {
     console.log('🔍 회원가입 요청 받음:', {
-      body: req.body,
-      rawBody: JSON.stringify(req.body),
-      headers: req.headers,
       contentType: req.headers['content-type'],
-      bodyType: typeof req.body,
       bodyKeys: Object.keys(req.body || {}),
       bodyIsEmpty: !req.body || Object.keys(req.body).length === 0
     });
@@ -1040,7 +1070,7 @@ router.post('/register', authLimiter, async (req, res) => {
     // JWT 토큰 생성 (로그인과 동일하게)
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'fc-chalggyeo-secret',
+      getJwtSecret(),
       { expiresIn: AUTH_TOKEN_EXPIRES_IN }
     );
 
@@ -1226,7 +1256,7 @@ router.get('/games', async (req, res) => {
 });
 
 // 경기 생성 API
-router.post('/games', async (req, res) => {
+router.post('/games', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { date, time, location, locationAddress, gameType, eventType, memberNames, selectedMembers, mercenaryCount, autoGenerated } = req.body;
     
@@ -1242,7 +1272,7 @@ router.post('/games', async (req, res) => {
     const jwt = require('jsonwebtoken');
     
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fc-chalggyeo-secret');
+      const decoded = jwt.verify(token, getJwtSecret());
       const userId = decoded.userId;
 
       
@@ -1367,7 +1397,7 @@ router.post('/games', async (req, res) => {
 });
 
 // 경기 수정 API
-router.put('/games/:id', authenticateToken, async (req, res) => {
+router.put('/games/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { date, time, location, locationAddress, gameType, eventType, memberNames, selectedMembers, mercenaryCount } = req.body;
@@ -1574,7 +1604,7 @@ router.get('/votes/test', (req, res) => {
 });
 
 // 관리자 투표결과 API
-router.get('/admin/vote-sessions/results', async (req, res) => {
+router.get('/admin/vote-sessions/results', authenticateToken, requireAdmin, async (req, res) => {
   try {
     
     // 1. 만료된 세션 자동 비활성화 (일정투표기간이 지난 세션)
@@ -2076,7 +2106,7 @@ router.get('/votes/unified', async (req, res) => {
   }
 });
 
-router.post('/votes/aggregate/save', async (req, res) => {
+router.post('/votes/aggregate/save', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { sessionId } = req.body;
     
@@ -2211,7 +2241,7 @@ router.post('/votes/aggregate/save', async (req, res) => {
 });
 
 // 경기 삭제 API
-router.delete('/games/:id', authenticateToken, async (req, res) => {
+router.delete('/games/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const gameId = parseInt(id);
@@ -2259,7 +2289,7 @@ router.delete('/games/:id', authenticateToken, async (req, res) => {
 });
 
 // 투표 세션 마감 API
-router.post('/vote-sessions/:id/close', authenticateToken, async (req, res) => {
+router.post('/vote-sessions/:id/close', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const sessionId = parseInt(id);
@@ -2383,7 +2413,7 @@ router.post('/vote-sessions/:id/close', authenticateToken, async (req, res) => {
 });
 
 // 중복 투표 세션 정리 API (관리자용)
-router.post('/cleanup-duplicate-sessions', authenticateToken, async (req, res) => {
+router.post('/cleanup-duplicate-sessions', authenticateToken, requireAdmin, async (req, res) => {
   try {
     
     // 같은 주간을 대상으로 하는 세션들을 찾기
@@ -2549,7 +2579,7 @@ async function reorderSessionNumbers(prisma: any) {
 }
 
 // 투표 세션 삭제 API
-router.delete('/vote-sessions/:id', authenticateToken, async (req, res) => {
+router.delete('/vote-sessions/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const sessionId = parseInt(id);
@@ -2597,7 +2627,7 @@ router.delete('/vote-sessions/:id', authenticateToken, async (req, res) => {
 });
 
 // 투표 세션 재개 API
-router.post('/vote-sessions/:id/resume', authenticateToken, async (req, res) => {
+router.post('/vote-sessions/:id/resume', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const sessionId = parseInt(id);
@@ -2711,7 +2741,7 @@ router.get('/unified-vote-data', async (req, res) => {
       select: { id: true, name: true, status: true, role: true }
     });
 
-    const processedActiveSession = buildProcessedVoteSession(filteredActiveSession);
+    const processedActiveSession = buildProcessedVoteSession(filteredActiveSession, allMembers);
 
     // 다음주(한국 달력 기준 월요일) 투표 세션 — 마감(isActive:false) 후에도 실제 차주 집계 유지
     const nextWeekStartNorm = new Date(
@@ -2749,7 +2779,7 @@ router.get('/unified-vote-data', async (req, res) => {
         },
         orderBy: { id: 'desc' }
       });
-      processedNextWeekVoteSession = buildProcessedVoteSession(nextWeekRaw);
+      processedNextWeekVoteSession = buildProcessedVoteSession(nextWeekRaw, allMembers);
     }
 
     // 모든 세션 데이터 가공 (관리자 페이지용)
@@ -2895,9 +2925,15 @@ router.get('/unified-vote-data', async (req, res) => {
       totalParticipants: allSessions.reduce((sum, s) => sum + s.votes.length, 0)
     };
 
+    const voteParticipation =
+      processedNextWeekVoteSession?.participation ||
+      processedActiveSession?.participation ||
+      buildVoteParticipationSummary(allMembers, []);
+
     const response = {
       activeSession: processedActiveSession,
       nextWeekVoteSession: processedNextWeekVoteSession,
+      voteParticipation,
       lastWeekResults: lastWeekResults,
       allSessions: processedSessions,
       allMembers,
@@ -3322,7 +3358,7 @@ const scheduleWeeklyVoteSession = () => {
 };
 
 // 회원 수정 API
-router.put('/members/:id', authenticateToken, async (req, res) => {
+router.put('/members/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     
     const memberId = parseInt(req.params.id);
@@ -3335,17 +3371,58 @@ router.put('/members/:id', authenticateToken, async (req, res) => {
       });
     }
 
+    const targetMember = await prisma.user.findUnique({
+      where: { id: memberId },
+      select: { id: true, role: true, status: true }
+    });
+    if (!targetMember) {
+      return res.status(404).json({
+        success: false,
+        message: '해당 회원을 찾을 수 없습니다.'
+      });
+    }
+
+    const requesterRole = String(req.user?.role || '').toUpperCase();
+    const requestedRole = role === undefined ? targetMember.role : String(role).toUpperCase();
+    const requestedStatus = status === undefined ? targetMember.status : String(status).toUpperCase();
+    const allowedRoles = [USER_ROLES.MEMBER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN];
+    const allowedStatuses = ['ACTIVE', 'INACTIVE', 'SUSPENDED'];
+
+    if (!allowedRoles.includes(requestedRole as any) || !allowedStatuses.includes(requestedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: '유효하지 않은 역할 또는 회원 상태입니다.'
+      });
+    }
+    if (!canUpdateMemberRole(requesterRole, targetMember.role, requestedRole)) {
+      return res.status(403).json({
+        success: false,
+        message: '관리자는 일반회원 정보와 상태만 변경할 수 있습니다.'
+      });
+    }
+
     const updatedMember = await prisma.user.update({
       where: { id: memberId },
       data: {
         name,
         email,
-        role,
-        status
+        role: requestedRole,
+        status: requestedStatus
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        attendance: true,
+        createdAt: true,
+        updatedAt: true,
+        lastLoginAt: true
       }
     });
 
-    if (status === 'INACTIVE' || status === 'SUSPENDED') {
+    if (requestedStatus === 'INACTIVE' || requestedStatus === 'SUSPENDED') {
       const removed = await deleteVotesForUserInIncompleteSessions(memberId);
       if (removed > 0) {
         console.log('🧹 회원 비활성/정지 → 미완료 세션 투표 삭제:', { memberId, removed });
@@ -3409,7 +3486,7 @@ router.put('/change-password', authenticateToken, async (req, res) => {
 
     // 새 비밀번호 해시 생성
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    console.log('✅ 새 비밀번호 해시 생성 완료:', hashedPassword.substring(0, 30) + '...');
+    console.log('✅ 새 비밀번호 해시 생성 완료');
     
     // 비밀번호 업데이트
     const updatedUser = await prisma.user.update({
@@ -3446,15 +3523,6 @@ router.put('/change-password', authenticateToken, async (req, res) => {
     });
   }
 });
-
-const generateTempPassword = (length = 10) => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
 
 const smallTalkRules = [
   {
@@ -3623,7 +3691,7 @@ const buildScheduleAnswer = async () => {
 };
 
 // 관리자용 비밀번호 초기화 API
-router.post('/members/:id/reset-password', authenticateToken, async (req, res) => {
+router.post('/members/:id/reset-password', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     console.log('🔐 비밀번호 초기화 요청 수신:', {
       requesterId: req.user?.userId,
@@ -3631,15 +3699,6 @@ router.post('/members/:id/reset-password', authenticateToken, async (req, res) =
       targetMemberId: req.params?.id
     });
     
-    const requesterRole = String(req.user?.role || '').toUpperCase().trim();
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(requesterRole)) {
-      console.warn('⚠️ 비밀번호 초기화 권한 부족:', req.user?.role);
-      return res.status(403).json({
-        success: false,
-        message: '비밀번호 초기화 권한이 없습니다. (관리자/슈퍼관리자만 가능)'
-      });
-    }
-
     const memberId = parseInt(req.params.id, 10);
     if (Number.isNaN(memberId)) {
       return res.status(400).json({
@@ -3795,174 +3854,8 @@ router.put('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// 통합 투표 데이터 API (DEPRECATED - /unified-vote-data 사용 권장)
-router.get('/votes/unified', async (req, res) => {
-  try {
-    console.warn('⚠️ /votes/unified는 deprecated되었습니다. /unified-vote-data를 사용해주세요.');
-    
-    // 세션 상태 검증 및 자동 수정
-    await validateAndFixSessionState();
-    
-    // 활성 투표 세션 조회 (안전한 조회)
-    const activeSession = await getActiveSession(true);
-    
-    // 날짜 계산 (유틸리티 함수 사용)
-    const koreaTime = getKoreaTime();
-    const thisWeekMonday = getThisWeekMonday(koreaTime);
-    const thisWeekFriday = getWeekFriday(thisWeekMonday);
-    
-    console.log('🔍 이번주 월요일 주간 범위:', {
-      thisWeekMonday: thisWeekMonday.toISOString(),
-      thisWeekFriday: thisWeekFriday.toISOString()
-    });
-    
-    // 이번주 월요일 주간에 해당하는 완료된 세션 조회
-    const lastWeekSession = await prisma.voteSession.findFirst({
-      where: { 
-        isCompleted: true,
-        weekStartDate: {
-          gte: thisWeekMonday,
-          lte: thisWeekFriday
-        },
-        votes: {
-          some: {} // 투표 데이터가 있는 세션만
-        }
-      },
-      include: {
-        votes: {
-          include: {
-            user: {
-              select: { id: true, name: true, status: true }
-            }
-          }
-        }
-      },
-      orderBy: { weekStartDate: 'desc' }
-    });
-    
-    console.log('🔍 이번주 주간 완료 세션:', {
-      found: !!lastWeekSession,
-      sessionId: lastWeekSession?.id,
-      weekStartDate: lastWeekSession?.weekStartDate,
-      voteCount: lastWeekSession?.votes.length
-    });
-    
-    // 모든 세션 조회
-    const allSessions = await prisma.voteSession.findMany({
-      include: {
-        votes: {
-          include: {
-            voteSession: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    
-    // 활성 세션 데이터 처리
-    let activeSessionData = null;
-    if (activeSession) {
-      const dayVotes = {
-        MON: { count: 0, participants: [] },
-        TUE: { count: 0, participants: [] },
-        WED: { count: 0, participants: [] },
-        THU: { count: 0, participants: [] },
-        FRI: { count: 0, participants: [] }
-      };
-      
-      const activeVotesDep = filterVotesForResultsDisplay(activeSession.votes);
-      activeVotesDep.forEach(vote => {
-        const selectedDays = parseVoteDays(vote.selectedDays);
-        selectedDays.forEach((day: string) => {
-          const dayKey = convertKoreanDateToDayCode(day);
-          if (dayKey && dayVotes[dayKey as keyof typeof dayVotes]) {
-            dayVotes[dayKey as keyof typeof dayVotes].count++;
-            dayVotes[dayKey as keyof typeof dayVotes].participants.push({
-              userId: vote.userId,
-              userName: vote.user?.name || '알 수 없음'
-            });
-          }
-        });
-      });
-      
-      activeSessionData = {
-        sessionId: activeSession.id,
-        weekStartDate: activeSession.weekStartDate,
-        startTime: activeSession.startTime,
-        endTime: activeSession.endTime,
-        isActive: activeSession.isActive,
-        isCompleted: activeSession.isCompleted,
-        totalParticipants: activeVotesDep.length,
-        results: dayVotes,
-        votes: activeVotesDep
-      };
-    }
-    
-    // 지난 주 세션 데이터 처리
-    let lastWeekResults = null;
-    if (lastWeekSession) {
-      const dayVotes = {
-        MON: { count: 0, participants: [] },
-        TUE: { count: 0, participants: [] },
-        WED: { count: 0, participants: [] },
-        THU: { count: 0, participants: [] },
-        FRI: { count: 0, participants: [] }
-      };
-      
-      const lastVotesDep = filterVotesForResultsDisplay(lastWeekSession.votes);
-      lastVotesDep.forEach(vote => {
-        const selectedDays = parseVoteDays(vote.selectedDays);
-        selectedDays.forEach((day: string) => {
-          const dayKey = convertKoreanDateToDayCode(day);
-          if (dayKey && dayVotes[dayKey as keyof typeof dayVotes]) {
-            dayVotes[dayKey as keyof typeof dayVotes].count++;
-            dayVotes[dayKey as keyof typeof dayVotes].participants.push({
-              userId: vote.userId,
-              userName: vote.user?.name || '알 수 없음'
-            });
-          }
-        });
-      });
-      
-      lastWeekResults = {
-        sessionId: lastWeekSession.id,
-        weekStartDate: lastWeekSession.weekStartDate,
-        startTime: lastWeekSession.startTime,
-        endTime: lastWeekSession.endTime,
-        isActive: lastWeekSession.isActive,
-        isCompleted: lastWeekSession.isCompleted,
-        totalParticipants: lastVotesDep.length,
-        results: dayVotes
-      };
-    }
-    
-    res.json({
-      success: true,
-      activeSession: activeSessionData,
-      lastWeekResults: lastWeekResults,
-      allSessions: allSessions.map(session => ({
-        id: session.id,
-        weekStartDate: session.weekStartDate,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        isActive: session.isActive,
-        isCompleted: session.isCompleted,
-        voteCount: session.votes.length,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt
-      }))
-    });
-  } catch (error) {
-    console.error('통합 투표 데이터 조회 오류:', error);
-    res.status(500).json({
-      success: false,
-      message: '통합 투표 데이터 조회 중 오류가 발생했습니다.'
-    });
-  }
-});
-
 // 투표 세션 요약 API
-router.get('/votes/sessions/summary', async (req, res) => {
+router.get('/votes/sessions/summary', authenticateToken, requireAdmin, async (req, res) => {
   try {
     // 세션 상태 검증 및 자동 수정
     await validateAndFixSessionState();
@@ -4049,7 +3942,7 @@ router.get('/votes/sessions/summary', async (req, res) => {
 });
 
 // 회원 삭제 API
-router.delete('/members/:id', authenticateToken, async (req, res) => {
+router.delete('/members/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     
     const memberId = parseInt(req.params.id);
@@ -4423,7 +4316,7 @@ async function sendGameConfirmationNotification(game) {
 }
 
 // 발송 대상자 리스트 확인 API
-router.get('/notification-recipients', authenticateToken, async (req, res) => {
+router.get('/notification-recipients', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { target, gameIds } = req.query;
     
@@ -4531,7 +4424,7 @@ router.get('/notification-recipients', authenticateToken, async (req, res) => {
 });
 
 // 테스트 알림 발송 API
-router.post('/send-test-notification', authenticateToken, async (req, res) => {
+router.post('/send-test-notification', authenticateToken, requireAdmin, async (req, res) => {
   try {
     
     const { recipients, title, message } = req.body;
@@ -4688,7 +4581,7 @@ router.post('/send-test-notification', authenticateToken, async (req, res) => {
 });
 
 // 경기 알림 이미지(PNG) 프리뷰/검증용 (실제 메일 발송과 동일 렌더러)
-router.post('/render-game-mail-image', authenticateToken, async (req, res) => {
+router.post('/render-game-mail-image', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const gameMailImage = req.body.gameMailImage as GameMailImageInput | undefined;
     if (!gameMailImage || !Array.isArray(gameMailImage.games)) {
@@ -4934,7 +4827,7 @@ router.get('/gallery', async (req, res) => {
       try {
         const token = authHeader.split(' ')[1];
         const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fc-chalggyeo-secret');
+        const decoded = jwt.verify(token, getJwtSecret());
         currentUserId = decoded.userId;
       } catch (err) {
         // 토큰이 유효하지 않으면 무시 (공개 접근 허용)
@@ -5738,346 +5631,8 @@ async function deleteOtherAutoGeneratedGames(prisma, confirmedGameId, confirmedG
   }
 }
 
-// 경기 수정 API
-router.put('/games/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { date, time, location, locationAddress, eventType, selectedMembers, mercenaryCount, manualMembers } = req.body;
-    
-    console.log(`✏️ 경기 수정 요청: ${id}`, { date, time, location, eventType });
-    
-    // 게임 존재 확인
-    const existingGame = await prisma.game.findUnique({
-      where: { id: parseInt(id) }
-    });
-    
-    if (!existingGame) {
-      return res.status(404).json({ 
-        error: '게임을 찾을 수 없습니다.' 
-      });
-    }
-    
-    // 중복 체크 (같은 날짜에 다른 게임이 있는지 확인, 단 자동생성된 게임은 제외)
-    if (date) {
-      const gameDate = new Date(date);
-      const existingGames = await prisma.game.findMany({
-        where: {
-          id: { not: parseInt(id) },
-          date: {
-            gte: new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate()),
-            lt: new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate() + 1)
-          },
-          autoGenerated: false // 자동생성된 게임은 제외
-        }
-      });
-      
-      if (existingGames.length > 0) {
-        return res.status(400).json({
-          error: '같은 날짜에 이미 다른 경기가 있습니다.'
-        });
-      }
-    }
-    
-    // 게임 정보 업데이트
-    const updatedGame = await prisma.game.update({
-      where: { id: parseInt(id) },
-      data: {
-        date: date ? new Date(date) : existingGame.date,
-        time: time || existingGame.time,
-        location: location || existingGame.location,
-        locationAddress: locationAddress !== undefined ? locationAddress : existingGame.locationAddress,
-        eventType: eventType || existingGame.eventType,
-        autoGenerated: false, // 수정 시 자동생성 플래그 해제
-        createdById: req.user.userId, // 수정한 사용자로 변경
-        updatedAt: new Date()
-      }
-    });
-    
-    // 기존 참석자 정보 삭제
-    await prisma.attendance.deleteMany({
-      where: { gameId: parseInt(id) }
-    });
-    
-    // 새로운 참석자 정보 추가
-    if (selectedMembers && selectedMembers.length > 0) {
-      for (const memberId of selectedMembers) {
-        await prisma.attendance.create({
-          data: {
-            gameId: parseInt(id),
-            userId: memberId,
-            status: 'attending'
-          }
-        });
-      }
-    }
-    
-    // 용병 정보는 mercenaryCount 필드에 저장 (Attendance 모델에는 용병 필드가 없으므로 별도 처리 불필요)
-    // 수기 입력 멤버는 memberNames 필드에 저장 (Attendance 모델에는 manualName 필드가 없으므로 별도 처리 불필요)
-    
-    console.log(`✅ 경기 수정 완료: ${id}`);
-    
-    res.json({
-      success: true,
-      message: '경기가 성공적으로 수정되었습니다.',
-      data: updatedGame
-    });
-    
-  } catch (error) {
-    console.error('❌ 경기 수정 오류:', error);
-    res.status(500).json({ 
-      error: '경기 수정 중 오류가 발생했습니다.' 
-    });
-  }
-});
-
-// 경기 삭제 API
-router.delete('/games/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    console.log(`🗑️ 경기 삭제 요청: ${id}`);
-    
-    // 게임 존재 확인
-    const game = await prisma.game.findUnique({
-      where: { id: parseInt(id) }
-    });
-    
-    if (!game) {
-      return res.status(404).json({ 
-        error: '게임을 찾을 수 없습니다.' 
-      });
-    }
-    
-    // 참석자 정보 먼저 삭제
-    await prisma.attendance.deleteMany({
-      where: { gameId: parseInt(id) }
-    });
-    
-    // 게임 삭제
-    await prisma.game.delete({
-      where: { id: parseInt(id) }
-    });
-    
-    console.log(`✅ 경기 삭제 완료: ${id}`);
-    
-    res.json({
-      success: true,
-      message: '경기가 성공적으로 삭제되었습니다.'
-    });
-    
-  } catch (error) {
-    console.error('❌ 경기 삭제 오류:', error);
-    res.status(500).json({ 
-      error: '경기 삭제 중 오류가 발생했습니다.' 
-    });
-  }
-});
-
-// 게임 관련 API 엔드포인트
-// 게임 목록 조회
-router.get('/games', authenticateToken, async (req, res) => {
-  try {
-    
-    const games = await prisma.game.findMany({
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      },
-      orderBy: {
-        date: 'asc'
-      }
-    });
-    
-    res.json(games);
-  } catch (error) {
-    console.error('❌ 경기 목록 조회 오류:', error);
-    res.status(500).json({ error: '경기 목록 조회 중 오류가 발생했습니다.' });
-  }
-});
-
-// 게임 생성
-router.post('/games', authenticateToken, async (req, res) => {
-  try {
-    const { date, time, location, locationAddress, gameType, eventType, memberNames, selectedMembers, mercenaryCount, autoGenerated } = req.body;
-    const userId = req.user.userId;
-    
-    console.log('🎮 게임 생성 요청:', { date, time, location, eventType, autoGenerated });
-    
-    
-    // 날짜 형식 변환
-    const gameDate = new Date(date);
-    
-    // 중복 체크 (같은 날짜에 이미 게임이 있는지 확인)
-    const existingGame = await prisma.game.findFirst({
-      where: {
-        date: {
-          gte: new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate()),
-          lt: new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate() + 1)
-        },
-        autoGenerated: false // 자동생성된 게임은 중복 체크에서 제외
-      }
-    });
-    
-    if (existingGame && !autoGenerated) {
-      return res.status(400).json({ error: '해당 날짜에 이미 경기가 있습니다.' });
-    }
-    
-    // 멤버 이름 배열 처리
-    const namesArray = Array.isArray(memberNames) ? memberNames : [];
-    const selectedArray = Array.isArray(selectedMembers) ? selectedMembers : [];
-    
-    const game = await prisma.game.create({
-      data: {
-        date: gameDate,
-        time: time || '미정',
-        location: location || '장소 미정',
-        locationAddress: locationAddress || null,
-        gameType: gameType || '미정',
-        eventType: eventType || '미정',
-        createdById: userId,
-        autoGenerated: autoGenerated || false,
-        confirmed: true,
-        mercenaryCount: mercenaryCount || 0,
-        memberNames: JSON.stringify(namesArray),
-        selectedMembers: JSON.stringify(selectedArray)
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
-    });
-    
-    console.log('✅ 게임 생성 완료:', game);
-    res.status(201).json({ success: true, data: game });
-  } catch (error) {
-    console.error('❌ 경기 생성 오류:', error);
-    res.status(500).json({ error: '경기 생성 중 오류가 발생했습니다.' });
-  }
-});
-
-// 게임 수정
-router.put('/games/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { date, time, location, locationAddress, gameType, eventType, memberNames, selectedMembers, mercenaryCount } = req.body;
-    const userId = req.user.userId;
-    
-    console.log('🎮 게임 수정 요청:', { id, date, time, location, eventType });
-    
-    
-    // 게임 존재 확인
-    const existingGame = await prisma.game.findUnique({
-      where: { id: parseInt(id) }
-    });
-    
-    if (!existingGame) {
-      return res.status(404).json({ error: '경기를 찾을 수 없습니다.' });
-    }
-    
-    // 날짜 형식 변환
-    const gameDate = new Date(date);
-    
-    // 중복 체크 (자동생성된 게임은 제외)
-    if (!existingGame.autoGenerated) {
-      const duplicateGame = await prisma.game.findFirst({
-        where: {
-          date: {
-            gte: new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate()),
-            lt: new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate() + 1)
-          },
-          autoGenerated: false,
-          id: { not: parseInt(id) }
-        }
-      });
-      
-      if (duplicateGame) {
-        return res.status(400).json({ error: '해당 날짜에 이미 경기가 있습니다.' });
-      }
-    }
-    
-    // 멤버 이름 배열 처리
-    const namesArray = Array.isArray(memberNames) ? memberNames : [];
-    const selectedArray = Array.isArray(selectedMembers) ? selectedMembers : [];
-    
-    const updatedGame = await prisma.game.update({
-      where: { id: parseInt(id) },
-      data: {
-        date: gameDate,
-        time: time || existingGame.time,
-        location: location || existingGame.location,
-        locationAddress: locationAddress !== undefined ? locationAddress : existingGame.locationAddress,
-        gameType: gameType || existingGame.gameType,
-        eventType: eventType || existingGame.eventType,
-        createdById: userId,
-        autoGenerated: false, // 수정 시 자동생성 플래그 해제
-        confirmed: true,
-        mercenaryCount: mercenaryCount || existingGame.mercenaryCount,
-        memberNames: JSON.stringify(namesArray),
-        selectedMembers: JSON.stringify(selectedArray)
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
-    });
-    
-    console.log('✅ 게임 수정 완료:', updatedGame);
-    res.json({ success: true, data: updatedGame });
-  } catch (error) {
-    console.error('❌ 경기 수정 오류:', error);
-    res.status(500).json({ error: '경기 수정 중 오류가 발생했습니다.' });
-  }
-});
-
-// 게임 삭제
-router.delete('/games/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    console.log('🎮 게임 삭제 요청:', { id });
-    
-    
-    // 게임 존재 확인
-    const existingGame = await prisma.game.findUnique({
-      where: { id: parseInt(id) }
-    });
-    
-    if (!existingGame) {
-      return res.status(404).json({ error: '경기를 찾을 수 없습니다.' });
-    }
-    
-    // 관련 출석 기록도 함께 삭제
-    await prisma.attendance.deleteMany({
-      where: { gameId: parseInt(id) }
-    });
-    
-    // 게임 삭제
-    await prisma.game.delete({
-      where: { id: parseInt(id) }
-    });
-    
-    console.log('✅ 게임 삭제 완료:', { id });
-    res.json({ success: true, message: '경기가 삭제되었습니다.' });
-  } catch (error) {
-    console.error('❌ 경기 삭제 오류:', error);
-    res.status(500).json({ error: '경기 삭제 중 오류가 발생했습니다.' });
-  }
-});
-
 // 활동 분석 통계 API
-router.get('/activity-analysis', authenticateToken, async (req, res) => {
+router.get('/activity-analysis', authenticateToken, requireAdmin, async (req, res) => {
   try {
 
     // 현재 날짜 기준으로 이번 달 계산
@@ -6560,7 +6115,7 @@ router.post('/normalize-data', authenticateToken, async (req, res) => {
 });
 
 // 투표 알림 테스트 발송 API (테스트용 - 인증 없이 사용 가능)
-router.post('/send-vote-notification-test', async (req, res) => {
+router.post('/send-vote-notification-test', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
     
@@ -6712,7 +6267,7 @@ router.post('/send-vote-notification-test', async (req, res) => {
 });
 
 // 경기 알림 테스트 발송 API (테스트용 - 인증 없이 사용 가능)
-router.post('/send-game-notification-test', async (req, res) => {
+router.post('/send-game-notification-test', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
     
