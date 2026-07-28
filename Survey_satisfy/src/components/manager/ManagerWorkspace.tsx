@@ -154,11 +154,11 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
           <div className="mt-6 hidden gap-2 sm:grid">
             <button
               type="button"
-              disabled={isActivating || isActivated || current.status === "종료"}
+              disabled={isActivating || isActivated}
               onClick={() => void handleActivateSurvey()}
               className="focus-ring label-machined min-h-12 border border-white px-4 hover:bg-white hover:text-black disabled:opacity-50"
             >
-              {isActivated ? "진행 중" : isActivating ? "시작 중" : "설문 시작"}
+              {isActivated ? "진행 중" : isActivating ? "시작 중" : current.status === "종료" ? "설문 다시 시작" : "설문 시작"}
             </button>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => void handleCopyLink()} className="focus-ring min-h-11 border border-[var(--hairline)] text-xs font-bold text-[var(--text-body)]">
@@ -243,14 +243,14 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--hairline)] bg-black/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
         <div className="grid grid-cols-2 gap-2 p-3">
-          {!isActivated && current.status !== "종료" ? (
+          {!isActivated ? (
             <button
               type="button"
               disabled={isActivating}
               onClick={() => void handleActivateSurvey()}
               className="focus-ring col-span-2 min-h-12 border border-white bg-white text-sm font-bold text-black disabled:opacity-50"
             >
-              {isActivating ? "시작 중" : "설문 시작"}
+              {isActivating ? "시작 중" : current.status === "종료" ? "설문 다시 시작" : "설문 시작"}
             </button>
           ) : null}
           <button type="button" onClick={() => void handleCopyLink()} className="focus-ring min-h-11 border border-[var(--hairline)] text-xs font-bold text-[var(--text-body)]">

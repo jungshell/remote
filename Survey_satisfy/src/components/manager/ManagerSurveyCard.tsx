@@ -30,7 +30,7 @@ export function ManagerSurveyCard({
   onShowQr,
   onClone,
 }: ManagerSurveyCardProps) {
-  const canStart = survey.status === "작성중";
+  const canStart = survey.status === "작성중" || survey.status === "종료";
   const isActive = survey.status === "진행중";
   const surveyUrl = buildParticipantSurveyUrl(survey.id);
 
@@ -69,7 +69,12 @@ export function ManagerSurveyCard({
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {canStart ? (
-          <ActionButton label={isBusy ? "시작 중" : "시작"} primary onClick={onStart} disabled={isBusy} />
+          <ActionButton
+            label={isBusy ? "시작 중" : survey.status === "종료" ? "다시 시작" : "시작"}
+            primary
+            onClick={onStart}
+            disabled={isBusy}
+          />
         ) : null}
         {isActive ? <ActionButton label="QR" primary onClick={onShowQr} /> : null}
         <ActionButton label="링크 복사" onClick={onCopyLink} />
