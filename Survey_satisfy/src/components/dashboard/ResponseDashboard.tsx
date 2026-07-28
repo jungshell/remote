@@ -47,6 +47,7 @@ interface ResponseDashboardProps {
 interface SurveyOption {
   id: string;
   title: string;
+  business: string;
   sub_business: string;
   division: string;
   program_type: string;
@@ -75,7 +76,9 @@ export function ResponseDashboard({
   const [selectedSurveyId, setSelectedSurveyId] = useState(initialSurveyId ?? "");
   const [selectedDivision, setSelectedDivision] = useState("");
   const [selectedProgramType, setSelectedProgramType] = useState("");
-  const [selectedYear, setSelectedYear] = useState("");
+  // 관리자 화면은 처음 진입 시 당해년도를 기본 선택
+  const [selectedYear, setSelectedYear] = useState(mode === "admin" ? String(new Date().getFullYear()) : "");
+  const [selectedBusiness, setSelectedBusiness] = useState("");
   const [selectedRound, setSelectedRound] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -154,15 +157,16 @@ export function ResponseDashboard({
   const surveyById = useMemo(() => new Map(surveys.map((survey) => [survey.id, survey] as const)), [surveys]);
 
   const filteredRows = useMemo(() => {
-    if (mode !== "admin" || (!selectedYear && !selectedRound)) return rows;
+    if (mode !== "admin" || (!selectedYear && !selectedRound && !selectedBusiness)) return rows;
     return rows.filter((row) => {
       const survey = surveyById.get(row.survey_id);
       if (!survey) return false;
       if (selectedYear && String(survey.year ?? "") !== selectedYear) return false;
       if (selectedRound && String(survey.round ?? "") !== selectedRound) return false;
+      if (selectedBusiness && survey.business !== selectedBusiness) return false;
       return true;
     });
-  }, [mode, selectedYear, selectedRound, rows, surveyById]);
+  }, [mode, selectedYear, selectedRound, selectedBusiness, rows, surveyById]);
 
   const activeQuestions = useMemo(() => {
     if (initialQuestions?.length) return initialQuestions;
@@ -247,6 +251,23 @@ export function ResponseDashboard({
     () => Array.from(new Set(yearFilteredSurveys.map((survey) => survey.round ?? 1))).sort((a, b) => a - b),
     [yearFilteredSurveys],
   );
+  const businessOptions = useMemo(
+    () => Array.from(new Set(yearFilteredSurveys.map((survey) => survey.business).filter(Boolean))).sort(),
+    [yearFilteredSurveys],
+  );
+
+  // 사업명을 고르면 그 사업의 사업유형을 자동 선택
+  function handleBusinessFilterChange(value: string) {
+    setSelectedBusiness(value);
+    if (value) {
+      const match = surveys.find((survey) => survey.business === value);
+      if (match?.program_type) {
+        setSelectedProgramType(match.program_type);
+      }
+    } else {
+      setSelectedProgramType("");
+    }
+  }
 
   const isEmpty = !isLoading && metrics.responseCount === 0;
   const heroTitle =
@@ -326,7 +347,7 @@ export function ResponseDashboard({
       </div>
 
       <div className="panel animate-enter p-4 sm:p-6" style={{ animationDelay: "60ms" }}>
-        <div className={`grid gap-4 ${mode === "admin" ? "grid-cols-2 md:grid-cols-4" : ""}`}>
+        <div className={`grid gap-4 ${mode === "admin" ? "grid-cols-2 md:grid-cols-5" : ""}`}>
           {mode === "staff" ? (
             !initialSurveyId ? (
               <FilterField label="설문 선택">
@@ -369,6 +390,20 @@ export function ResponseDashboard({
                   {divisionOptions.map((division) => (
                     <option key={division} value={division}>
                       {division}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField label="사업명">
+                <select
+                  value={selectedBusiness}
+                  onChange={(event) => handleBusinessFilterChange(event.target.value)}
+                  className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
+                >
+                  <option value="">전체</option>
+                  {businessOptions.map((business) => (
+                    <option key={business} value={business}>
+                      {business}
                     </option>
                   ))}
                 </select>

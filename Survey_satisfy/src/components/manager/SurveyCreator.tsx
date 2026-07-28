@@ -349,6 +349,7 @@ export function SurveyCreator({ profile, onCreated, onCancel, cloneSource }: Sur
           endsAt,
           selectedQuestionIds: selectedIds,
           customQuestions,
+          activate: true,
         }),
       });
 
@@ -359,7 +360,7 @@ export function SurveyCreator({ profile, onCreated, onCancel, cloneSource }: Sur
         return;
       }
 
-      setStatus("설문이 생성되었습니다. 운영 화면으로 이동합니다.");
+      setStatus("설문이 생성되어 바로 시작되었습니다. 운영 화면으로 이동합니다.");
       onCreated(data.survey);
     } catch {
       setStatus("설문 생성 중 오류가 발생했습니다.");
@@ -631,7 +632,7 @@ export function SurveyCreator({ profile, onCreated, onCancel, cloneSource }: Sur
             onClick={() => void handleCreate()}
             className="focus-ring label-machined min-h-12 border border-white px-8 text-white hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
           >
-            {isSubmitting ? "생성 중" : "설문 생성"}
+            {isSubmitting ? "생성 중" : "설문 생성 · 바로 시작"}
           </button>
         </div>
       </div>

@@ -6,10 +6,10 @@ import { useEffect, useState } from "react";
 import { fetchCurrentUser, logout } from "@/lib/auth/access";
 import type { AuthUser } from "@/lib/auth/types";
 
-const links = [
-  { href: "/", label: "Dashboard" },
-  { href: "/manager", label: "Manager" },
-  { href: "/admin", label: "Admin" },
+const allLinks = [
+  { href: "/", label: "Dashboard", adminOnly: false },
+  { href: "/manager", label: "Manager", adminOnly: false },
+  { href: "/admin", label: "Admin", adminOnly: true },
 ];
 
 export function RoleAwareTopNav() {
@@ -21,6 +21,9 @@ export function RoleAwareTopNav() {
   useEffect(() => {
     void fetchCurrentUser().then(setUser);
   }, [pathname]);
+
+  // 관리자 전용 메뉴는 총괄관리자에게만 노출
+  const links = allLinks.filter((link) => !link.adminOnly || user?.role === "admin");
 
   if (isSurveyRoute) {
     return null;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GoogleActionPanel } from "@/components/manager/GoogleActionPanel";
 import { QrPreview } from "@/components/manager/QrPreview";
 import { SurveyDraftEditor } from "@/components/manager/SurveyDraftEditor";
@@ -39,6 +39,11 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
     setCurrent(survey);
     setIsActivated(survey.status === "진행중");
   }
+
+  // 설문 운영 화면이 열리면(또는 다른 설문으로 바뀌면) 맨 위로 스크롤
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [survey.id]);
 
   async function handleActivateSurvey() {
     setIsActivating(true);
@@ -78,6 +83,10 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
     }
   }
 
+  const shareMessage =
+    `[충남콘텐츠진흥원 만족도 조사] "${current.title}" 설문에 참여해 주세요.\n` +
+    `소중한 의견이 사업 개선에 큰 도움이 됩니다. (약 2~3분 소요)\n${surveyUrl}`;
+
   async function handleCopyLink() {
     try {
       await navigator.clipboard.writeText(surveyUrl);
@@ -90,13 +99,23 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
   async function handleShare() {
     if (navigator.share) {
       try {
-        await navigator.share({ title: current.title, text: `${current.title} 참여 링크`, url: surveyUrl });
+        await navigator.share({
+          title: `${current.title} 참여 요청`,
+          text: shareMessage,
+          url: surveyUrl,
+        });
         return;
       } catch {
-        // fall through
+        // fall through (사용자 취소 등)
       }
     }
-    await handleCopyLink();
+    // 공유 미지원 브라우저: 안내 문구 전체를 클립보드로 복사
+    try {
+      await navigator.clipboard.writeText(shareMessage);
+      setStatus("참여 요청 문구와 링크를 복사했습니다. 붙여넣어 공유하세요.");
+    } catch {
+      setStatus(shareMessage);
+    }
   }
 
   return (

@@ -32,6 +32,7 @@ interface CreateSurveyBody {
   endsAt?: string | null;
   selectedQuestionIds?: string[];
   customQuestions?: Question[];
+  activate?: boolean;
 }
 
 interface PatchSurveyBody {
@@ -172,7 +173,7 @@ export async function POST(request: Request) {
       year,
       round,
       target_responses: body.targetResponses ?? 80,
-      status: "작성중",
+      status: body.activate ? "진행중" : "작성중",
       starts_at: body.startsAt ? new Date(body.startsAt).toISOString() : null,
       ends_at: body.endsAt ? new Date(body.endsAt).toISOString() : null,
       custom_questions: questions as unknown as Json,
