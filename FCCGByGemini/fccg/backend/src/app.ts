@@ -86,6 +86,7 @@ app.get('/health', (req, res) => {
     status: healthStatus.status === 'healthy' ? 'OK' : 'DEGRADED',
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
+    release: process.env.RENDER_GIT_COMMIT?.slice(0, 7) || process.env.npm_package_version || 'local',
     ...healthStatus
   });
 });

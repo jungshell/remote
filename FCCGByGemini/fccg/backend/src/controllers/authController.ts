@@ -536,7 +536,7 @@ export const register = async (req: Request, res: Response) => {
     // JWT 토큰 생성
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your-secret-key',
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 

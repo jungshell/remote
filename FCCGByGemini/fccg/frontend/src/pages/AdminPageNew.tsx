@@ -2043,7 +2043,7 @@ export default function AdminPageNew() {
       content: newAnnouncement.content!,
       type: newAnnouncement.type || 'normal',
       startDate: newAnnouncement.startDate || new Date().toISOString().split('T')[0],
-      endDate: new Announcement.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: newAnnouncement.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       isActive: newAnnouncement.isActive !== false,
       author: user?.name || '관리자',
       createdAt: new Date().toISOString(),
@@ -2323,7 +2323,7 @@ export default function AdminPageNew() {
     const allMembers = unifiedVoteData.allMembers || userList;
     
     // 가장 최근 세션에서 투표한 사용자 ID 추출
-    let votedUserIds = new Set();
+    const votedUserIds = new Set();
     
     // 활성 세션이 있으면 활성 세션 사용, 없으면 가장 최근 완료된 세션 사용
     const targetSession = unifiedVoteData.activeSession?.isActive 
@@ -2826,7 +2826,6 @@ export default function AdminPageNew() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGamePreviewOpen, loadGameMailPreviewImage]);
 
   const handleGamePreviewClose = () => {

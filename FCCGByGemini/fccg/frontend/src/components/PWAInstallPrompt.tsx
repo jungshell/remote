@@ -37,6 +37,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const textColor = useColorModeValue('gray.800', 'white');
+  const infoBgColor = useColorModeValue('gray.50', 'gray.700');
 
   // 설치 가능하고 아직 설치되지 않은 경우에만 표시
   if (!isInstallable || isInstalled) {
@@ -148,7 +149,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
 
           {/* 추가 정보 */}
           <Box
-            bg={useColorModeValue('gray.50', 'gray.700')}
+            bg={infoBgColor}
             p={3}
             borderRadius="md"
             fontSize="xs"

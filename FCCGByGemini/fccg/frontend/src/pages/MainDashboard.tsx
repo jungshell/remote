@@ -2,6 +2,7 @@ import { Box, Flex, Text, SimpleGrid, Stack, IconButton, Modal, ModalOverlay, Mo
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { MdMusicNote, MdMusicOff } from 'react-icons/md';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import type { StatsSummary } from '../api/auth';
 import type { Member } from '../api/auth';
@@ -10,6 +11,7 @@ import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
 import { getApiBaseUrl } from '../config/api';
 import { ensureApiBaseUrl } from '../constants';
+import MatchdayCommandCenter from '../components/matchday/MatchdayCommandCenter';
 
 const getKstDateKey = (dateLike: string | Date) => {
   const date = new Date(dateLike);
@@ -86,6 +88,7 @@ const fallbackVideos = [
 export default function MainDashboard() {
   // 로그인 상태 확인
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token_backup');
@@ -369,6 +372,40 @@ export default function MainDashboard() {
       results,
     };
   }, [unifiedVoteData]);
+
+  const matchdayGame = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const upcoming = realTimeGames
+      .filter((game: any) => {
+        const date = new Date(game?.date);
+        return !Number.isNaN(date.getTime()) && date.getTime() >= now.getTime();
+      })
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return upcoming[0] || thisWeekGame || null;
+  }, [realTimeGames, thisWeekGame]);
+
+  const matchdayVoteStatus = useMemo(() => {
+    const eligibleMembers = Array.isArray(unifiedVoteData?.allMembers)
+      ? unifiedVoteData.allMembers.filter((member: any) => member?.status === 'ACTIVE')
+      : [];
+    const participants = Array.isArray(normalizedVoteSession?.participants)
+      ? normalizedVoteSession.participants
+      : [];
+    const participantIds = new Set(
+      participants
+        .map((participant: any) => Number(participant?.userId ?? participant?.id))
+        .filter((id: number) => Number.isFinite(id)),
+    );
+    const totalMembers = eligibleMembers.length;
+    const votedCount = participantIds.size;
+    return {
+      totalMembers,
+      votedCount,
+      voteRate: totalMembers > 0 ? Math.round((votedCount / totalMembers) * 100) : 0,
+      userVoted: user ? participantIds.has(Number(user.id)) : false,
+    };
+  }, [normalizedVoteSession, unifiedVoteData, user]);
 
   // 🔄 이벤트 시스템 리스너 설정
   useEffect(() => {
@@ -1462,7 +1499,7 @@ export default function MainDashboard() {
             )}
           </Box>
         );
-      case 2:
+      case 2: {
         const gameStats = getGameStatsByPeriod();
         const currentYear = new Date().getFullYear();
         const currentMonth = new Date().getMonth() + 1;
@@ -1525,6 +1562,7 @@ export default function MainDashboard() {
             {renderStatCard('🏆', 'TOTAL', gameStats.total, '총 경기수', '#2563eb')}
           </VStack>
         );
+      }
       case 3:
         return (
           <Box>
@@ -1766,6 +1804,17 @@ export default function MainDashboard() {
       />
       
       {/* 메인 컨텐츠 */}
+      <MatchdayCommandCenter
+        game={matchdayGame}
+        user={user}
+        voteRate={matchdayVoteStatus.voteRate}
+        votedCount={matchdayVoteStatus.votedCount}
+        totalMembers={matchdayVoteStatus.totalMembers}
+        userVoted={matchdayVoteStatus.userVoted}
+        votePeriod={nextWeekVote?.deadline}
+        onOpenSchedule={() => navigate('/schedule-v2')}
+      />
+
       <Flex direction={{ base: 'column', md: 'row' }} gap={8} px={{ base: 2, md: 4, lg: 6 }} py={10} w="full" maxW="1400px" mx="auto" align="stretch" overflowX="hidden">
         {/* 명언 카드 */}
         <Box flex={1} bg="white" p={{ base: 4, md: 8 }} borderRadius="lg" boxShadow="md" display="flex" flexDirection="column" justifyContent="center" minH="433px" maxW={{ base: '100%', md: '420px' }}>

@@ -11,6 +11,7 @@ frontend/dist/
 # Env & secrets
 .env
 *.env
+ENV_VALUES.txt
 backend/.env
 frontend/.env
 
@@ -29,6 +30,7 @@ backend/prisma/dev.db
 backend/voteData.json
 voteData.json
 backend/backups/
+backups/
 
 # Editor/tooling caches
 .vscode/
