@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ManagerSurveyCard } from "@/components/manager/ManagerSurveyCard";
 import { ManagerWorkspace } from "@/components/manager/ManagerWorkspace";
@@ -19,11 +20,12 @@ import type { SurveyRecord } from "@/types/platform";
 type ViewMode = "list" | "create";
 
 export function ManagerConsole() {
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
   const [responseCounts, setResponseCounts] = useState<Record<string, number>>({});
   const [selectedSurvey, setSelectedSurvey] = useState<SurveyRecord | null>(null);
-  const [view, setView] = useState<ViewMode>("list");
+  const [view, setView] = useState<ViewMode>(searchParams.get("view") === "create" ? "create" : "list");
   const [status, setStatus] = useState("");
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [busySurveyId, setBusySurveyId] = useState<string | null>(null);

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { ManagerConsole } from "@/components/manager/ManagerConsole";
 import { RoleAwareTopNav } from "@/components/ui/RoleAwareTopNav";
@@ -11,7 +12,9 @@ export default function ManagerPage() {
     >
       <RoleAwareTopNav />
       <main className="shell py-8 md:py-16">
-        <ManagerConsole />
+        <Suspense fallback={<p className="text-sm text-[var(--text-muted)]">불러오는 중...</p>}>
+          <ManagerConsole />
+        </Suspense>
       </main>
     </AuthGate>
   );

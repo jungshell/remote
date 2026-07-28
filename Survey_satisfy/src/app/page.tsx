@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { HomeCta } from "@/components/home/HomeCta";
+import { HomeShortcuts } from "@/components/home/HomeShortcuts";
 import { RoleAwareTopNav } from "@/components/ui/RoleAwareTopNav";
 
 export default function Home() {
@@ -34,22 +34,8 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="grid gap-6 py-12 md:grid-cols-3">
-          <InfoCard title="사업담당자" body="가입 → 승인 → 설문 생성, 문항 선택, QR 배포, 회차별 KPI" href="/register" />
-          <InfoCard title="참여자" body="담당자가 활성화한 설문 링크로 모바일 응답 (휴대폰 뒤 4자리)" href="/manager" />
-          <InfoCard title="총괄 관리자" body="회원 승인, 본부·사업유형 KPI, 경영평가 Excel보내기" href="/admin" />
-        </section>
+        <HomeShortcuts />
       </main>
     </>
-  );
-}
-
-function InfoCard({ title, body, href }: { title: string; body: string; href: string }) {
-  return (
-    <Link href={href} className="panel block p-6 transition-colors hover:border-white">
-      <p className="label-machined text-[var(--text-muted)]">{title}</p>
-      <p className="mt-4 leading-7 text-[var(--text-body)]">{body}</p>
-      <span className="label-machined mt-6 inline-block text-white">이동하기 →</span>
-    </Link>
   );
 }
