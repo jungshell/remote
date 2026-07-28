@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
+import { HomeCta } from "@/components/home/HomeCta";
 import { RoleAwareTopNav } from "@/components/ui/RoleAwareTopNav";
 
 export default function Home() {
@@ -19,32 +20,7 @@ export default function Home() {
               사업담당자는 가입 후 총괄 관리자 승인을 받아야 플랫폼에 접근할 수 있습니다. 승인 후 설문 생성·배포와
               KPI 확인이 가능합니다.
             </p>
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Link
-                href="/register"
-                className="focus-ring label-machined border border-white px-6 py-4 text-white transition-colors hover:bg-white hover:text-black"
-              >
-                사업담당자 가입
-              </Link>
-              <Link
-                href="/login"
-                className="focus-ring label-machined border border-[var(--hairline)] px-6 py-4 text-[var(--text-body)] transition-colors hover:border-white hover:text-white"
-              >
-                로그인
-              </Link>
-              <Link
-                href="/manager"
-                className="focus-ring label-machined border border-[var(--hairline)] px-6 py-4 text-[var(--text-body)] transition-colors hover:border-white hover:text-white"
-              >
-                담당자 화면
-              </Link>
-              <Link
-                href="/admin"
-                className="focus-ring label-machined border border-[var(--hairline)] px-6 py-4 text-[var(--text-body)] transition-colors hover:border-white hover:text-white"
-              >
-                관리자 화면
-              </Link>
-            </div>
+            <HomeCta />
           </div>
 
           <div className="panel animate-rise p-6">
