@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { AuthUser, PlatformRole } from "@/lib/auth/types";
+import { parseBusinessAssignments } from "@/lib/auth/types";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const SESSION_COOKIE = "platform_session";
@@ -23,6 +24,7 @@ interface UserRow {
   business?: string | null;
   sub_business?: string | null;
   program_type?: string | null;
+  businesses?: unknown;
 }
 
 export async function createSession(userId: string) {
@@ -117,14 +119,15 @@ export async function getAuthUserFromToken(token: string | null): Promise<AuthUs
 
   let { data: user, error: userError } = await supabase
     .from("platform_users")
-    .select("id, email, name, division, role, status, business, sub_business, program_type")
+    .select("id, email, name, division, role, status, business, sub_business, program_type, businesses")
     .eq("id", session.user_id)
     .maybeSingle<UserRow>();
 
   if (userError) {
+    // businesses 컬럼 미생성(마이그레이션 전) 등: 단일 사업 필드까지는 유지해 스코프 손실 방지
     const fallback = await supabase
       .from("platform_users")
-      .select("id, email, name, division, role, status")
+      .select("id, email, name, division, role, status, business, sub_business, program_type")
       .eq("id", session.user_id)
       .maybeSingle<UserRow>();
     user = fallback.data;
@@ -135,6 +138,19 @@ export async function getAuthUserFromToken(token: string | null): Promise<AuthUs
     return null;
   }
 
+  // businesses(배열) 우선, 없으면 단일 필드에서 구성
+  let businesses = parseBusinessAssignments(user.businesses);
+  if (businesses.length === 0 && (user.business ?? "").trim()) {
+    businesses = [
+      {
+        business: (user.business ?? "").trim(),
+        subBusiness: (user.sub_business ?? "").trim(),
+        programType: (user.program_type ?? "").trim(),
+      },
+    ];
+  }
+  const primary = businesses[0];
+
   return {
     id: user.id,
     email: user.email,
@@ -142,9 +158,10 @@ export async function getAuthUserFromToken(token: string | null): Promise<AuthUs
     division: user.division,
     role: user.role,
     status: user.status,
-    business: user.business ?? "",
-    subBusiness: user.sub_business ?? "",
-    programType: user.program_type ?? "",
+    business: primary?.business ?? user.business ?? "",
+    subBusiness: primary?.subBusiness ?? user.sub_business ?? "",
+    programType: primary?.programType ?? user.program_type ?? "",
+    businesses,
   };
 }
 

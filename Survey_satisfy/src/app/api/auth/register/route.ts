@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { checkRateLimit, getClientIp, readJsonBody } from "@/lib/api/http";
 import { divisions } from "@/constants/divisions";
-import { programTypes } from "@/constants/divisions";
+import { normalizeBusinessesInput } from "@/lib/auth/business";
 import { hashPassword } from "@/lib/auth/password";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
 
 interface RegisterBody {
   email?: string;
@@ -13,6 +14,7 @@ interface RegisterBody {
   business?: string;
   subBusiness?: string;
   programType?: string;
+  businesses?: unknown;
 }
 
 export async function POST(request: Request) {
@@ -40,15 +42,17 @@ export async function POST(request: Request) {
   const password = body.password ?? "";
   const name = body.name?.trim();
   const division = body.division?.trim();
-  const business = body.business?.trim() ?? "";
-  const subBusiness = body.subBusiness?.trim() ?? "";
-  const programType = body.programType?.trim() ?? "";
 
-  if (!email || !password || !name || !division || !business || !subBusiness || !programType) {
+  if (!email || !password || !name || !division) {
     return NextResponse.json(
-      { ok: false, error: "이름·이메일·본부·담당 사업·세부사업·사업유형을 모두 입력해 주세요." },
+      { ok: false, error: "이름·이메일·본부를 모두 입력해 주세요." },
       { status: 400 },
     );
+  }
+
+  const { businesses, error: businessError } = normalizeBusinessesInput(body);
+  if (businessError) {
+    return NextResponse.json({ ok: false, error: businessError }, { status: 400 });
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -63,10 +67,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "올바른 본부를 선택해 주세요." }, { status: 400 });
   }
 
-  if (!programTypes.includes(programType as (typeof programTypes)[number])) {
-    return NextResponse.json({ ok: false, error: "올바른 사업유형을 선택해 주세요." }, { status: 400 });
-  }
-
+  const primary = businesses[0];
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await supabase
@@ -76,9 +77,10 @@ export async function POST(request: Request) {
       password_hash: passwordHash,
       name,
       division,
-      business,
-      sub_business: subBusiness,
-      program_type: programType,
+      business: primary.business,
+      sub_business: primary.subBusiness,
+      program_type: primary.programType,
+      businesses: businesses as unknown as Json,
       role: "staff",
       status: "pending",
     })

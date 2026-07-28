@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { readJsonBody } from "@/lib/api/http";
-import { divisions, programTypes } from "@/constants/divisions";
+import { divisions } from "@/constants/divisions";
+import { normalizeBusinessesInput } from "@/lib/auth/business";
 import { requireAuthUser } from "@/lib/auth/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { parseBusinessAssignments } from "@/lib/auth/types";
+import type { Json } from "@/lib/supabase/database.types";
 
 interface ProfileBody {
   division?: string;
   business?: string;
   subBusiness?: string;
   programType?: string;
+  businesses?: unknown;
 }
 
 export async function PATCH(request: Request) {
@@ -29,33 +33,31 @@ export async function PATCH(request: Request) {
   if (!body) {
     return NextResponse.json({ ok: false, error: "요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
-  const division = body.division?.trim() ?? auth.user.division;
-  const business = body.business?.trim() ?? "";
-  const subBusiness = body.subBusiness?.trim() ?? "";
-  const programType = body.programType?.trim() ?? "";
 
-  if (!business || !subBusiness || !programType) {
-    return NextResponse.json({ ok: false, error: "담당 사업·세부사업·사업유형을 입력해 주세요." }, { status: 400 });
-  }
+  const division = body.division?.trim() ?? auth.user.division;
 
   if (!divisions.includes(division as (typeof divisions)[number])) {
     return NextResponse.json({ ok: false, error: "올바른 본부를 선택해 주세요." }, { status: 400 });
   }
 
-  if (!programTypes.includes(programType as (typeof programTypes)[number])) {
-    return NextResponse.json({ ok: false, error: "올바른 사업유형을 선택해 주세요." }, { status: 400 });
+  const { businesses, error: businessError } = normalizeBusinessesInput(body);
+  if (businessError) {
+    return NextResponse.json({ ok: false, error: businessError }, { status: 400 });
   }
+
+  const primary = businesses[0];
 
   const { data, error } = await supabase
     .from("platform_users")
     .update({
       division,
-      business,
-      sub_business: subBusiness,
-      program_type: programType,
+      business: primary.business,
+      sub_business: primary.subBusiness,
+      program_type: primary.programType,
+      businesses: businesses as unknown as Json,
     })
     .eq("id", auth.user.id)
-    .select("id, email, name, division, business, sub_business, program_type, role, status")
+    .select("id, email, name, division, business, sub_business, program_type, businesses, role, status")
     .single();
 
   if (error) {
@@ -72,6 +74,7 @@ export async function PATCH(request: Request) {
       business: data.business,
       subBusiness: data.sub_business,
       programType: data.program_type,
+      businesses: parseBusinessAssignments(data.businesses),
       role: data.role,
       status: data.status,
     },

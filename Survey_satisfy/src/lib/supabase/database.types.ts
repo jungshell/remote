@@ -70,6 +70,7 @@ export interface Database {
           business: string;
           sub_business: string;
           program_type: string;
+          businesses: Json;
           role: string;
           status: string;
           created_at: string;
@@ -85,6 +86,7 @@ export interface Database {
           business?: string;
           sub_business?: string;
           program_type?: string;
+          businesses?: Json;
           role?: string;
           status?: string;
           created_at?: string;
@@ -100,6 +102,7 @@ export interface Database {
           business?: string;
           sub_business?: string;
           program_type?: string;
+          businesses?: Json;
           role?: string;
           status?: string;
           created_at?: string;

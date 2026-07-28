@@ -18,7 +18,7 @@ import { QuestionPicker } from "@/components/manager/QuestionPicker";
 import { SurveyPhonePreview } from "@/components/manager/SurveyPhonePreview";
 import { authFetch } from "@/lib/auth/access";
 import { parseQuestions, splitStoredSurveyQuestions } from "@/lib/surveys/utils";
-import type { AuthUser } from "@/lib/auth/types";
+import type { AuthUser, BusinessAssignment } from "@/lib/auth/types";
 import type { Division, ProgramType, Question, RespondentType } from "@/types/platform";
 import type { SurveyRow, SurveyTemplateRow } from "@/lib/supabase/database.types";
 
@@ -62,9 +62,25 @@ export function SurveyCreator({ profile, onCreated, onCancel, cloneSource }: Sur
   }, []);
 
   const division = (profile.division as Division) || "사업총괄실";
-  const business = profile.business?.trim() || "";
-  const subBusiness = profile.subBusiness?.trim() || "";
-  const programType = (profile.programType as ProgramType) || "교육·인력양성형";
+
+  const businessList = useMemo<BusinessAssignment[]>(() => {
+    if (profile.businesses && profile.businesses.length > 0) {
+      return profile.businesses;
+    }
+    return [
+      {
+        business: profile.business?.trim() ?? "",
+        subBusiness: profile.subBusiness?.trim() ?? "",
+        programType: profile.programType ?? "교육·인력양성형",
+      },
+    ];
+  }, [profile]);
+
+  const [selectedBusinessIndex, setSelectedBusinessIndex] = useState(0);
+  const active = businessList[Math.min(selectedBusinessIndex, businessList.length - 1)] ?? businessList[0];
+  const business = active.business.trim();
+  const subBusiness = active.subBusiness.trim();
+  const programType = (active.programType as ProgramType) || "교육·인력양성형";
 
   const [year, setYear] = useState(currentYear);
   const [round, setRound] = useState(1);
@@ -378,6 +394,24 @@ export function SurveyCreator({ profile, onCreated, onCancel, cloneSource }: Sur
 
       <div className="panel p-4 sm:p-6">
         <h3 className="text-xl font-bold">회차·설문 기간</h3>
+
+        {businessList.length > 1 ? (
+          <div className="mt-6">
+            <Field label="어느 사업으로 만들까요?">
+              <select
+                value={selectedBusinessIndex}
+                onChange={(event) => setSelectedBusinessIndex(Number(event.target.value))}
+                className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
+              >
+                {businessList.map((item, index) => (
+                  <option key={`${item.business}-${item.subBusiness}-${index}`} value={index}>
+                    {item.business} / {item.subBusiness} · {item.programType}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-3 border border-[var(--hairline)] bg-[var(--surface-soft)] p-4 md:grid-cols-2">
           <InfoRow label="본부" value={division} />

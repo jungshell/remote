@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { checkRateLimit, getClientIp, readJsonBody } from "@/lib/api/http";
 import { requireAuthUser } from "@/lib/auth/server";
-import { canAccessSurvey, staffSurveyScopeMissing } from "@/lib/auth/survey-access";
+import {
+  canAccessSurvey,
+  pairInScope,
+  staffSurveyScopeMissing,
+  userBusinessNames,
+  userBusinessPairs,
+} from "@/lib/auth/survey-access";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import type { Json, SurveyResponseRow } from "@/lib/supabase/database.types";
@@ -47,18 +53,20 @@ export async function GET(request: Request) {
     }
   }
 
-  const { rows, error } = await fetchAllRows<SurveyResponseRow>((from, to) => {
+  const isAdmin = user.role === "admin";
+  const scopePairs = userBusinessPairs(user);
+  const scopeNames = userBusinessNames(user);
+
+  const { rows: rawRows, error } = await fetchAllRows<SurveyResponseRow>((from, to) => {
     let query = supabase
       .from("survey_responses")
       .select("*")
       .order("submitted_at", { ascending: false })
       .range(from, to);
 
-    // 담당자는 본인 사업 범위로 강제 스코프 (관리자는 전체)
-    if (user.role !== "admin") {
-      query = query
-        .eq("business", (user.business ?? "").trim())
-        .eq("sub_business", (user.subBusiness ?? "").trim());
+    // 담당자는 본인이 맡은 사업명들로 1차 스코프 (관리자는 전체)
+    if (!isAdmin && scopeNames.length > 0) {
+      query = query.in("business", scopeNames);
     }
 
     if (surveyId) {
@@ -81,6 +89,11 @@ export async function GET(request: Request) {
     console.error("[survey-responses] 조회 실패:", error);
     return NextResponse.json({ ok: false, error: "응답 조회 중 오류가 발생했습니다." }, { status: 500 });
   }
+
+  // 정확한 (사업명, 세부사업) 쌍으로 최종 필터 (담당자만)
+  const rows = isAdmin
+    ? rawRows
+    : rawRows.filter((row) => pairInScope(scopePairs, row.business, row.sub_business));
 
   // 관리 화면에 edit_token 노출 불필요
   const safeRows = rows.map((row) => {

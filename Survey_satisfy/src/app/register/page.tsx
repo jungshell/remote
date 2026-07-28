@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { divisions, programTypes } from "@/constants/divisions";
+import { useEffect, useState } from "react";
+import { divisions } from "@/constants/divisions";
 import { authFetch } from "@/lib/auth/access";
+import { BusinessListEditor } from "@/components/auth/BusinessListEditor";
 import { Field } from "@/components/ui/FormField";
 import { RoleAwareTopNav } from "@/components/ui/RoleAwareTopNav";
-import type { Division, ProgramType } from "@/types/platform";
+import type { BusinessAssignment } from "@/lib/auth/types";
+import type { Division } from "@/types/platform";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -14,11 +16,8 @@ export default function RegisterPage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
   const [division, setDivision] = useState<Division>(divisions[0]);
-  const [business, setBusiness] = useState("");
-  const [subBusiness, setSubBusiness] = useState("");
-  const [programType, setProgramType] = useState<ProgramType>(programTypes[0]);
+  const [businesses, setBusinesses] = useState<BusinessAssignment[]>([]);
   const [businessTypeMap, setBusinessTypeMap] = useState<Record<string, string>>({});
-  const [typeAutoFilled, setTypeAutoFilled] = useState(false);
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,23 +34,6 @@ export default function RegisterPage() {
       .catch(() => undefined);
   }, []);
 
-  const knownType = useMemo(() => {
-    const key = business.trim();
-    const mapped = businessTypeMap[key];
-    return mapped && programTypes.includes(mapped as ProgramType) ? (mapped as ProgramType) : null;
-  }, [business, businessTypeMap]);
-
-  function handleBusinessChange(value: string) {
-    setBusiness(value);
-    const mapped = businessTypeMap[value.trim()];
-    if (mapped && programTypes.includes(mapped as ProgramType)) {
-      setProgramType(mapped as ProgramType);
-      setTypeAutoFilled(true);
-    } else {
-      setTypeAutoFilled(false);
-    }
-  }
-
   async function handleSubmit() {
     if (password.length < 8) {
       setMessage("비밀번호는 8자 이상이어야 합니다.");
@@ -60,6 +42,14 @@ export default function RegisterPage() {
 
     if (password !== passwordConfirm) {
       setMessage("비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+
+    const filledBusinesses = businesses.filter(
+      (item) => item.business.trim() && item.subBusiness.trim() && item.programType.trim(),
+    );
+    if (filledBusinesses.length === 0) {
+      setMessage("담당 사업(사업명·유형·세부사업)을 1개 이상 입력해 주세요.");
       return;
     }
 
@@ -75,9 +65,7 @@ export default function RegisterPage() {
           password,
           name,
           division,
-          business,
-          subBusiness,
-          programType,
+          businesses: filledBusinesses,
         }),
       });
 
@@ -146,45 +134,13 @@ export default function RegisterPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="담당 사업 (사업명)">
-                  <input
-                    value={business}
-                    onChange={(event) => handleBusinessChange(event.target.value)}
-                    placeholder="예: 지역특화콘텐츠개발"
-                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                  />
-                </Field>
-                <div>
-                  <Field label="사업유형">
-                    <select
-                      value={programType}
-                      onChange={(event) => {
-                        setProgramType(event.target.value as ProgramType);
-                        setTypeAutoFilled(false);
-                      }}
-                      className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                    >
-                      {programTypes.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  {typeAutoFilled && knownType ? (
-                    <p className="mt-1 text-xs text-[var(--success)]">
-                      이전에 등록된 &quot;{business.trim()}&quot; 사업의 유형을 자동 선택했습니다. (수정 가능)
-                    </p>
-                  ) : null}
+                <div className="md:col-span-2">
+                  <p className="label-machined text-[var(--text-muted)]">담당 사업 (여러 개 가능)</p>
+                  <p className="mt-1 mb-2 text-xs text-[var(--text-muted)]">
+                    사업명을 먼저 입력하면 사업유형이 자동 선택됩니다. 맡은 사업이 여러 개면 &quot;+ 사업 추가&quot;로 늘리세요.
+                  </p>
+                  <BusinessListEditor value={businesses} onChange={setBusinesses} businessTypeMap={businessTypeMap} />
                 </div>
-                <Field label="세부사업">
-                  <input
-                    value={subBusiness}
-                    onChange={(event) => setSubBusiness(event.target.value)}
-                    placeholder="예: 뉴콘텐츠 아카데미"
-                    className="focus-ring h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
-                  />
-                </Field>
                 <Field label="비밀번호 (8자 이상)">
                   <input
                     type="password"

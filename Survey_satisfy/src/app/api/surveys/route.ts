@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { buildSurveyQuestions } from "@/constants/general-questions";
 import { getDefaultSelectedQuestionIds } from "@/constants/question-pool";
 import { readJsonBody } from "@/lib/api/http";
-import { canAccessSurvey, staffSurveyScopeMissing } from "@/lib/auth/survey-access";
+import {
+  canAccessSurvey,
+  pairInScope,
+  staffSurveyScopeMissing,
+  userBusinessNames,
+  userBusinessPairs,
+} from "@/lib/auth/survey-access";
 import { requireAuthUser } from "@/lib/auth/server";
 import { generateSurveyId, parseQuestions } from "@/lib/surveys/utils";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
@@ -64,18 +70,20 @@ export async function GET(request: Request) {
     );
   }
 
-  const { rows, error } = await fetchAllRows<SurveyRow>((from, to) => {
+  const isAdmin = auth.user.role === "admin";
+  const scopePairs = userBusinessPairs(auth.user);
+  const scopeNames = userBusinessNames(auth.user);
+
+  const { rows: rawRows, error } = await fetchAllRows<SurveyRow>((from, to) => {
     let query = supabase
       .from("surveys")
       .select("*")
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    // 담당자는 본인 사업 범위로 강제 스코프 (관리자는 전체)
-    if (auth.user!.role !== "admin") {
-      query = query
-        .eq("business", (auth.user!.business ?? "").trim())
-        .eq("sub_business", (auth.user!.subBusiness ?? "").trim());
+    // 담당자는 본인이 맡은 사업명들로 1차 스코프 (관리자는 전체)
+    if (!isAdmin && scopeNames.length > 0) {
+      query = query.in("business", scopeNames);
     }
 
     return query;
@@ -85,6 +93,13 @@ export async function GET(request: Request) {
     console.error("[surveys] 조회 실패:", error);
     return NextResponse.json({ ok: false, error: "설문 조회 중 오류가 발생했습니다." }, { status: 500 });
   }
+
+  // 정확한 (사업명, 세부사업) 쌍으로 최종 필터 (소유 설문 포함)
+  const rows = isAdmin
+    ? rawRows
+    : rawRows.filter(
+        (row) => row.owner_user_id === auth.user!.id || pairInScope(scopePairs, row.business, row.sub_business),
+      );
 
   const ids = rows.map((row) => row.id);
   const counts: Record<string, number> = {};
@@ -127,12 +142,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "필수 항목을 입력해 주세요." }, { status: 400 });
   }
 
-  // 담당자는 본인 프로필 사업으로만 생성
+  // 담당자는 본인이 맡은 사업(다중) 중 하나로만 생성
   if (auth.user.role !== "admin") {
-    if (
-      body.business.trim() !== auth.user.business?.trim() ||
-      body.subBusiness.trim() !== auth.user.subBusiness?.trim()
-    ) {
+    if (!pairInScope(userBusinessPairs(auth.user), body.business, body.subBusiness)) {
       return NextResponse.json({ ok: false, error: "본인 담당 사업으로만 설문을 만들 수 있습니다." }, { status: 403 });
     }
   }
