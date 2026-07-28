@@ -32,6 +32,7 @@ import { parseQuestions } from "@/lib/surveys/utils";
 import type { SurveyResponseRow } from "@/lib/supabase/database.types";
 import type { Question } from "@/types/platform";
 import { OpinionSummaryPanel } from "@/components/dashboard/OpinionSummaryPanel";
+import { QuestionResultsPanel } from "@/components/dashboard/QuestionResultsPanel";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { StatCard } from "@/components/ui/StatCard";
@@ -666,6 +667,8 @@ export function ResponseDashboard({
           </ChartPanel>
 
           <OpinionSummaryPanel rows={filteredRows} questions={activeQuestions} />
+
+          <QuestionResultsPanel rows={filteredRows} questions={activeQuestions} />
         </>
       )}
     </section>
