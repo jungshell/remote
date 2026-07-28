@@ -1,5 +1,39 @@
 @import "tailwindcss";
 
+/* 화면에서는 인쇄 전용 요소 숨김 */
+.print-only {
+  display: none;
+}
+
+/* 전체 결과 PDF(인쇄): 문항별 결과 패널만 흰 배경으로 표시 */
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-report,
+  .print-report * {
+    visibility: visible;
+  }
+  .print-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #ffffff !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block;
+  }
+}
+
 :root {
   --canvas: #000000;
   --surface-soft: #0d0d0d;

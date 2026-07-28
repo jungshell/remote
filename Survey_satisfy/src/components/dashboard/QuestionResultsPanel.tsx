@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { downloadSvgAsPng } from "@/lib/export-image";
+import { captureSvgToClipboard } from "@/lib/export-image";
 import type { SurveyResponseRow } from "@/lib/supabase/database.types";
 import type { Question, SurveyAnswer } from "@/types/platform";
 
@@ -31,7 +31,7 @@ function likertColor(score: number) {
   return "#ff5c5c";
 }
 
-/** 문항별 응답 결과를 흰 배경 차트로 도식화하고 각 차트를 PNG로 저장 (한글 문서 첨부용) */
+/** 문항별 응답 결과를 흰 배경 차트로 도식화 (캡처·복사 및 전체 PDF 지원) */
 export function QuestionResultsPanel({ rows, questions }: QuestionResultsPanelProps) {
   const chartQuestions = useMemo(
     () => questions.filter((question) => question.scale === "likert5" || question.scale === "choice"),
@@ -43,14 +43,25 @@ export function QuestionResultsPanel({ rows, questions }: QuestionResultsPanelPr
   }
 
   return (
-    <section className="panel p-4 sm:p-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <section className="panel p-4 sm:p-6 print-report">
+      <div className="no-print mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="label-machined text-[var(--text-muted)]">Per-Question · Export</p>
-          <h3 className="mt-2 text-xl font-black uppercase sm:text-2xl">문항별 결과 (이미지 저장)</h3>
+          <h3 className="mt-2 text-xl font-black uppercase sm:text-2xl">문항별 결과</h3>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
+            각 문항의 &quot;캡처&quot;를 누르면 그래프가 복사됩니다. 한글 등에 바로 붙여넣기(Ctrl+V)하세요.
+          </p>
         </div>
-        <p className="text-xs text-[var(--text-muted)]">각 문항의 &quot;PNG 저장&quot;으로 흰 배경 그래프를 받아 한글 문서에 삽입하세요.</p>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="focus-ring label-machined border border-white px-5 py-3 text-white transition-colors hover:bg-white hover:text-black"
+        >
+          전체 결과 PDF로 보기
+        </button>
       </div>
+
+      <p className="print-only mb-6 text-lg font-black text-black">문항별 결과 리포트</p>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {chartQuestions.map((question, index) => (
@@ -63,6 +74,7 @@ export function QuestionResultsPanel({ rows, questions }: QuestionResultsPanelPr
 
 function QuestionCard({ index, question, rows }: { index: number; question: Question; rows: SurveyResponseRow[] }) {
   const chartRef = useRef<HTMLDivElement>(null);
+  const [feedback, setFeedback] = useState("");
 
   const { data, average, total } = useMemo(() => {
     const answers = rows.flatMap((row) => parseAnswers(row.answers)).filter((answer) => answer.questionId === question.id);
@@ -89,12 +101,25 @@ function QuestionCard({ index, question, rows }: { index: number; question: Ques
     return { data: distribution, average: 0, total: answers.filter((answer) => typeof answer.value === "string").length };
   }, [question, rows]);
 
-  function handleSave() {
+  async function handleCapture() {
     const svg = chartRef.current?.querySelector("svg");
-    if (svg) {
-      const safeLabel = question.label.replace(/[\\/:*?"<>|]/g, "").slice(0, 30).trim();
-      downloadSvgAsPng(svg as SVGSVGElement, `문항${index + 1}_${safeLabel}`, `${index + 1}. ${question.label}`);
+    if (!svg) {
+      return;
     }
+    const safeLabel = question.label.replace(/[\\/:*?"<>|]/g, "").slice(0, 30).trim();
+    const result = await captureSvgToClipboard(
+      svg as SVGSVGElement,
+      `${index + 1}. ${question.label}`,
+      `문항${index + 1}_${safeLabel}`,
+    );
+    setFeedback(
+      result === "copied"
+        ? "복사됨! 한글에 붙여넣기(Ctrl+V)"
+        : result === "downloaded"
+          ? "복사 미지원 브라우저 — PNG로 저장했습니다."
+          : "캡처에 실패했습니다.",
+    );
+    window.setTimeout(() => setFeedback(""), 4000);
   }
 
   return (
@@ -111,12 +136,13 @@ function QuestionCard({ index, question, rows }: { index: number; question: Ques
         </div>
         <button
           type="button"
-          onClick={handleSave}
-          className="focus-ring shrink-0 border border-gray-800 px-3 py-1.5 text-xs font-bold text-gray-800 transition-colors hover:bg-gray-800 hover:text-white"
+          onClick={() => void handleCapture()}
+          className="focus-ring no-print shrink-0 border border-gray-800 px-3 py-1.5 text-xs font-bold text-gray-800 transition-colors hover:bg-gray-800 hover:text-white"
         >
-          PNG 저장
+          캡처
         </button>
       </div>
+      {feedback ? <p className="no-print mt-1 text-xs font-bold text-[#23b26d]">{feedback}</p> : null}
 
       <div ref={chartRef} className="mt-3 h-56 bg-white">
         <ResponsiveContainer width="100%" height="100%">

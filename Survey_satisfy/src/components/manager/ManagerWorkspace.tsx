@@ -30,6 +30,7 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
   const [isActivating, setIsActivating] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [tab, setTab] = useState<"operate" | "report">("operate");
   const surveyUrl = buildParticipantSurveyUrl(current.id);
   const project = useMemo(() => surveyRecordToProject(current), [current]);
 
@@ -138,6 +139,29 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
         </div>
       </section>
 
+      <div className="no-print sticky top-16 z-20 -mx-4 mb-2 flex gap-2 border-b border-[var(--hairline)] bg-black/95 px-4 py-3 backdrop-blur sm:mx-0 sm:px-0">
+        {(
+          [
+            { id: "operate", label: "운영·배포" },
+            { id: "report", label: "결과 리포트" },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            className={`focus-ring label-machined min-h-11 flex-1 border px-4 sm:flex-none ${
+              tab === item.id
+                ? "border-white bg-white text-black"
+                : "border-[var(--hairline)] text-[var(--text-body)] hover:border-white hover:text-white"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "operate" ? (
       <div className="grid gap-6 py-6 lg:grid-cols-2">
         <section className="panel animate-rise p-4 sm:p-6">
           <p className="label-machined text-[var(--text-muted)]">Operate</p>
@@ -199,7 +223,9 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
           </div>
         </section>
       </div>
+      ) : null}
 
+      {tab === "report" ? (
       <section className="pb-8">
         <ResponseDashboard
           mode="staff"
@@ -216,7 +242,9 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
           }
         />
       </section>
+      ) : null}
 
+      {tab === "operate" ? (
       <div className="pb-28 sm:pb-12">
         <button
           type="button"
@@ -240,6 +268,7 @@ export function ManagerWorkspace({ survey, onBack, onRefresh, onSurveyUpdated }:
           </div>
         ) : null}
       </div>
+      ) : null}
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--hairline)] bg-black/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
         <div className="grid grid-cols-2 gap-2 p-3">
