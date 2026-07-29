@@ -154,6 +154,7 @@ export default function FloatingHelpButton({ onClick, storageKey, icon }: Props)
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

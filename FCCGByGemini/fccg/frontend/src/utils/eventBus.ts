@@ -9,15 +9,13 @@ export interface EventData {
   timestamp: number;
 }
 
-type EventListener = (event: EventData) => void;
-
 class EventBus {
-  private listeners: Map<string, EventListener[]> = new Map();
+  private listeners: Map<string, Function[]> = new Map();
 
   /**
    * 이벤트 리스너 등록
    */
-  on(eventType: string, callback: EventListener): void {
+  on(eventType: string, callback: Function): void {
     if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, []);
     }
@@ -27,7 +25,7 @@ class EventBus {
   /**
    * 이벤트 리스너 제거
    */
-  off(eventType: string, callback: EventListener): void {
+  off(eventType: string, callback: Function): void {
     const callbacks = this.listeners.get(eventType);
     if (callbacks) {
       const index = callbacks.indexOf(callback);

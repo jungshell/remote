@@ -50,7 +50,7 @@ function loadAuthFromStorage() {
     
     const user = localStorage.getItem('user');
     // 여러 소스에서 토큰 찾기
-    const token = localStorage.getItem('token') ||
+    let token = localStorage.getItem('token') || 
                 localStorage.getItem('auth_token_backup') || 
                 sessionStorage.getItem('token');
     
@@ -106,7 +106,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     console.log('🔄 토큰 복구 시도 시작...');
     
     // 여러 소스에서 토큰 찾기
-    const token = localStorage.getItem('token') ||
+    let token = localStorage.getItem('token') || 
                 localStorage.getItem('auth_token_backup') || 
                 sessionStorage.getItem('token');
     

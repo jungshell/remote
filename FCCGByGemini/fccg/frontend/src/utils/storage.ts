@@ -73,7 +73,7 @@ export const storage = {
     try {
       let used = 0;
       for (const key in localStorage) {
-        if (Object.prototype.hasOwnProperty.call(localStorage, key)) {
+        if (localStorage.hasOwnProperty(key)) {
           used += localStorage[key].length + key.length;
         }
       }

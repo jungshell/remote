@@ -47,7 +47,6 @@ import {
   enrichGameDataForMapAndShare,
   resolvePrimaryVenueName,
 } from '../utils/kakaoShareCard';
-import { createVoteShareImage } from '../utils/voteShareImage';
 
 // 타입 정의
 interface VoteData {
@@ -1171,7 +1170,7 @@ export default function SchedulePageV2() {
       
       // 3. 게임 데이터 로드 (별도 try-catch로 감싸서 실패해도 투표 데이터는 유지)
       let games: any[] = [];
-      const calendarGameData: Record<string, GameData> = {};
+      let calendarGameData: Record<string, GameData> = {};
       let validCalendarGameData: Record<string, GameData> = {};
       
       try {
@@ -1740,28 +1739,6 @@ export default function SchedulePageV2() {
   const handleKakaoShare = async () => {
     const shareUrl = `${window.location.origin}/schedule-v2?utm=vote_share`;
     const shareText = voteShareText;
-
-    try {
-      const participationInfo = voteParticipationInfo;
-      const shareImage = await createVoteShareImage({
-        votePeriodLabel: votePeriodLabel || '',
-        participationRate: participationInfo?.participationRate || 0,
-        votedNames: participationInfo?.votedMembers || [],
-        nonVotedNames: participationInfo?.nonVotedMembers || [],
-      });
-      const fileShareData = {
-        title: 'FC CHAL-GGYEO 투표 안내',
-        text: shareText,
-        files: [shareImage],
-      };
-      if (navigator.share && navigator.canShare?.(fileShareData)) {
-        await navigator.share(fileShareData);
-        return;
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      console.warn('투표 이미지 공유 실패, 텍스트 공유로 전환:', error);
-    }
 
     if (kakaoAppKey) {
       try {

@@ -1412,23 +1412,21 @@ export default function PhotoGalleryPage() {
       if (!a || !b) return 0;
       
       switch (sortBy) {
-        case 'event': {
+        case 'event':
           // eventDate가 없으면 createdAt 사용
           const aDate = a.eventDate || a.createdAt || '';
           const bDate = b.eventDate || b.createdAt || '';
           const aTime = aDate ? new Date(aDate).getTime() : 0;
           const bTime = bDate ? new Date(bDate).getTime() : 0;
           return bTime - aTime;
-        }
         case 'likes':
           return (b.likes || 0) - (a.likes || 0);
         case 'comments':
           return (b.comments?.length || 0) - (a.comments?.length || 0);
-        default: {
+        default:
           const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
           const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return bCreated - aCreated;
-        }
       }
     });
   }, [instagramPosts, sortBy]);

@@ -17,8 +17,8 @@ export const initGA = (measurementId: string) => {
 
     // gtag 함수 초기화
     window.dataLayer = window.dataLayer || [];
-    window.gtag = (...args: any[]) => {
-      window.dataLayer.push(args);
+    window.gtag = function() {
+      window.dataLayer.push(arguments);
     };
 
     // 기본 설정

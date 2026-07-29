@@ -305,7 +305,7 @@ export default function GalleryPage() {
   // 필터/정렬/검색 적용
   useEffect(() => {
     // 현재 items 상태를 사용 (localStorage를 다시 읽지 않음)
-    const allItems = items;
+    let allItems = items;
     
     let filteredItems = allItems.filter(item => {
       // 타입 필터
@@ -508,8 +508,8 @@ export default function GalleryPage() {
       try {
         // 현재 localStorage 사용량 체크
         let currentSize = 0;
-        for (const key in localStorage) {
-          if (Object.prototype.hasOwnProperty.call(localStorage, key)) {
+        for (let key in localStorage) {
+          if (localStorage.hasOwnProperty(key)) {
             currentSize += localStorage[key].length;
           }
         }
@@ -1727,4 +1727,4 @@ export default function GalleryPage() {
       </Modal>
     </Box>
   );
-}
+} 
