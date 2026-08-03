@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
-import { Flex, Text, Button, HStack, Badge, Modal, ModalOverlay, ModalContent, ModalBody, useDisclosure, Box, FormControl, FormLabel, Input, useToast, Tooltip, IconButton, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerCloseButton, VStack, StackDivider, useBreakpointValue } from '@chakra-ui/react';
+import { Flex, Text, Button, HStack, Modal, ModalOverlay, ModalContent, ModalBody, useDisclosure, Box, FormControl, FormLabel, Input, useToast, Tooltip, IconButton, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerCloseButton, VStack, StackDivider, useBreakpointValue } from '@chakra-ui/react';
 import { CalendarIcon, ViewIcon, SettingsIcon, AttachmentIcon, ExternalLinkIcon, InfoIcon, HamburgerIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
 import { changePassword, updateProfile } from '../api/auth';
@@ -484,19 +484,40 @@ export default function Header() {
                     </Tooltip>
                   </>
                 )}
-                <HStack align="center" spacing={2} flexShrink={0}>
-                  <Badge bg="#004ea8" color="white" borderRadius="full" px={2} py={1} whiteSpace="nowrap">정</Badge>
+                <Box
+                  as="button"
+                  type="button"
+                  aria-label={`${user.name}님의 플레이어 패스포트 열기`}
+                  onClick={handleNamePillClick}
+                  display="flex"
+                  alignItems="center"
+                  gap={2}
+                  minW={0}
+                  borderRadius="full"
+                  p={1}
+                  transition="all 0.18s ease"
+                  _hover={{ bg: '#EFF6FF', transform: 'translateY(-1px)' }}
+                  _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
+                >
+                  <Box
+                    w="28px"
+                    h="28px"
+                    flexShrink={0}
+                    borderRadius="full"
+                    bg="linear-gradient(135deg, #0B5CAD 0%, #0EA5E9 100%)"
+                    color="white"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    fontSize="xs"
+                    fontWeight="900"
+                    boxShadow="0 3px 8px rgba(0, 78, 168, 0.22)"
+                  >
+                    {user.name.slice(0, 1)}
+                  </Box>
                   <Text
-                    as="button"
-                    type="button"
-                    aria-label={`${user.name}님의 플레이어 패스포트 열기`}
-                    fontWeight="bold"
-                    cursor="pointer"
-                    _hover={{ textDecoration: 'underline', color: '#00397a' }}
-                    _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
-                    onClick={handleNamePillClick}
-                    bg="transparent"
-                    p={0}
+                    fontWeight="800"
+                    color="#102A43"
                     whiteSpace="nowrap"
                     overflow="hidden"
                     textOverflow="ellipsis"
@@ -504,7 +525,7 @@ export default function Header() {
                   >
                     {user.name}
                   </Text>
-                </HStack>
+                </Box>
               </HStack>
               <Button size="sm" bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} onClick={() => { logout(); navigate('/'); }} whiteSpace="nowrap">로그아웃</Button>
               <IconButton
@@ -573,8 +594,22 @@ export default function Header() {
               </VStack>
               {user ? (
                 <VStack align="stretch" spacing={3}>
-                  <HStack spacing={2}>
-                    <Badge bg="#004ea8" color="white" borderRadius="full" px={2} py={1}>정</Badge>
+                  <HStack spacing={2.5}>
+                    <Box
+                      w="34px"
+                      h="34px"
+                      borderRadius="full"
+                      bg="linear-gradient(135deg, #0B5CAD 0%, #0EA5E9 100%)"
+                      color="white"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      fontSize="sm"
+                      fontWeight="900"
+                      boxShadow="0 3px 8px rgba(0, 78, 168, 0.22)"
+                    >
+                      {user.name.slice(0, 1)}
+                    </Box>
                     <Button
                       variant="link"
                       color="#0F172A"

@@ -114,6 +114,12 @@ export default function MainDashboard() {
   // 로그인 상태 확인
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token_backup');
@@ -1942,7 +1948,7 @@ export default function MainDashboard() {
     if (!matchdayGame) return null;
     const gameDate = new Date(matchdayGame.date);
     if (Number.isNaN(gameDate.getTime())) return null;
-    const today = new Date();
+    const today = new Date(currentTime);
     today.setHours(0, 0, 0, 0);
     const matchDateOnly = new Date(gameDate);
     matchDateOnly.setHours(0, 0, 0, 0);
@@ -1957,6 +1963,17 @@ export default function MainDashboard() {
         : matchdayGame.eventType || '자체';
     const location = matchdayGame.location || '장소 확정 대기';
     const mapQuery = matchdayGame.locationAddress || location;
+    const timeLabel = matchdayGame.time || '시간 확정 대기';
+    const isGameDay = getKstDateKey(gameDate) === getKstDateKey(currentTime);
+    const gameStartAt = /^\d{1,2}:\d{2}$/.test(timeLabel)
+      ? new Date(`${getKstDateKey(gameDate)}T${timeLabel.padStart(5, '0')}:00+09:00`)
+      : null;
+    const remainingMinutes = gameStartAt ? Math.max(0, Math.ceil((gameStartAt.getTime() - currentTime.getTime()) / 60_000)) : null;
+    const gameDayCountdown = remainingMinutes === null
+      ? '시간 확정 대기'
+      : remainingMinutes === 0
+        ? '경기 시작'
+        : `경기까지 ${Math.floor(remainingMinutes / 60)}시간 ${remainingMinutes % 60}분`;
     const attendanceMemberNames = Array.isArray(matchdayGame.attendances)
       ? matchdayGame.attendances
           .filter((attendance: any) => attendance?.status === 'YES')
@@ -1978,6 +1995,7 @@ export default function MainDashboard() {
     }
     const nonMemberCount = manualGuestNames.length + Number(matchdayGame.mercenaryCount || 0);
     const confirmedParticipantCount = confirmedMemberNames.length + nonMemberCount;
+    const isCurrentUserConfirmed = Boolean(user?.name && confirmedMemberNames.includes(user.name));
     const guestTagStyles = [
       { bg: '#7C3AED', color: 'white' },
       { bg: '#EA580C', color: 'white' },
@@ -2001,15 +2019,47 @@ export default function MainDashboard() {
     return {
       badge: diffDays === 0 ? 'TODAY' : `D-${diffDays}`,
       dateLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일 ${dayName}요일`,
-      timeLabel: matchdayGame.time || '시간 확정 대기',
-      dateTimeLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일(${dayName}) · ${matchdayGame.time || '시간 확정 대기'}`,
+      timeLabel,
+      dateTimeLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일(${dayName}) · ${timeLabel}`,
       location,
       eventType,
+      isGameDay,
+      gameDayCountdown,
+      isCurrentUserConfirmed,
       mapUrl: `https://map.kakao.com/?q=${encodeURIComponent(mapQuery)}`,
       naverMapUrl: `https://map.naver.com/p/search/${encodeURIComponent(mapQuery)}`,
       participantBadges,
       confirmedParticipantCount,
     };
+  })();
+
+  const welcomeMessage = user
+    ? nextMatchDisplay?.isGameDay
+      ? `${user.name}님, 오늘은 MATCHDAY입니다.`
+      : nextMatchDisplay?.isCurrentUserConfirmed
+        ? `${user.name}님, 다음 경기 참가가 확정됐어요.`
+        : `${user.name}님, 이번 주 경기 정보를 확인하세요.`
+    : null;
+
+  const thisWeekAlert = (() => {
+    if (!nextMatchDisplay) return null;
+    if (nextMatchDisplay.isGameDay) {
+      return { text: `오늘 ${nextMatchDisplay.timeLabel} 경기 · ${nextMatchDisplay.gameDayCountdown}`, color: '#0F5EAD' };
+    }
+
+    const activeSession = normalizedVoteSession;
+    const deadline = new Date(activeSession?.endTime || '');
+    if (activeSession?.isActive && !activeSession?.isCompleted && !Number.isNaN(deadline.getTime())) {
+      const remainingDays = Math.max(0, Math.ceil((deadline.getTime() - currentTime.getTime()) / (24 * 60 * 60 * 1000)));
+      const totalMembers = Array.isArray(unifiedVoteData?.allMembers) ? unifiedVoteData.allMembers.length : 0;
+      const nonRespondents = Math.max(0, totalMembers - Number(activeSession.totalParticipants || activeSession.participantCount || 0));
+      return {
+        text: `투표 마감 D-${remainingDays} · 미응답 ${nonRespondents}명`,
+        color: remainingDays <= 1 ? '#C2410C' : '#0F5EAD',
+      };
+    }
+
+    return { text: `다음 경기 ${nextMatchDisplay.dateLabel} · 참가인원 ${nextMatchDisplay.confirmedParticipantCount}명`, color: '#0F5EAD' };
   })();
 
 
@@ -2053,12 +2103,49 @@ export default function MainDashboard() {
         height="32px"
         cursor={isDragging ? 'grabbing' : 'grab'}
       />
-      
+      {(welcomeMessage || thisWeekAlert) && (
+        <Flex
+          direction={{ base: 'column', md: 'row' }}
+          justify="space-between"
+          align={{ base: 'flex-start', md: 'center' }}
+          gap={{ base: 2, md: 4 }}
+          w="full"
+          maxW="1400px"
+          mx="auto"
+          px={{ base: 4, md: 5, lg: 6 }}
+          pt={{ base: 5, lg: 3 }}
+          pb={{ base: 0, lg: 1 }}
+        >
+          {welcomeMessage && (
+            <Text fontSize={{ base: 'sm', md: 'md' }} color="#1E3A5F" fontWeight="800">
+              {welcomeMessage}
+            </Text>
+          )}
+          {thisWeekAlert && (
+            <HStack
+              spacing={2}
+              px={3}
+              py={1.5}
+              borderRadius="full"
+              bg="white"
+              border="1px solid"
+              borderColor="#DCE8F4"
+              boxShadow="0 4px 14px rgba(15, 94, 173, 0.08)"
+            >
+              <Box w="7px" h="7px" borderRadius="full" bg={thisWeekAlert.color} />
+              <Text fontSize="xs" color={thisWeekAlert.color} fontWeight="800" whiteSpace="nowrap">
+                이번 주 알림 · {thisWeekAlert.text}
+              </Text>
+            </HStack>
+          )}
+        </Flex>
+      )}
+
       <Flex
         direction={{ base: 'column', md: 'row' }}
         gap={{ base: 5, lg: 7 }}
         px={{ base: 4, md: 5, lg: 6 }}
-        pt={{ base: 6, lg: 5 }}
+        pt={{ base: 4, lg: 3 }}
         pb={{ base: 5, lg: 4 }}
         w="full"
         maxW="1400px"
@@ -2073,13 +2160,15 @@ export default function MainDashboard() {
           overflow="hidden"
           p={{ base: 5, md: 5, lg: 6 }}
           borderRadius="2xl"
-          boxShadow="none"
+          boxShadow={nextMatchDisplay?.isGameDay ? '0 18px 34px rgba(3, 27, 56, 0.18)' : 'none'}
           h={{ base: 'auto', md: '520px' }}
           minH={{ base: '330px', md: '520px' }}
           alignSelf={{ base: 'auto', md: 'flex-start' }}
           maxW={{ base: '100%', md: '430px' }}
           color="white"
-          bg="linear-gradient(145deg, #031B38 0%, #064A96 58%, #0B78D0 100%)"
+          bg={nextMatchDisplay?.isGameDay
+            ? 'linear-gradient(145deg, #071B35 0%, #0B4F8C 52%, #0AA2C0 100%)'
+            : 'linear-gradient(145deg, #031B38 0%, #064A96 58%, #0B78D0 100%)'}
           display="flex"
           flexDirection="column"
           justifyContent="flex-start"
@@ -2101,7 +2190,7 @@ export default function MainDashboard() {
               letterSpacing="0.22em"
               color="#7CEBFF"
             >
-              NEXT MATCH
+              {nextMatchDisplay?.isGameDay ? 'MATCHDAY' : 'NEXT MATCH'}
             </Text>
           </HStack>
 
@@ -2129,7 +2218,7 @@ export default function MainDashboard() {
                   {nextMatchDisplay.eventType}
                 </Badge>
                 <Badge bg="#FEE500" color="#172033" borderRadius="full" px={3} py={1} fontWeight="900">
-                  {nextMatchDisplay.badge}
+                  {nextMatchDisplay.isGameDay ? nextMatchDisplay.gameDayCountdown : nextMatchDisplay.badge}
                 </Badge>
                 </HStack>
                 {matchWeather?.available && (
@@ -2144,7 +2233,7 @@ export default function MainDashboard() {
                 lineHeight="1.08"
                 whiteSpace="nowrap"
                 >
-                  {nextMatchDisplay.dateTimeLabel}
+                  {nextMatchDisplay.isGameDay ? `오늘 · ${nextMatchDisplay.timeLabel}` : nextMatchDisplay.dateTimeLabel}
                 </Text>
               </VStack>
               <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full">
