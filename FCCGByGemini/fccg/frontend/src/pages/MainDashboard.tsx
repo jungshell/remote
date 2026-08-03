@@ -1,4 +1,4 @@
-import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag, Image } from '@chakra-ui/react';
+import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag } from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { MdMusicNote, MdMusicOff } from 'react-icons/md';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
@@ -417,7 +417,6 @@ export default function MainDashboard() {
   const [matchVenuePreview, setMatchVenuePreview] = useState<{
     latitude: number;
     longitude: number;
-    mapPreviewUrl: string;
   } | null>(null);
   const [matchWeather, setMatchWeather] = useState<{
     available?: boolean;
@@ -427,13 +426,11 @@ export default function MainDashboard() {
     precipitationProbability?: number;
     windSpeed?: number;
   } | null>(null);
-  const [isMapPreviewFailed, setIsMapPreviewFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setMatchVenuePreview(null);
     setMatchWeather(null);
-    setIsMapPreviewFailed(false);
     if (!matchdayGame) return () => { cancelled = true; };
 
     const loadVenue = async () => {
@@ -453,7 +450,6 @@ export default function MainDashboard() {
         setMatchVenuePreview({
           latitude,
           longitude,
-          mapPreviewUrl: `${baseUrl}/map-preview?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}`,
         });
       } catch (error) {
         console.warn('다음 경기 지도 좌표를 불러오지 못했습니다.', error);
@@ -2117,23 +2113,22 @@ export default function MainDashboard() {
                   {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
                 </Tag>
               )}
-              <Box position="relative" borderRadius="lg" overflow="hidden" h="130px" w="100%" border="1px solid rgba(255,255,255,0.32)" bg="linear-gradient(135deg, #8FD0ED, #D6EEF9)">
-                {matchVenuePreview && !isMapPreviewFailed && (
-                  <Image src={matchVenuePreview.mapPreviewUrl} alt={`${nextMatchDisplay.location} 지도`} w="100%" h="100%" objectFit="cover" loading="lazy" onError={() => setIsMapPreviewFailed(true)} />
-                )}
-                <Box position="absolute" insetX={2} top={2} px={2} py={1} borderRadius="md" bg="rgba(3,27,56,0.78)" color="white">
-                  <Text fontSize="xs" fontWeight="800" noOfLines={1}>📍 {nextMatchDisplay.location}</Text>
-                </Box>
-                <Box position="absolute" insetX={2} bottom={2} px={2} py={1} borderRadius="md" bg="rgba(255,255,255,0.9)" color="#064A96">
-                  <Text fontSize="2xs" fontWeight="700">지도에서 위치와 길찾기를 확인할 수 있습니다.</Text>
-                </Box>
-              </Box>
               <HStack w="full" justify="space-between" align="center">
                 <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
                   확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
                 </Tag>
                 {user && nextMatchDisplay.confirmedParticipantNames.length > 0 && (
-                  <Button variant="link" size="xs" color="#A7F3FF" onClick={onParticipantListOpen}>전체 명단 보기 ›</Button>
+                  <Button
+                    size="xs"
+                    px={2}
+                    bg="rgba(255,255,255,0.94)"
+                    color="#063F80"
+                    fontWeight="800"
+                    _hover={{ bg: 'white', color: '#004EA8' }}
+                    onClick={onParticipantListOpen}
+                  >
+                    전체 명단 보기 ›
+                  </Button>
                 )}
               </HStack>
             </VStack>
