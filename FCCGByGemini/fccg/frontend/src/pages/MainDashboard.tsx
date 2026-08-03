@@ -2113,8 +2113,8 @@ export default function MainDashboard() {
           maxW="1400px"
           mx="auto"
           px={{ base: 4, md: 5, lg: 6 }}
-          pt={{ base: 5, lg: 3 }}
-          pb={{ base: 0, lg: 1 }}
+          pt={{ base: 3, lg: 1 }}
+          pb={0}
         >
           {welcomeMessage && (
             <Text fontSize={{ base: 'sm', md: 'md' }} color="#1E3A5F" fontWeight="800">
@@ -2124,8 +2124,9 @@ export default function MainDashboard() {
           {thisWeekAlert && (
             <HStack
               spacing={2}
-              px={3}
-              py={1.5}
+              h="28px"
+              px={2.5}
+              py={0}
               borderRadius="full"
               bg="white"
               border="1px solid"
