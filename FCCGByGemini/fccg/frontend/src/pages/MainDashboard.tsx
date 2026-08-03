@@ -1211,11 +1211,6 @@ export default function MainDashboard() {
 
   // 상세 모달 상태
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const {
-    isOpen: isParticipantListOpen,
-    onOpen: onParticipantListOpen,
-    onClose: onParticipantListClose,
-  } = useDisclosure();
   const [modalIdx, setModalIdx] = useState<number | null>(null);
 
   // 멤버 리스트 상태
@@ -1971,6 +1966,16 @@ export default function MainDashboard() {
     const selectedMemberNames = parseNameList(matchdayGame.selectedMembers);
     const confirmedMemberNames = [...new Set([...attendanceMemberNames, ...selectedMemberNames])];
     const manualGuestNames = parseNameList(matchdayGame.memberNames).filter((name) => !confirmedMemberNames.includes(name));
+    const guestGroups = Array.from(
+      manualGuestNames.reduce((groups, name) => {
+        const label = name.replace(/\s*\d+\s*$/, '').trim() || name;
+        groups.set(label, (groups.get(label) || 0) + 1);
+        return groups;
+      }, new Map<string, number>()),
+    ).map(([name, count]) => `${name} ${count}명`);
+    if (Number(matchdayGame.mercenaryCount || 0) > 0) {
+      guestGroups.push(`용병 ${Number(matchdayGame.mercenaryCount)}명`);
+    }
     const nonMemberCount = manualGuestNames.length + Number(matchdayGame.mercenaryCount || 0);
     const confirmedParticipantCount = confirmedMemberNames.length + nonMemberCount;
 
@@ -1984,6 +1989,7 @@ export default function MainDashboard() {
       mapUrl: `https://map.kakao.com/?q=${encodeURIComponent(mapQuery)}`,
       naverMapUrl: `https://map.naver.com/p/search/${encodeURIComponent(mapQuery)}`,
       confirmedMemberNames,
+      guestGroups,
       nonMemberCount,
       confirmedParticipantCount,
     };
@@ -2121,24 +2127,21 @@ export default function MainDashboard() {
                   {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
                 </Tag>
               )}
-              <HStack w="full" justify="space-between" align="center">
+              <Box w="full" pt={1}>
                 <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
                   확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
                 </Tag>
-                {user && (nextMatchDisplay.confirmedMemberNames.length > 0 || nextMatchDisplay.nonMemberCount > 0) && (
-                  <Button
-                    size="xs"
-                    px={2}
-                    bg="rgba(255,255,255,0.94)"
-                    color="#063F80"
-                    fontWeight="800"
-                    _hover={{ bg: 'white', color: '#004EA8' }}
-                    onClick={onParticipantListOpen}
-                  >
-                    전체 명단 보기 ›
-                  </Button>
+                {user && nextMatchDisplay.confirmedMemberNames.length > 0 && (
+                  <Text mt={1.5} fontSize="xs" color="#D9FAFF" lineHeight="1.5">
+                    회원: {nextMatchDisplay.confirmedMemberNames.join(' · ')}
+                  </Text>
                 )}
-              </HStack>
+                {nextMatchDisplay.guestGroups.length > 0 && (
+                  <Text mt={0.5} fontSize="xs" color="#FFF2AE" lineHeight="1.5">
+                    비회원: {nextMatchDisplay.guestGroups.join(' · ')}
+                  </Text>
+                )}
+              </Box>
             </VStack>
           ) : (
             <VStack align="start" spacing={3} position="relative" zIndex={1}>
@@ -2588,32 +2591,6 @@ export default function MainDashboard() {
               </Box>
             )}
             {modalIdx !== null && modalIdx !== 0 && getDetailContent(modalIdx)}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-
-      <Modal isOpen={isParticipantListOpen} onClose={onParticipantListClose} isCentered>
-        <ModalOverlay />
-        <ModalContent maxW="440px">
-          <ModalCloseButton />
-          <ModalBody px={6} pt={6} pb={6}>
-            <Text fontSize="lg" fontWeight="800" color="#063F80">다음 경기 확정 참가자</Text>
-            <Text mt={1} mb={4} color="gray.600" fontSize="sm">
-              {nextMatchDisplay?.confirmedParticipantCount || 0}명 기준 · 투표 결과가 아닌 관리자 확정 명단입니다.
-            </Text>
-            <Wrap spacing={2}>
-              {(nextMatchDisplay?.confirmedMemberNames || []).map((name) => (
-                <WrapItem key={name}>
-                  <Tag size="md" colorScheme="blue">{name}</Tag>
-                </WrapItem>
-              ))}
-            </Wrap>
-            {(nextMatchDisplay?.nonMemberCount || 0) > 0 && (
-              <Box mt={4} p={3} borderRadius="md" bg="orange.50" color="orange.800">
-                <Text fontSize="sm" fontWeight="800">비회원·게스트 {nextMatchDisplay?.nonMemberCount}명</Text>
-                <Text fontSize="xs" mt={1}>비회원은 이름을 노출하지 않고 인원수로만 표시합니다.</Text>
-              </Box>
-            )}
           </ModalBody>
         </ModalContent>
       </Modal>
