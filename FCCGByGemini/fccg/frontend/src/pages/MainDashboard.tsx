@@ -1972,12 +1972,31 @@ export default function MainDashboard() {
         groups.set(label, (groups.get(label) || 0) + 1);
         return groups;
       }, new Map<string, number>()),
-    ).map(([name, count]) => `${name} ${count}명`);
+    ).map(([name, count]) => ({ name, count }));
     if (Number(matchdayGame.mercenaryCount || 0) > 0) {
-      guestGroups.push(`용병 ${Number(matchdayGame.mercenaryCount)}명`);
+      guestGroups.push({ name: '용병', count: Number(matchdayGame.mercenaryCount) });
     }
     const nonMemberCount = manualGuestNames.length + Number(matchdayGame.mercenaryCount || 0);
     const confirmedParticipantCount = confirmedMemberNames.length + nonMemberCount;
+    const guestTagStyles = [
+      { bg: '#7C3AED', color: 'white' },
+      { bg: '#EA580C', color: 'white' },
+      { bg: '#0F766E', color: 'white' },
+      { bg: '#BE185D', color: 'white' },
+    ];
+    const participantBadges = [
+      ...confirmedMemberNames.map((name) => ({
+        key: `member-${name}`,
+        label: name,
+        bg: '#075CB4',
+        color: 'white',
+      })),
+      ...guestGroups.map((group, index) => ({
+        key: `guest-${group.name}`,
+        label: `${group.name} ${group.count}명`,
+        ...guestTagStyles[index % guestTagStyles.length],
+      })),
+    ];
 
     return {
       badge: diffDays === 0 ? 'TODAY' : `D-${diffDays}`,
@@ -1988,9 +2007,7 @@ export default function MainDashboard() {
       eventType,
       mapUrl: `https://map.kakao.com/?q=${encodeURIComponent(mapQuery)}`,
       naverMapUrl: `https://map.naver.com/p/search/${encodeURIComponent(mapQuery)}`,
-      confirmedMemberNames,
-      guestGroups,
-      nonMemberCount,
+      participantBadges,
       confirmedParticipantCount,
     };
   })();
@@ -2054,7 +2071,7 @@ export default function MainDashboard() {
           flex={{ base: '1', md: '0 0 32%' }}
           position="relative"
           overflow="hidden"
-          p={{ base: 5, md: 6, lg: 7 }}
+          p={{ base: 5, md: 5, lg: 6 }}
           borderRadius="2xl"
           boxShadow="none"
           h={{ base: 'auto', md: '520px' }}
@@ -2089,8 +2106,18 @@ export default function MainDashboard() {
           </HStack>
 
           {nextMatchDisplay ? (
-            <VStack align="start" spacing={2.5} position="relative" zIndex={1}>
-              <HStack w="full" justify="space-between">
+            <VStack
+              align="start"
+              spacing={{ base: 4, md: 3 }}
+              position="relative"
+              zIndex={1}
+              w="full"
+              flex="1"
+              mt={3}
+              justify="space-between"
+            >
+              <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full">
+                <HStack w="full" justify="space-between">
                 <Badge
                   bg="rgba(255,255,255,0.14)"
                   color="white"
@@ -2104,17 +2131,24 @@ export default function MainDashboard() {
                 <Badge bg="#FEE500" color="#172033" borderRadius="full" px={3} py={1} fontWeight="900">
                   {nextMatchDisplay.badge}
                 </Badge>
-              </HStack>
-              <Text
+                </HStack>
+                {matchWeather?.available && (
+                  <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7" border="1px solid rgba(254,229,0,0.34)">
+                    {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
+                  </Tag>
+                )}
+                <Text
                 fontSize={{ base: '2xl', lg: '3xl' }}
                 fontWeight="900"
                 letterSpacing="-0.045em"
                 lineHeight="1.08"
                 whiteSpace="nowrap"
-              >
-                {nextMatchDisplay.dateTimeLabel}
-              </Text>
-              <Box pt={1}>
+                >
+                  {nextMatchDisplay.dateTimeLabel}
+                </Text>
+              </VStack>
+              <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full">
+                <Box w="full">
                 <Text fontSize="xs" color="rgba(255,255,255,0.68)" fontWeight="700">
                   장소
                 </Text>
@@ -2149,27 +2183,39 @@ export default function MainDashboard() {
                     네이버지도
                   </Button>
                 </HStack>
-              </Box>
-              {matchWeather?.available && (
-                <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7">
-                  {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
-                </Tag>
-              )}
-              <Box w="full" pt={1}>
-                <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
-                  확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
-                </Tag>
-                {user && nextMatchDisplay.confirmedMemberNames.length > 0 && (
-                  <Text mt={1.5} fontSize="xs" color="#D9FAFF" lineHeight="1.5">
-                    회원: {nextMatchDisplay.confirmedMemberNames.join(' · ')}
+                </Box>
+                <Box w="full">
+                <HStack w="full" justify="space-between" align="center">
+                  <Text fontSize="xs" color="rgba(255,255,255,0.68)" fontWeight="700">
+                    참석인원
                   </Text>
-                )}
-                {nextMatchDisplay.guestGroups.length > 0 && (
-                  <Text mt={0.5} fontSize="xs" color="#FFF2AE" lineHeight="1.5">
-                    비회원: {nextMatchDisplay.guestGroups.join(' · ')}
+                  <Text fontSize="xs" color="#D9FAFF" fontWeight="800">
+                    참가인원 : {nextMatchDisplay.confirmedParticipantCount}명
                   </Text>
+                </HStack>
+                {nextMatchDisplay.participantBadges.length > 0 && (
+                  <Wrap mt={2} spacing={1.5} shouldWrapChildren>
+                    {nextMatchDisplay.participantBadges.map((participant) => (
+                      <WrapItem key={participant.key}>
+                        <Tag
+                          size="sm"
+                          px={2.5}
+                          py={1}
+                          borderRadius="full"
+                          bg={participant.bg}
+                          color={participant.color}
+                          fontWeight="800"
+                          fontSize="xs"
+                          whiteSpace="nowrap"
+                        >
+                          {participant.label}
+                        </Tag>
+                      </WrapItem>
+                    ))}
+                  </Wrap>
                 )}
-              </Box>
+                </Box>
+              </VStack>
             </VStack>
           ) : (
             <VStack align="start" spacing={3} position="relative" zIndex={1}>
