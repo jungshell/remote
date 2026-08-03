@@ -2121,6 +2121,34 @@ export default function MainDashboard() {
                 <Text mt={1} fontSize="lg" fontWeight="800" lineHeight="1.35">
                   {nextMatchDisplay.location}
                 </Text>
+                <HStack mt={2} spacing={2}>
+                  <Button
+                    as="a"
+                    href={nextMatchDisplay.mapUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    size="xs"
+                    bg="#FEE500"
+                    color="#3C1E1E"
+                    fontWeight="800"
+                    _hover={{ bg: '#F7D600' }}
+                  >
+                    카카오지도
+                  </Button>
+                  <Button
+                    as="a"
+                    href={nextMatchDisplay.naverMapUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    size="xs"
+                    bg="#03C75A"
+                    color="white"
+                    fontWeight="800"
+                    _hover={{ bg: '#02B351' }}
+                  >
+                    네이버지도
+                  </Button>
+                </HStack>
               </Box>
               {matchWeather?.available && (
                 <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7">
@@ -2156,37 +2184,6 @@ export default function MainDashboard() {
             </VStack>
           )}
 
-          <HStack spacing={2} mt={3} position="relative" zIndex={1}>
-            {nextMatchDisplay && (
-              <Button
-                as="a"
-                href={nextMatchDisplay.mapUrl}
-                target="_blank"
-                rel="noreferrer"
-                size="sm"
-                bg="white"
-                color="#064A96"
-                _hover={{ bg: '#E0F2FE' }}
-              >
-                카카오맵
-              </Button>
-            )}
-            {nextMatchDisplay && (
-              <Button
-                as="a"
-                href={nextMatchDisplay.naverMapUrl}
-                target="_blank"
-                rel="noreferrer"
-                size="sm"
-                variant="outline"
-                borderColor="rgba(255,255,255,0.55)"
-                color="white"
-                _hover={{ bg: 'rgba(255,255,255,0.12)' }}
-              >
-                네이버
-              </Button>
-            )}
-          </HStack>
         </Box>
         {/* 유튜브 슬라이드 */}
         <Box
