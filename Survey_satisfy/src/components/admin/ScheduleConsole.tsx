@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { authFetch, fetchCurrentUser } from "@/lib/auth/access";
 import { Badge } from "@/components/ui/Badge";
 import { ScheduleResults } from "@/components/admin/ScheduleResults";
+import { DatePickerField } from "@/components/manager/DatePickerField";
 import { MultiDatePicker } from "@/components/schedule/MultiDatePicker";
 import type { SchedulePoll } from "@/types/schedule";
 
@@ -390,15 +391,16 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
         <div className="grid gap-3 sm:grid-cols-3">
           <ToggleField label="오찬 참석 조사 포함" active={includeLunch} onClick={() => setIncludeLunch((v) => !v)} />
           <ToggleField label="석식 참석 조사 포함" active={includeDinner} onClick={() => setIncludeDinner((v) => !v)} />
-          <label className="block">
-            <span className="label-machined text-[var(--text-muted)]">응답 마감 (달력 · 선택)</span>
-            <input
-              type="date"
-              value={deadline}
-              onChange={(event) => setDeadline(event.target.value)}
-              className="focus-ring mt-2 h-11 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
-            />
-          </label>
+          <DatePickerField label="응답 마감 (선택)" value={deadline} onChange={setDeadline} />
+          {deadline ? (
+            <button
+              type="button"
+              onClick={() => setDeadline("")}
+              className="focus-ring self-start text-xs text-[var(--text-muted)] underline underline-offset-4 hover:text-white"
+            >
+              마감 지우기
+            </button>
+          ) : null}
         </div>
 
         <button
