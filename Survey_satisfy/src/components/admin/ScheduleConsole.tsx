@@ -1,10 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { authFetch } from "@/lib/auth/access";
+import { authFetch, fetchCurrentUser } from "@/lib/auth/access";
 import { Badge } from "@/components/ui/Badge";
 import { ScheduleResults } from "@/components/admin/ScheduleResults";
-import { DEFAULT_TIME_SLOTS, type SchedulePoll, type ScheduleTimeSlot } from "@/types/schedule";
+import { MultiDatePicker } from "@/components/schedule/MultiDatePicker";
+import type { SchedulePoll } from "@/types/schedule";
+
+const HOUR_OPTIONS = [9, 10, 11, 13, 14, 15, 16, 17, 18];
+const DEFAULT_HOURS = [10, 11, 13, 14, 15];
+
+/** 제목으로 안내 문구 초안 생성 */
+function generateDescription(title: string, name: string): string {
+  const base = title.replace(/\s*일정\s*조사\s*$/, "").trim();
+  if (!base) {
+    return "";
+  }
+  const roundMatch = base.match(/^제\s*(\d+)\s*차\s*(.+)$/);
+  const round = roundMatch?.[1];
+  const committee = (roundMatch?.[2] ?? base).trim();
+  const meeting = round ? `제${round}차 ${committee}` : committee;
+  const greeter = name ? `충남콘텐츠진흥원 ${name}입니다.` : "충남콘텐츠진흥원입니다.";
+  return `안녕하세요. ${greeter}
+
+${committee} 참여해주셔서 감사드립니다.
+관련하여 ${meeting}를 진행하고자 하오니 가능한 일정 투표 부탁드립니다.
+
+감사합니다.`;
+}
 
 type View = "list" | "create" | "results";
 
@@ -202,44 +225,59 @@ function ActionButton({
   );
 }
 
-function newSlotId() {
-  return `s_${Math.random().toString(36).slice(2, 7)}`;
-}
-
 function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; onCreated: () => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [lastAutoDesc, setLastAutoDesc] = useState("");
+  const [userName, setUserName] = useState("");
   const [dates, setDates] = useState<string[]>([]);
-  const [dateInput, setDateInput] = useState("");
-  const [slots, setSlots] = useState<ScheduleTimeSlot[]>(DEFAULT_TIME_SLOTS.map((slot) => ({ ...slot })));
+  const [hours, setHours] = useState<number[]>(DEFAULT_HOURS);
   const [includeLunch, setIncludeLunch] = useState(false);
   const [includeDinner, setIncludeDinner] = useState(false);
   const [deadline, setDeadline] = useState("");
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  function addDate() {
-    if (!dateInput) return;
-    setDates((prev) => (prev.includes(dateInput) ? prev : [...prev, dateInput].sort()));
-    setDateInput("");
+  useEffect(() => {
+    void fetchCurrentUser().then((user) => {
+      if (user?.name) {
+        setUserName(user.name);
+      }
+    });
+  }, []);
+
+  // 제목 입력 시 안내 문구 초안 자동 생성 (직접 편집한 경우는 덮어쓰지 않음)
+  function handleTitleChange(value: string) {
+    setTitle(value);
+    if (description === "" || description === lastAutoDesc) {
+      const draft = generateDescription(value, userName);
+      setDescription(draft);
+      setLastAutoDesc(draft);
+    }
   }
 
-  function addSlot() {
-    setSlots((prev) => [...prev, { id: newSlotId(), label: "" }]);
+  function regenerateDescription() {
+    const draft = generateDescription(title, userName);
+    setDescription(draft);
+    setLastAutoDesc(draft);
+  }
+
+  function toggleHour(hour: number) {
+    setHours((prev) => (prev.includes(hour) ? prev.filter((h) => h !== hour) : [...prev, hour]));
   }
 
   async function handleCreate() {
-    const cleanSlots = slots.map((slot) => ({ id: slot.id, label: slot.label.trim() })).filter((slot) => slot.label);
     if (!title.trim()) {
       setStatus("조사 제목을 입력해 주세요.");
       return;
     }
     if (dates.length === 0) {
-      setStatus("후보 날짜를 1개 이상 추가해 주세요.");
+      setStatus("후보 날짜를 1개 이상 선택해 주세요.");
       return;
     }
-    if (cleanSlots.length === 0) {
-      setStatus("시간대를 1개 이상 입력해 주세요.");
+    const timeSlots = [...hours].sort((a, b) => a - b).map((hour) => ({ id: `h${hour}`, label: `${hour}시` }));
+    if (timeSlots.length === 0) {
+      setStatus("가능 시각을 1개 이상 선택해 주세요.");
       return;
     }
 
@@ -253,7 +291,7 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
           title,
           description,
           dates,
-          timeSlots: cleanSlots,
+          timeSlots,
           includeLunch,
           includeDinner,
           deadline: deadline || null,
@@ -289,90 +327,63 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
           <span className="label-machined text-[var(--text-muted)]">제목</span>
           <input
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="예: 2026 상반기 인사위원회 일정 조사"
+            onChange={(event) => handleTitleChange(event.target.value)}
+            placeholder="예: 제1차 임원추천위원회 일정조사"
             className="focus-ring mt-2 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
           />
         </label>
 
-        <label className="block">
-          <span className="label-machined text-[var(--text-muted)]">안내 문구 (선택)</span>
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="label-machined text-[var(--text-muted)]">안내 문구 (제목 입력 시 자동 생성 · 수정 가능)</span>
+            <button
+              type="button"
+              onClick={regenerateDescription}
+              className="focus-ring text-xs text-[var(--text-muted)] underline underline-offset-4 hover:text-white"
+            >
+              제목으로 다시 생성
+            </button>
+          </div>
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            rows={2}
-            placeholder="위원님들께 보여줄 안내 문구"
-            className="focus-ring mt-2 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] p-3 text-sm text-white"
+            rows={7}
+            placeholder="제목을 입력하면 안내 문구 초안이 자동으로 채워집니다."
+            className="focus-ring mt-2 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] p-3 text-sm leading-6 text-white"
           />
-        </label>
-
-        {/* 후보 날짜 */}
-        <div>
-          <span className="label-machined text-[var(--text-muted)]">후보 날짜</span>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <input
-              type="date"
-              value={dateInput}
-              onChange={(event) => setDateInput(event.target.value)}
-              className="focus-ring h-11 border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
-            />
-            <button
-              type="button"
-              onClick={addDate}
-              className="focus-ring label-machined min-h-11 border border-[var(--hairline)] px-4 text-sm text-[var(--text-body)] hover:border-white hover:text-white"
-            >
-              날짜 추가
-            </button>
-          </div>
-          {dates.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {dates.map((date) => (
-                <span key={date} className="flex items-center gap-2 border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 py-1.5 text-sm text-white">
-                  {date}
-                  <button
-                    type="button"
-                    onClick={() => setDates((prev) => prev.filter((d) => d !== date))}
-                    className="text-[var(--text-muted)] hover:text-white"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          ) : null}
         </div>
 
-        {/* 시간대 */}
+        {/* 후보 날짜 (달력 복수 선택) */}
         <div>
-          <span className="label-machined text-[var(--text-muted)]">시간대 (기본값 제공 · 수정 가능)</span>
-          <div className="mt-2 grid gap-2">
-            {slots.map((slot, index) => (
-              <div key={slot.id} className="flex gap-2">
-                <input
-                  value={slot.label}
-                  onChange={(event) =>
-                    setSlots((prev) => prev.map((s, i) => (i === index ? { ...s, label: event.target.value } : s)))
-                  }
-                  placeholder="예: 오전 10~11"
-                  className="focus-ring h-11 flex-1 border border-[var(--hairline)] bg-[var(--surface-soft)] px-3 text-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setSlots((prev) => prev.filter((_, i) => i !== index))}
-                  className="focus-ring min-h-11 border border-[var(--hairline)] px-3 text-sm text-[var(--text-muted)] hover:border-white hover:text-white"
-                >
-                  삭제
-                </button>
-              </div>
-            ))}
+          <span className="label-machined text-[var(--text-muted)]">후보 날짜 (달력에서 여러 개 클릭)</span>
+          <div className="mt-2">
+            <MultiDatePicker value={dates} onChange={setDates} />
           </div>
-          <button
-            type="button"
-            onClick={addSlot}
-            className="focus-ring label-machined mt-2 border border-[var(--hairline)] px-4 py-2 text-sm text-[var(--text-body)] hover:border-white hover:text-white"
-          >
-            + 시간대 추가
-          </button>
+        </div>
+
+        {/* 가능 시각 (복수 선택) */}
+        <div>
+          <span className="label-machined text-[var(--text-muted)]">가능 시각 선택 (복수)</span>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {HOUR_OPTIONS.map((hour) => {
+              const active = hours.includes(hour);
+              return (
+                <button
+                  key={hour}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleHour(hour)}
+                  className={`focus-ring min-h-11 border px-4 text-sm transition-colors ${
+                    active
+                      ? "border-white bg-white text-black"
+                      : "border-[var(--hairline)] text-[var(--text-body)] hover:border-white hover:text-white"
+                  }`}
+                >
+                  {hour}시
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* 오찬/석식/마감 */}
@@ -380,7 +391,7 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
           <ToggleField label="오찬 참석 조사 포함" active={includeLunch} onClick={() => setIncludeLunch((v) => !v)} />
           <ToggleField label="석식 참석 조사 포함" active={includeDinner} onClick={() => setIncludeDinner((v) => !v)} />
           <label className="block">
-            <span className="label-machined text-[var(--text-muted)]">응답 마감 (선택)</span>
+            <span className="label-machined text-[var(--text-muted)]">응답 마감 (달력 · 선택)</span>
             <input
               type="date"
               value={deadline}
