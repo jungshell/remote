@@ -510,6 +510,12 @@ export default function Header() {
                       color="#102A43"
                       cursor="pointer"
                       bg="transparent"
+                      border="0"
+                      outline="none"
+                      appearance="none"
+                      fontFamily="inherit"
+                      fontSize="inherit"
+                      lineHeight="inherit"
                       p={0}
                       whiteSpace="nowrap"
                       overflow="hidden"
@@ -606,18 +612,29 @@ export default function Header() {
                     >
                       {user.name.slice(0, 1)}
                     </Box>
-                    <Button
-                      variant="link"
+                    <Text
+                      as="button"
+                      type="button"
+                      aria-label={`${user.name}님의 플레이어 패스포트 열기`}
                       color="#0F172A"
                       fontWeight="bold"
-                      rightIcon={<Text color="gray.400" fontSize="lg" lineHeight="1">›</Text>}
+                      bg="transparent"
+                      border="0"
+                      outline="none"
+                      appearance="none"
+                      fontFamily="inherit"
+                      p={0}
+                      cursor="pointer"
+                      transition="color 0.18s ease"
+                      _hover={{ color: '#0B5CAD', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                      _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '3px' }}
                       onClick={() => {
                         mobileNav.onClose();
                         playerPassport.onOpen();
                       }}
                     >
-                      {user.name}
-                    </Button>
+                      {user.name} <Box as="span" color="#8AA0B8" fontSize="lg" lineHeight="1" aria-hidden="true">›</Box>
+                    </Text>
                   </HStack>
                   <Box>
                     <Text fontSize="sm" color="gray.500">투표율</Text>
