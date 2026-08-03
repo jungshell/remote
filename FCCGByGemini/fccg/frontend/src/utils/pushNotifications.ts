@@ -24,7 +24,11 @@ class PushNotificationManager {
   private isSupported: boolean = false;
 
   constructor() {
-    this.isSupported = 'Notification' in window && 'serviceWorker' in navigator;
+    const enablePush = (import.meta as any)?.env?.VITE_ENABLE_PUSH === 'true';
+    this.isSupported =
+      enablePush &&
+      'Notification' in window &&
+      'serviceWorker' in navigator;
   }
 
   /**
@@ -51,8 +55,7 @@ class PushNotificationManager {
    * 서비스 워커 등록
    */
   async registerServiceWorker(): Promise<ServiceWorkerRegistration> {
-    const enablePush = (import.meta as any)?.env?.VITE_ENABLE_PUSH === 'true';
-    if (!this.isSupported || !enablePush) {
+    if (!this.isSupported) {
       throw new Error('서비스 워커를 지원하지 않는 브라우저입니다.');
     }
 
@@ -314,4 +317,3 @@ export const showGameReminderNotification = (data: any) => pushNotificationManag
 export const initializePushNotifications = () => pushNotificationManager.initialize();
 export const isNotificationSupported = () => pushNotificationManager.isNotificationSupported();
 export const getNotificationPermission = () => pushNotificationManager.getPermissionStatus();
-

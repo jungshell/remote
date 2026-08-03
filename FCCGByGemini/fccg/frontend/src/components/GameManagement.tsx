@@ -711,6 +711,7 @@ export default function GameManagement({ games, onGamesChange, userList, onGameD
             memberNames: formData.memberNames.filter(name => name.trim() !== ''),
             selectedMembers: selectedMembers,
             mercenaryCount: formData.mercenaryCount || 0,
+            sendConfirmationNotification: true,
           };
 
           console.log('🎯 자동생성 경기 일정확정 데이터:', {
@@ -806,7 +807,13 @@ export default function GameManagement({ games, onGamesChange, userList, onGameD
                   confirmedBy: '관리자'
                 });
                 emitDataRefreshNeeded('games');
-                emitAlert(`경기 일정이 확정되었습니다! 회원들에게 알림이 발송되었습니다.`, 'success');
+                const emailWasSent = result.emailNotification?.success === true;
+                emitAlert(
+                  emailWasSent
+                    ? '경기 일정이 확정되고 회원 알림이 발송되었습니다.'
+                    : '경기 일정은 확정됐지만 이메일 발송 상태를 확인해주세요.',
+                  emailWasSent ? 'success' : 'warning'
+                );
                 
                 // 📱 푸시 알림 표시
                 try {
@@ -839,8 +846,10 @@ export default function GameManagement({ games, onGamesChange, userList, onGameD
           // 성공 메시지
           toast({
             title: '🎯 경기 일정 확정 완료!',
-            description: '회원들에게 알림이 발송되었습니다.',
-            status: 'success',
+            description: result.emailNotification?.success
+              ? '회원들에게 이메일 알림이 발송되었습니다.'
+              : `일정은 확정됐지만 이메일은 발송되지 않았습니다. (${result.emailNotification?.reason || result.emailNotification?.error || '메일 설정 확인 필요'})`,
+            status: result.emailNotification?.success ? 'success' : 'warning',
             duration: 5000,
             isClosable: true,
           });

@@ -33,6 +33,7 @@ import { AddIcon, AttachmentIcon, ArrowUpIcon, DeleteIcon, CheckIcon, CloseIcon 
 import { useAuthStore } from '../store/auth';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
+import { useDesktopPagedLayout } from '../hooks/useDesktopPagedLayout';
 
 // 타입 정의
 interface InstagramPost {
@@ -127,6 +128,8 @@ export default function PhotoGalleryPage() {
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [previewFull, setPreviewFull] = useState(false);
   const [sortBy, setSortBy] = useState<'upload' | 'event' | 'likes' | 'comments'>('event');
+  const [currentPage, setCurrentPage] = useState(1);
+  const isDesktopPaged = useDesktopPagedLayout();
   const [currentImageIndex, setCurrentImageIndex] = useState(0); // 상세보기 모달에서 현재 이미지 인덱스
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1412,24 +1415,44 @@ export default function PhotoGalleryPage() {
       if (!a || !b) return 0;
       
       switch (sortBy) {
-        case 'event':
+        case 'event': {
           // eventDate가 없으면 createdAt 사용
           const aDate = a.eventDate || a.createdAt || '';
           const bDate = b.eventDate || b.createdAt || '';
           const aTime = aDate ? new Date(aDate).getTime() : 0;
           const bTime = bDate ? new Date(bDate).getTime() : 0;
           return bTime - aTime;
+        }
         case 'likes':
           return (b.likes || 0) - (a.likes || 0);
         case 'comments':
           return (b.comments?.length || 0) - (a.comments?.length || 0);
-        default:
+        default: {
           const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
           const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return bCreated - aCreated;
+        }
       }
     });
   }, [instagramPosts, sortBy]);
+
+  const postsPerPage = 12;
+  const totalPages = Math.max(1, Math.ceil(sortedPosts.length / postsPerPage));
+  const visiblePosts = useMemo(
+    () =>
+      isDesktopPaged
+        ? sortedPosts.slice((currentPage - 1) * postsPerPage, currentPage * postsPerPage)
+        : sortedPosts,
+    [currentPage, isDesktopPaged, sortedPosts],
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortBy, isDesktopPaged]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   // 상대시간 포맷팅 (분/시간/일 단위)
   const parseDate = (value?: string | null): Date | null => {
@@ -1472,7 +1495,14 @@ export default function PhotoGalleryPage() {
   };
 
   return (
-    <Box minH="100vh" bg="#f7f9fb" w="100%" pt="18mm">
+    <Box
+      minH="100vh"
+      bg="#f7f9fb"
+      w="100%"
+      pt="18mm"
+      overflowY={isDesktopPaged ? 'hidden' : 'visible'}
+      h={isDesktopPaged ? '100vh' : 'auto'}
+    >
       {/* 상단 컨트롤 영역 - 동영상 페이지와 동일한 여백 */}
       <Box px={{ base: 2, md: 4, lg: 6 }} pt={10} pb={4} w="100%" maxW="1400px" mx="auto">
         <Flex justify="flex-end" align="center" mb={1.5}>
@@ -1529,7 +1559,7 @@ export default function PhotoGalleryPage() {
       ) : (
         <Box px={{ base: 2, md: 4, lg: 6 }} pb={10} w="100%" maxW="1400px" mx="auto">
           <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
-          {sortedPosts.map((post) => {
+          {visiblePosts.map((post) => {
             const currentIndex = hoveredImageIndex[post.id] || 0;
             const images = post.multiplePhotos && post.multiplePhotos.length > 0 ? post.multiplePhotos : [post.src];
             const currentImage = images[currentIndex];
@@ -1704,6 +1734,45 @@ export default function PhotoGalleryPage() {
             );
           })}
           </SimpleGrid>
+          {isDesktopPaged && totalPages > 1 && (
+            <HStack justify="center" spacing={2} mt={5}>
+              <IconButton
+                aria-label="이전 사진 페이지"
+                icon={<FiChevronLeft />}
+                size="sm"
+                variant="outline"
+                isDisabled={currentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              />
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                <Button
+                  key={page}
+                  size="sm"
+                  minW="36px"
+                  bg={currentPage === page ? '#0057B8' : 'white'}
+                  color={currentPage === page ? 'white' : '#334155'}
+                  border="1px solid"
+                  borderColor={currentPage === page ? '#0057B8' : '#CBD5E1'}
+                  _hover={{ bg: currentPage === page ? '#003F86' : '#EFF6FF' }}
+                  onClick={() => setCurrentPage(page)}
+                  aria-current={currentPage === page ? 'page' : undefined}
+                >
+                  {page}
+                </Button>
+              ))}
+              <IconButton
+                aria-label="다음 사진 페이지"
+                icon={<FiChevronRight />}
+                size="sm"
+                variant="outline"
+                isDisabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              />
+              <Text ml={2} color="#64748B" fontSize="xs">
+                {currentPage}/{totalPages} · 총 {sortedPosts.length}개
+              </Text>
+            </HStack>
+          )}
         </Box>
       )}
 

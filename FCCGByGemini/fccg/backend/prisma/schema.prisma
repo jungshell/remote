@@ -169,3 +169,18 @@ model VideoViewStat {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model NotificationDelivery {
+  id             Int       @id @default(autoincrement())
+  deliveryKey    String    @unique
+  type           String
+  status         String    @default("PENDING")
+  recipientId    Int?
+  recipientEmail String?
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([type, status])
+}

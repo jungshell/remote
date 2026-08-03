@@ -35,6 +35,7 @@ backups/
 # Editor/tooling caches
 .vscode/
 .idea/
+.claude/
 .vercel/
 .render/
 

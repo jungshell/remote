@@ -303,7 +303,7 @@ export default function FootballFieldPage({ memberList: propMemberList, games }:
     console.log('- propMemberList:', propMemberList);
     console.log('- propMemberList 이름들:', propMemberList?.map(m => m.name));
     
-    let votedMembers = [];
+    const votedMembers = [];
     
     // 1. selectedMembers 처리 (문자열로 저장된 JSON 파싱)
     if (game.selectedMembers) {

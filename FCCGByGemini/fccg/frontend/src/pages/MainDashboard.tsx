@@ -1,7 +1,8 @@
-import { Box, Flex, Text, SimpleGrid, Stack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag } from '@chakra-ui/react';
+import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag } from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { MdMusicNote, MdMusicOff } from 'react-icons/md';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import type { StatsSummary } from '../api/auth';
 import type { Member } from '../api/auth';
@@ -38,6 +39,44 @@ const normalizeSelectedDays = (value: any): string[] => {
   return [];
 };
 
+const parseNameList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  }
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+      : [];
+  } catch {
+    return value
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+  }
+};
+
+const getGameParticipantNames = (game: any): string[] => {
+  const attendanceNames = Array.isArray(game?.attendances)
+    ? game.attendances
+        .filter((attendance: any) => attendance?.status === 'YES')
+        .map((attendance: any) => attendance?.user?.name)
+        .filter((name: unknown): name is string => typeof name === 'string' && name.trim().length > 0)
+    : [];
+  const selectedNames = parseNameList(game?.selectedMembers);
+  return [...new Set(attendanceNames.length > 0 ? attendanceNames : selectedNames)].sort((a, b) =>
+    a.localeCompare(b, 'ko-KR'),
+  );
+};
+
+const getGameDateLabel = (dateValue: unknown) => {
+  const date = new Date(String(dateValue || ''));
+  if (Number.isNaN(date.getTime())) return '날짜 미정';
+  const dayName = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}.(${dayName})`;
+};
+
 const getSessionVoteWeight = (session: any) => {
   const participantCount = Array.isArray(session?.participants) ? session.participants.length : 0;
   const resultCount = session?.results && typeof session.results === 'object'
@@ -49,30 +88,6 @@ const getSessionVoteWeight = (session: any) => {
     : 0;
   return Math.max(participantCount, resultCount);
 };
-
-const quotes = [
-  { quote: '축구는 단순하다. 하지만 단순한 것이 가장 어렵다.', quoteEn: 'Football is simple, but the hardest thing is to play simple.', author: '요한 크루이프', authorEn: 'Johan Cruyff' },
-  { quote: '나는 축구를 할 때 행복하다.', quoteEn: 'I am happy when I play football.', author: '리오넬 메시', authorEn: 'Lionel Messi' },
-  { quote: '승리는 가장 중요한 것이 아니다. 유일한 것이다.', quoteEn: 'Victory is not the most important thing, it is the only thing.', author: '아르센 벵거', authorEn: 'Arsène Wenger' },
-  { quote: '나는 실패를 두려워하지 않는다.', quoteEn: 'I am not afraid to fail.', author: '크리스티아누 호날두', authorEn: 'Cristiano Ronaldo' },
-  { quote: '축구는 실수의 게임이다.', quoteEn: 'Football is a game of mistakes.', author: '알렉스 퍼거슨', authorEn: 'Alex Ferguson' },
-  { quote: '축구는 머리로 하는 스포츠다. 공은 발이 아니라 머리로 찬다.', quoteEn: 'Football is played with the head. Your feet are just the tools.', author: '지네딘 지단', authorEn: 'Zinedine Zidane' },
-  { quote: '축구는 팀 스포츠다. 혼자서는 아무것도 할 수 없다.', quoteEn: 'Football is a team sport. You can do nothing alone.', author: '펠레', authorEn: 'Pelé' },
-  { quote: '축구는 인생이다.', quoteEn: 'Football is life.', author: '디에고 마라도나', authorEn: 'Diego Maradona' },
-  { quote: '축구는 전쟁이 아니다. 즐기는 것이다.', quoteEn: 'Football is not war. It is to be enjoyed.', author: '요하네스 크루이프', authorEn: 'Johannes Cruijff' },
-  { quote: '축구는 예술이다.', quoteEn: 'Football is art.', author: '호나우지뉴', authorEn: 'Ronaldinho' },
-  { quote: '축구는 모든 것을 준다.', quoteEn: 'Football gives you everything.', author: '호베르투 바조', authorEn: 'Roberto Baggio' },
-  { quote: '축구는 나의 열정이다.', quoteEn: 'Football is my passion.', author: '루이스 수아레스', authorEn: 'Luis Suárez' },
-  { quote: '축구는 나의 삶이다.', quoteEn: 'Football is my life.', author: '로베르토 카를로스', authorEn: 'Roberto Carlos' },
-  { quote: '축구는 나를 성장시켰다.', quoteEn: 'Football made me grow.', author: '손흥민', authorEn: 'Heung-min Son' },
-  { quote: '축구는 나에게 자유를 준다.', quoteEn: 'Football gives me freedom.', author: '네이마르', authorEn: 'Neymar' },
-  { quote: '축구는 나에게 꿈을 준다.', quoteEn: 'Football gives me dreams.', author: '카카', authorEn: 'Kaká' },
-  { quote: '축구는 나에게 가족이다.', quoteEn: 'Football is family to me.', author: '클롭', authorEn: 'Jürgen Klopp' },
-  { quote: '축구는 나에게 모든 것이다.', quoteEn: 'Football is everything to me.', author: '무리뉴', authorEn: 'José Mourinho' },
-  { quote: '축구는 나에게 기쁨이다.', quoteEn: 'Football is joy to me.', author: '히딩크', authorEn: 'Guus Hiddink' },
-  { quote: '축구는 나에게 도전이다.', quoteEn: 'Football is a challenge to me.', author: '박지성', authorEn: 'Ji-sung Park' },
-  { quote: '축구는 나에게 영광이다.', quoteEn: 'Football is glory to me.', author: '이강인', authorEn: 'Kang-in Lee' },
-];
 
 // 폴백 비디오는 API에서 가져오지 못할 때만 사용
 const fallbackVideos = [
@@ -86,6 +101,7 @@ const fallbackVideos = [
 export default function MainDashboard() {
   // 로그인 상태 확인
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token_backup');
@@ -314,7 +330,6 @@ export default function MainDashboard() {
   const realTimeMembersRef = useRef<Member[]>([]);
   
   // 실시간 경기 데이터 업데이트를 위한 상태
-  const [realTimeGameCount, setRealTimeGameCount] = useState<number>(0);
   const [realTimeGames, setRealTimeGames] = useState<any[]>([]);
   const [thisWeekGame, setThisWeekGame] = useState<any>(null);
   const [nextWeekVote, setNextWeekVote] = useState<any>(null);
@@ -370,6 +385,23 @@ export default function MainDashboard() {
     };
   }, [unifiedVoteData]);
 
+  const matchdayGame = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const upcoming = realTimeGames
+      .filter((game: any) => {
+        const date = new Date(game?.date);
+        return (
+          !Number.isNaN(date.getTime()) &&
+          date.getTime() >= now.getTime() &&
+          game?.confirmed !== false &&
+          game?.eventType !== '회식'
+        );
+      })
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return upcoming[0] || thisWeekGame || null;
+  }, [realTimeGames, thisWeekGame]);
+
   // 🔄 이벤트 시스템 리스너 설정
   useEffect(() => {
     // 회원 추가 이벤트 리스너
@@ -400,95 +432,85 @@ export default function MainDashboard() {
     };
   }, [loadUnifiedVoteData]);
 
-  // 하단 정보 메모이제이션
-  const bottomInfoData = useMemo(() => [
-    {
-      icon: '👥',
-      title: '총 멤버',
-      value: `${realTimeMemberCount}명`
-    },
-    {
-      icon: '📅',
-      title: '이번주 경기',
-      value: thisWeekGame ? (() => {
-        const date = new Date(thisWeekGame.date);
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
-        const time = thisWeekGame.time || '';
-        return `${month}월 ${day}일(${dayOfWeek})${time ? ` ${time}` : ''}`;
-      })() : '없음',
-      eventType: thisWeekGame ? (() => {
-        const eventType = thisWeekGame.eventType || '자체';
-        if (['풋살', 'FRIENDLY', 'FRIENDLY_MATCH'].includes(eventType)) return '매치';
-        if (!['매치', '자체', '회식', '기타'].includes(eventType)) return '기타';
-        return eventType;
-      })() : null
-    },
-    {
-      icon: '🏆',
-      title: '총 경기수',
-      value: `${realTimeGameCount}회`
-    },
-    {
-      icon: '📝',
-      title: '다음주 경기 투표하기',
-      value: (() => {
-        const now = new Date();
-        const currentDay = now.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
-        
-        // 이번주 월요일 계산
-        let daysUntilMonday;
-        if (currentDay === 0) { // 일요일
-          daysUntilMonday = -6; // 지난 월요일
-        } else if (currentDay === 1) { // 월요일
-          daysUntilMonday = 0; // 오늘
-        } else {
-          daysUntilMonday = 1 - currentDay; // 이번주 월요일
-        }
-        
-        const thisWeekMonday = new Date(now);
-        thisWeekMonday.setDate(now.getDate() + daysUntilMonday);
-        
-        // 다음주 월요일 계산
-        const nextWeekMonday = new Date(thisWeekMonday);
-        nextWeekMonday.setDate(thisWeekMonday.getDate() + 7);
-        
-        // 다음주 금요일 계산
-        const nextWeekFriday = new Date(nextWeekMonday);
-        nextWeekFriday.setDate(nextWeekMonday.getDate() + 4);
-        
-        const startMonth = nextWeekMonday.getMonth() + 1;
-        const startDay = nextWeekMonday.getDate();
-        const startDayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][nextWeekMonday.getDay()];
-        
-        const endMonth = nextWeekFriday.getMonth() + 1;
-        const endDay = nextWeekFriday.getDate();
-        const endDayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][nextWeekFriday.getDay()];
-        
-        if (startMonth === endMonth) {
-          return `${startMonth}월 ${startDay}일(${startDayOfWeek}) ~ ${endDay}일(${endDayOfWeek})`;
-        } else {
-          return `${startMonth}월 ${startDay}일(${startDayOfWeek}) ~ ${endMonth}월 ${endDay}일(${endDayOfWeek})`;
-        }
-      })(),
-      voteStatus: (() => {
-        // 투표 상태 확인 로직 (모달과 일치)
-        const now = new Date();
-        
-        // 원래 규칙: 매주 목요일 17시까지
-        const currentDay = now.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
-        const daysUntilThursday = (4 - currentDay + 7) % 7; // 목요일까지 남은 일수
-        
-        const deadline = new Date(now);
-        deadline.setDate(now.getDate() + daysUntilThursday);
-        deadline.setHours(17, 0, 0, 0); // 목요일 17:00
-        
-        const isVoteOpen = now < deadline;
-        return isVoteOpen ? 'pending' : 'completed';
-      })()
-    }
-  ], [realTimeMemberCount, thisWeekGame, realTimeGameCount]);
+  const homeGameSummary = useMemo(() => {
+    const now = new Date();
+    const footballGames = realTimeGames
+      .filter((game: any) => {
+        const gameDate = new Date(game?.date);
+        return (
+          !Number.isNaN(gameDate.getTime()) &&
+          game?.confirmed !== false &&
+          game?.eventType !== '회식'
+        );
+      })
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const completedGames = footballGames.filter(
+      (game: any) => new Date(game.date).getTime() <= now.getTime(),
+    );
+    const thisMonthGames = footballGames.filter((game: any) => {
+      const gameDate = new Date(game.date);
+      return (
+        gameDate.getFullYear() === now.getFullYear() &&
+        gameDate.getMonth() === now.getMonth()
+      );
+    });
+    const thisMonthCompleted = thisMonthGames.filter(
+      (game: any) => new Date(game.date).getTime() <= now.getTime(),
+    ).length;
+    const thisMonthUpcoming = Math.max(0, thisMonthGames.length - thisMonthCompleted);
+    const recordedAttendanceTotal = completedGames.reduce(
+      (sum: number, game: any) => sum + getGameParticipantNames(game).length,
+      0,
+    );
+    const averageAttendance =
+      completedGames.length > 0
+        ? Math.round((recordedAttendanceTotal / completedGames.length) * 10) / 10
+        : 0;
+    return {
+      completedGames,
+      thisMonthGames,
+      completedCount: completedGames.length,
+      sinceLabel: 'Since 2025.3.12.',
+      thisMonthCount: thisMonthGames.length,
+      thisMonthCompleted,
+      thisMonthUpcoming,
+      averageAttendance,
+    };
+  }, [realTimeGames]);
+
+  const bottomInfoData = useMemo(
+    () => [
+      {
+        icon: '👥',
+        title: '총 멤버',
+        eyebrow: '활동 회원 기준',
+        value: `${realTimeMemberCount}명`,
+        action: 'members',
+      },
+      {
+        icon: '🏆',
+        title: '총 경기수',
+        eyebrow: homeGameSummary.sinceLabel,
+        value: `${homeGameSummary.completedCount}경기`,
+        action: 'games',
+      },
+      {
+        icon: '📅',
+        title: '이번 달 경기',
+        eyebrow: `완료 ${homeGameSummary.thisMonthCompleted} · 예정 ${homeGameSummary.thisMonthUpcoming}`,
+        value: `${homeGameSummary.thisMonthCount}경기`,
+        action: 'month',
+      },
+      {
+        icon: '⚽',
+        title: '평균 참석 인원',
+        eyebrow: `완료 경기 ${homeGameSummary.completedCount}회 기준`,
+        value: `${homeGameSummary.averageAttendance}명`,
+        action: 'attendance',
+      },
+    ],
+    [homeGameSummary, realTimeMemberCount],
+  );
 
   const updateRealTimeMembers = useCallback((members: Member[]) => {
     realTimeMembersRef.current = members;
@@ -514,9 +536,9 @@ export default function MainDashboard() {
         console.log('📊 MainDashboard - 전체 응답 데이터:', data);
       
       if (data.members && Array.isArray(data.members) && data.members.length > 0) {
-        // 활성 및 정지 상태 회원만 카운트 (비활성, 삭제됨 제외)
+        // 메인 총원은 실제 활동 회원만 카운트한다.
         const activeMembers = data.members.filter((member: Member) => 
-          member.status === 'ACTIVE' || member.status === 'SUSPENDED'
+          member.status === 'ACTIVE'
         );
         
           console.log('📋 MainDashboard - 활성 회원:', activeMembers.length, '명');
@@ -733,7 +755,6 @@ export default function MainDashboard() {
         
         if (games && Array.isArray(games) && games.length > 0) {
           setRealTimeGames(games);
-          setRealTimeGameCount(games.length);
           console.log('✅ MainDashboard - 경기 카운트 업데이트:', games.length, '회');
         
         // 이번주 경기 찾기 (이번주 월요일~금요일)
@@ -818,19 +839,16 @@ export default function MainDashboard() {
         
         } else {
           console.log('⚠️ MainDashboard - 경기 데이터가 비어있음');
-          setRealTimeGameCount(0);
           setThisWeekGame(null);
           setNextWeekVote(null);
         }
       } else {
         console.log('❌ MainDashboard - 경기 데이터 API 응답 실패:', response.status);
-        setRealTimeGameCount(0);
         setThisWeekGame(null);
         setNextWeekVote(null);
       }
     } catch (error) {
       console.error('❌ MainDashboard - 경기 데이터 fetch 실패:', error);
-      setRealTimeGameCount(0);
       setThisWeekGame(null);
       setNextWeekVote(null);
     }
@@ -969,9 +987,6 @@ export default function MainDashboard() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [fetchRealTimeMembers, fetchRealTimeGames, fetchVoteData, loadUnifiedVoteData]);
 
-  // 명언 랜덤 선택
-  const randomQuote = useMemo(() => quotes[Math.floor(Math.random() * quotes.length)], []);
-
   // 유튜브 영상 fetch (최신 3개 자동)
   const YT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
   const PLAYLIST_ID = 'PLQ5o2f7efzlZ-RDG64h4Oj_5pXt0g6q3b';
@@ -1076,15 +1091,24 @@ export default function MainDashboard() {
     });
   }, [currentVideo.id, youtubeVideos.length]);
 
-  /** IFrame API: 사용 가능한 목록 중 최고 화질(배열 앞쪽이 고화질) 적용 */
+  /** IFrame API가 허용하는 범위에서 최고 화질을 우선 요청한다. */
   const applyYoutubeBestQuality = useCallback((player: any) => {
     try {
       const levels: string[] | undefined = player?.getAvailableQualityLevels?.();
-      if (levels && levels.length > 0) {
-        player.setPlaybackQuality(levels[0]);
-      } else {
-        player.setPlaybackQuality?.('highres');
-      }
+      const qualityOrder = [
+        'highres',
+        'hd2160',
+        'hd1440',
+        'hd1080',
+        'hd720',
+        'large',
+        'medium',
+        'small',
+        'tiny',
+      ];
+      const bestAvailable =
+        qualityOrder.find((quality) => levels?.includes(quality)) || levels?.[0] || 'highres';
+      player.setPlaybackQuality?.(bestAvailable);
     } catch {
       try {
         player.setPlaybackQuality?.('highres');
@@ -1113,60 +1137,6 @@ export default function MainDashboard() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [modalIdx, setModalIdx] = useState<number | null>(null);
 
-  // 경기 데이터를 날짜별로 분류하는 함수
-  const getGameStatsByPeriod = useCallback(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1; // 1-12
-    const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const lastYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-    
-    let thisMonthCount = 0;
-    let lastMonthCount = 0;
-    let thisYearCount = 0;
-    let lastYearCount = 0;
-    let currentMonthAllYearsCount = 0; // 현재 월의 모든 연도 경기수
-    
-    realTimeGames.forEach(game => {
-      const gameDate = new Date(game.date);
-      const gameYear = gameDate.getFullYear();
-      const gameMonth = gameDate.getMonth() + 1;
-      
-      // 이번달 경기수 (올해만)
-      if (gameYear === currentYear && gameMonth === currentMonth) {
-        thisMonthCount++;
-      }
-      
-      // 현재 월의 모든 연도 경기수 (예: 9월 전체)
-      if (gameMonth === currentMonth) {
-        currentMonthAllYearsCount++;
-      }
-      
-      // 지난달 경기수
-      if (gameYear === lastYear && gameMonth === lastMonth) {
-        lastMonthCount++;
-      }
-      
-      // 올해 경기수
-      if (gameYear === currentYear) {
-        thisYearCount++;
-      }
-      
-      // 작년 경기수 (2026년이 되면 표시)
-      if (gameYear === currentYear - 1) {
-        lastYearCount++;
-      }
-    });
-    
-    return {
-      thisMonth: thisMonthCount,
-      currentMonthAllYears: currentMonthAllYearsCount, // 현재 월의 모든 연도 경기수
-      lastMonth: lastMonthCount,
-      thisYear: thisYearCount,
-      lastYear: lastYearCount,
-      total: realTimeGameCount
-    };
-  }, [realTimeGames, realTimeGameCount]);
   // 멤버 리스트 상태
   const [membersLoading, setMembersLoading] = useState(false);
 
@@ -1462,69 +1432,226 @@ export default function MainDashboard() {
             )}
           </Box>
         );
-      case 2:
-        const gameStats = getGameStatsByPeriod();
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth() + 1;
-        const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
-        
-        const renderStatCard = (
-          icon: string,
-          label: string,
-          value: number,
-          description: string,
-          accentColor: string,
-        ) => (
-          <Box
-            key={label}
-                bg="white" 
-            px={3}
-            pt={0.5}
-            pb={2}
-                borderRadius="lg" 
-            boxShadow="0 1px 4px rgba(0,0,0,0.08)"
-                border="1px solid"
-                borderColor="gray.100"
-                transition="all 0.3s ease"
-                _hover={{
-              transform: 'translateY(-1px)',
-              boxShadow: '0 3px 10px rgba(0,0,0,0.12)',
-                }}
-              >
-            <Flex align="center" justify="space-around">
-                  <Box flex="1" textAlign="center">
-                <Text fontSize="xl" mb={1}>{icon}</Text>
-                <Text fontSize="xs" color="gray.500" fontWeight="medium" textTransform="uppercase">
-                  {label}
-                    </Text>
-                  </Box>
-                  <Box flex="1" textAlign="center">
-                <Text fontSize="2xl" fontWeight="bold" color={accentColor} mb={1}>
-                  {value}
-                    </Text>
-                    <Text fontSize="sm" color="gray.600">
-                  {description}
-                    </Text>
-                  </Box>
-                </Flex>
+      case 2: {
+        const games = [...homeGameSummary.completedGames].reverse();
+        return (
+          <VStack spacing={4} align="stretch">
+            <Flex
+              bg="#EFF6FF"
+              border="1px solid"
+              borderColor="#BFDBFE"
+              borderRadius="xl"
+              px={4}
+              py={3}
+              align="center"
+              justify="space-between"
+            >
+              <Box>
+                <Text color="#334155" fontSize="xs" fontWeight="700">
+                  {homeGameSummary.sinceLabel}
+                </Text>
+                <Text color="#0F172A" fontWeight="800">
+                  완료된 경기 기록
+                </Text>
               </Box>
+              <Text color="#0057B8" fontSize="2xl" fontWeight="900">
+                {games.length}경기
+              </Text>
+            </Flex>
+            <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3} maxH="430px" overflowY="auto" pr={1}>
+              {games.map((game: any) => {
+                const participantNames = getGameParticipantNames(game);
+                const guestNames = parseNameList(game.memberNames);
+                const mercenaryCount = Number(game.mercenaryCount || 0);
+                const tooltipContent = (
+                  <VStack align="start" spacing={1.5} py={1}>
+                    <Text fontWeight="900">
+                      {getGameDateLabel(game.date)} {game.time || ''}
+                    </Text>
+                    <Text>📍 {game.location || '장소 미정'}</Text>
+                    <Text>
+                      👥 참석 {participantNames.length}명 ·{' '}
+                      {participantNames.join(', ') || '기록 없음'}
+                    </Text>
+                    {(guestNames.length > 0 || mercenaryCount > 0) && (
+                      <Text>
+                        🟠 외부 인원{' '}
+                        {[guestNames.join(', '), mercenaryCount > 0 ? `용병 ${mercenaryCount}명` : '']
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Text>
+                    )}
+                  </VStack>
+                );
+
+                return (
+                  <Tooltip
+                    key={game.id}
+                    label={tooltipContent}
+                    placement="top"
+                    hasArrow
+                    bg="#0F2A4A"
+                    color="white"
+                    borderRadius="lg"
+                    px={3}
+                    py={2}
+                    maxW="340px"
+                    fontSize="sm"
+                    openDelay={180}
+                  >
+                    <Box
+                      tabIndex={0}
+                      bg="white"
+                      border="1px solid"
+                      borderColor="#E2E8F0"
+                      borderRadius="xl"
+                      px={3.5}
+                      py={3}
+                      cursor="help"
+                      transition="all 0.18s ease"
+                      _hover={{
+                        transform: 'translateY(-2px)',
+                        borderColor: '#60A5FA',
+                        boxShadow: '0 8px 18px rgba(37,99,235,0.12)',
+                      }}
+                      _focusVisible={{
+                        outline: '3px solid rgba(37,99,235,0.28)',
+                        outlineOffset: '2px',
+                      }}
+                    >
+                      <HStack justify="space-between" align="start">
+                        <Box minW={0}>
+                          <Text color="#0F172A" fontWeight="800" fontSize="sm">
+                            {getGameDateLabel(game.date)}
+                          </Text>
+                          <Text color="#475569" fontSize="xs" mt={1} noOfLines={1}>
+                            {game.location || '장소 미정'}
+                          </Text>
+                        </Box>
+                        <Badge
+                          bg={game.eventType === '매치' ? '#DBEAFE' : '#D1FAE5'}
+                          color={game.eventType === '매치' ? '#1D4ED8' : '#047857'}
+                          flexShrink={0}
+                        >
+                          {game.eventType || '자체'}
+                        </Badge>
+                      </HStack>
+                      <Text color="#0057B8" fontSize="xs" fontWeight="800" mt={2}>
+                        참석 {participantNames.length}명 · 마우스를 올려 상세 확인
+                      </Text>
+                    </Box>
+                  </Tooltip>
+                );
+              })}
+            </SimpleGrid>
+          </VStack>
+        );
+      }
+      case 4: {
+        const now = new Date();
+        const monthLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
+        const monthGames = [...homeGameSummary.thisMonthGames].sort(
+          (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         );
 
         return (
-          <VStack spacing={1} align="stretch">
-            {renderStatCard('📅', 'THIS MONTH', gameStats.thisMonth, `${monthNames[currentMonth - 1]} 경기수`, '#7c3aed')}
-            {renderStatCard(
-              '📆',
-              'LAST MONTH',
-              gameStats.lastMonth,
-              currentMonth === 1 ? '12월 경기수' : `${monthNames[currentMonth - 2]} 경기수`,
-              '#ea580c',
+          <VStack spacing={4} align="stretch">
+            <SimpleGrid columns={3} spacing={2}>
+              {[
+                { label: '전체', value: homeGameSummary.thisMonthCount, color: '#0057B8' },
+                { label: '완료', value: homeGameSummary.thisMonthCompleted, color: '#047857' },
+                { label: '예정', value: homeGameSummary.thisMonthUpcoming, color: '#7C3AED' },
+              ].map((item) => (
+                <Box
+                  key={item.label}
+                  bg="#F8FAFC"
+                  border="1px solid"
+                  borderColor="#E2E8F0"
+                  borderRadius="xl"
+                  py={3}
+                  textAlign="center"
+                >
+                  <Text color="#64748B" fontSize="xs" fontWeight="700">
+                    {item.label}
+                  </Text>
+                  <Text color={item.color} fontSize="2xl" fontWeight="900">
+                    {item.value}
+                  </Text>
+                </Box>
+              ))}
+            </SimpleGrid>
+
+            <Text color="#334155" fontSize="sm" fontWeight="800">
+              {monthLabel} 경기 요약
+            </Text>
+            {monthGames.length > 0 ? (
+              <VStack spacing={2.5} align="stretch" maxH="380px" overflowY="auto" pr={1}>
+                {monthGames.map((game: any) => {
+                  const gameDate = new Date(game.date);
+                  const isCompleted = gameDate.getTime() <= now.getTime();
+                  const participantNames = getGameParticipantNames(game);
+                  return (
+                    <Box
+                      key={game.id}
+                      bg="white"
+                      border="1px solid"
+                      borderColor="#E2E8F0"
+                      borderRadius="xl"
+                      px={4}
+                      py={3}
+                    >
+                      <HStack justify="space-between" align="start">
+                        <Box minW={0}>
+                          <HStack spacing={2}>
+                            <Text color="#0F172A" fontWeight="900">
+                              {getGameDateLabel(game.date)}
+                            </Text>
+                            <Text color="#475569" fontSize="sm">
+                              {game.time || ''}
+                            </Text>
+                          </HStack>
+                          <Text color="#475569" fontSize="sm" mt={1}>
+                            {game.location || '장소 미정'}
+                          </Text>
+                          <Text color="#64748B" fontSize="xs" mt={2} noOfLines={2}>
+                            {participantNames.length > 0
+                              ? `참석 ${participantNames.length}명 · ${participantNames.join(', ')}`
+                              : isCompleted
+                                ? '참석 기록 없음'
+                                : '참석자 확정 대기'}
+                          </Text>
+                        </Box>
+                        <Badge
+                          bg={isCompleted ? '#D1FAE5' : '#EDE9FE'}
+                          color={isCompleted ? '#047857' : '#6D28D9'}
+                          flexShrink={0}
+                        >
+                          {isCompleted ? '완료' : '예정'}
+                        </Badge>
+                      </HStack>
+                    </Box>
+                  );
+                })}
+              </VStack>
+            ) : (
+              <Box bg="#F8FAFC" borderRadius="xl" py={10} textAlign="center">
+                <Text color="#64748B">이번 달 등록된 경기가 없습니다.</Text>
+              </Box>
             )}
-            {renderStatCard('🎯', 'THIS YEAR', gameStats.thisYear, `${currentYear}년 경기수`, '#16a34a')}
-            {currentYear >= 2026 && renderStatCard('📊', 'LAST YEAR', gameStats.lastYear, `${currentYear - 1}년 경기수`, '#0f766e')}
-            {renderStatCard('🏆', 'TOTAL', gameStats.total, '총 경기수', '#2563eb')}
+            <Button
+              bg="#0057B8"
+              color="white"
+              _hover={{ bg: '#003F86' }}
+              onClick={() => {
+                onClose();
+                navigate('/schedule-v2');
+              }}
+            >
+              일정에서 자세히 보기
+            </Button>
           </VStack>
         );
+      }
       case 3:
         return (
           <Box>
@@ -1735,13 +1862,55 @@ export default function MainDashboard() {
     }
   }
 
+  const nextMatchDisplay = (() => {
+    if (!matchdayGame) return null;
+    const gameDate = new Date(matchdayGame.date);
+    if (Number.isNaN(gameDate.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const matchDateOnly = new Date(gameDate);
+    matchDateOnly.setHours(0, 0, 0, 0);
+    const diffDays = Math.max(
+      0,
+      Math.round((matchDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)),
+    );
+    const dayName = ['일', '월', '화', '수', '목', '금', '토'][gameDate.getDay()];
+    const eventType =
+      ['풋살', 'FRIENDLY', 'FRIENDLY_MATCH'].includes(matchdayGame.eventType)
+        ? '매치'
+        : matchdayGame.eventType || '자체';
+    const location = matchdayGame.location || '장소 확정 대기';
+    const mapQuery = matchdayGame.locationAddress || location;
+
+    return {
+      badge: diffDays === 0 ? 'TODAY' : `D-${diffDays}`,
+      dateLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일 ${dayName}요일`,
+      timeLabel: matchdayGame.time || '시간 확정 대기',
+      location,
+      eventType,
+      mapUrl: `https://map.kakao.com/?q=${encodeURIComponent(mapQuery)}`,
+    };
+  })();
+
 
 
 
 
 
   return (
-    <Box minH="100vh" bg="#f7f9fb" w="100%" pt="18mm" overflowX="hidden">
+    <Box
+      minH="100vh"
+      bg="#f7f9fb"
+      w="100%"
+      pt="21mm"
+      overflowX="hidden"
+      sx={{
+        '@media (min-width: 1280px) and (min-height: 820px) and (max-resolution: 1.25dppx)': {
+          height: '100vh',
+          overflowY: 'hidden',
+        },
+      }}
+    >
       {/* 음악 on/off 버튼 (드래그 가능한 플로팅 버튼) */}
       <IconButton
         ref={buttonRef}
@@ -1765,15 +1934,140 @@ export default function MainDashboard() {
         cursor={isDragging ? 'grabbing' : 'grab'}
       />
       
-      {/* 메인 컨텐츠 */}
-      <Flex direction={{ base: 'column', md: 'row' }} gap={8} px={{ base: 2, md: 4, lg: 6 }} py={10} w="full" maxW="1400px" mx="auto" align="stretch" overflowX="hidden">
-        {/* 명언 카드 */}
-        <Box flex={1} bg="white" p={{ base: 4, md: 8 }} borderRadius="lg" boxShadow="md" display="flex" flexDirection="column" justifyContent="center" minH="433px" maxW={{ base: '100%', md: '420px' }}>
-          <Text fontSize="5xl" color="#004ea8" fontWeight="bold" mb={4}>&ldquo;</Text>
-          <Text fontSize="xl" fontWeight="bold" mb={2}>{randomQuote.quoteEn}</Text>
-          <Text fontSize="md" color="gray.500" mb={1}>- {randomQuote.authorEn}</Text>
-          <Text fontSize="lg" color="gray.700" mb={2}>{randomQuote.quote}</Text>
-          <Text fontWeight="bold" color="gray.600" mb={1}>{randomQuote.author}</Text>
+      <Flex
+        direction={{ base: 'column', md: 'row' }}
+        gap={{ base: 5, lg: 7 }}
+        px={{ base: 4, md: 5, lg: 6 }}
+        pt={{ base: 6, lg: 5 }}
+        pb={{ base: 5, lg: 4 }}
+        w="full"
+        maxW="1400px"
+        mx="auto"
+        align="stretch"
+        overflowX="hidden"
+      >
+        {/* 다음 경기 핵심 카드 */}
+        <Box
+          flex={{ base: '1', md: '0 0 32%' }}
+          position="relative"
+          overflow="hidden"
+          p={{ base: 6, md: 7, lg: 8 }}
+          borderRadius="2xl"
+          boxShadow="none"
+          minH={{ base: '330px', md: 'clamp(360px, 52vh, 520px)' }}
+          maxW={{ base: '100%', md: '430px' }}
+          color="white"
+          bg="linear-gradient(145deg, #031B38 0%, #064A96 58%, #0B78D0 100%)"
+          display="flex"
+          flexDirection="column"
+          justifyContent="space-between"
+          _before={{
+            content: '""',
+            position: 'absolute',
+            inset: 0,
+            opacity: 0.18,
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px)',
+            backgroundSize: '44px 44px',
+            pointerEvents: 'none',
+          }}
+        >
+          <HStack w="full" justify="space-between" position="relative" zIndex={1}>
+            <Text
+              fontSize="xs"
+              fontWeight="900"
+              letterSpacing="0.22em"
+              color="#7CEBFF"
+            >
+              NEXT MATCH
+            </Text>
+            <Badge
+              bg="#FEE500"
+              color="#172033"
+              borderRadius="full"
+              px={3}
+              py={1}
+              fontWeight="900"
+            >
+              {nextMatchDisplay?.badge || 'WAIT'}
+            </Badge>
+          </HStack>
+
+          {nextMatchDisplay ? (
+            <VStack align="start" spacing={3} position="relative" zIndex={1}>
+              <Badge
+                bg="rgba(255,255,255,0.14)"
+                color="white"
+                border="1px solid rgba(255,255,255,0.24)"
+                borderRadius="full"
+                px={3}
+                py={1}
+              >
+                {nextMatchDisplay.eventType}
+              </Badge>
+              <Text
+                fontSize={{ base: '3xl', lg: '4xl' }}
+                fontWeight="900"
+                letterSpacing="-0.045em"
+                lineHeight="1.08"
+              >
+                {nextMatchDisplay.dateLabel}
+              </Text>
+              <Text fontSize={{ base: 'xl', lg: '2xl' }} fontWeight="800" color="#A7F3FF">
+                {nextMatchDisplay.timeLabel}
+              </Text>
+              <Box pt={3}>
+                <Text fontSize="xs" color="rgba(255,255,255,0.68)" fontWeight="700">
+                  VENUE
+                </Text>
+                <Text mt={1} fontSize="lg" fontWeight="800" lineHeight="1.35">
+                  {nextMatchDisplay.location}
+                </Text>
+              </Box>
+            </VStack>
+          ) : (
+            <VStack align="start" spacing={3} position="relative" zIndex={1}>
+              <Text fontSize={{ base: '3xl', lg: '4xl' }} fontWeight="900" lineHeight="1.15">
+                다음 경기
+                <br />
+                일정 조율 중
+              </Text>
+              <Text color="rgba(255,255,255,0.78)" lineHeight="1.7">
+                일정이 확정되면 날짜와 장소를 가장 먼저 알려드릴게요.
+              </Text>
+            </VStack>
+          )}
+
+          <HStack spacing={2} position="relative" zIndex={1}>
+            {nextMatchDisplay && (
+              <Button
+                as="a"
+                href={nextMatchDisplay.mapUrl}
+                target="_blank"
+                rel="noreferrer"
+                size="sm"
+                bg="white"
+                color="#064A96"
+                _hover={{ bg: '#E0F2FE' }}
+              >
+                지도 보기
+              </Button>
+            )}
+            <Button
+              size="sm"
+              bg="#FEE500"
+              color="#172033"
+              border="1px solid"
+              borderColor="#FEE500"
+              fontWeight="900"
+              boxShadow="0 6px 16px rgba(0,0,0,0.16)"
+              _hover={{ bg: '#F7D600', borderColor: '#F7D600', transform: 'translateY(-1px)' }}
+              _focusVisible={{ boxShadow: '0 0 0 3px rgba(254,229,0,0.38)' }}
+              onClick={() => navigate('/schedule-v2')}
+            >
+              일정 상세
+            </Button>
+          </HStack>
         </Box>
         {/* 유튜브 슬라이드 */}
         <Box
@@ -1819,15 +2113,19 @@ export default function MainDashboard() {
             <YouTube
               key={currentVideo.id}
               videoId={currentVideo.id}
+              loading="eager"
               opts={{
                 width: '100%',
                 height: '100%',
                 playerVars: {
-                  autoplay: 1,
+                  // react-youtube가 플레이어 생성 전에 autoplay를 호출하는 경쟁 상태를 피하고,
+                  // onReady에서 안전하게 자동 재생한다.
+                  autoplay: 0,
                   mute: 1,
                   rel: 0,
                   modestbranding: 1,
                   playsinline: 1,
+                  vq: 'hd1080',
                   ...(typeof window !== 'undefined' ? { origin: window.location.origin } : {}),
                 },
               }}
@@ -1840,7 +2138,22 @@ export default function MainDashboard() {
                 background: 'black',
               }}
               className="yt-iframe"
-              onReady={(e: any) => applyYoutubeBestQuality(e.target)}
+              onReady={(e: any) => {
+                const player = e.target;
+                window.setTimeout(() => {
+                  try {
+                    const muteResult = player?.mute?.();
+                    muteResult?.catch?.(() => undefined);
+                    const playResult = player?.playVideo?.();
+                    playResult?.catch?.(() => undefined);
+                  } catch {
+                    /* 플레이어가 이미 교체된 경우 무시 */
+                  }
+                }, 100);
+                applyYoutubeBestQuality(e.target);
+                window.setTimeout(() => applyYoutubeBestQuality(e.target), 500);
+                window.setTimeout(() => applyYoutubeBestQuality(e.target), 1500);
+              }}
               onEnd={() => handleNext()}
               onError={handleVideoError}
               onStateChange={(event: any) => {
@@ -1870,25 +2183,40 @@ export default function MainDashboard() {
       )}
 
       {/* 하단 통계 카드 */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={4} mb={6} px={{ base: 2, md: 4, lg: 6 }} w="full" maxW="1400px" mx="auto" overflowX="hidden">
+      <SimpleGrid
+        columns={{ base: 1, sm: 2, lg: 4 }}
+        spacing={4}
+        mb={{ base: 6, lg: 4 }}
+        px={{ base: 4, md: 5, lg: 6 }}
+        w="full"
+        maxW="1400px"
+        mx="auto"
+        overflowX="hidden"
+      >
         {loading ? (
           <>
             {bottomInfoData.map((info, idx) => (
               <Box
                 key={idx}
                 bg="white"
-                p={1.5}
-                borderRadius="lg"
+                px={4}
+                py={3}
+                minH="119px"
+                borderRadius="xl"
                 boxShadow="md"
                 textAlign="center"
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
               >
                 <Stack direction="row" align="center" justify="center" spacing={1.5} mb={0}>
-                  <Text fontSize="2xl" lineHeight={1}>{info.icon}</Text>
-                  <Text fontWeight="bold" fontSize="lg" lineHeight={1.2}>{info.title}</Text>
+                  <Text m={0} fontSize="2xl" lineHeight={1}>{info.icon}</Text>
+                  <Text m={0} fontWeight="bold" fontSize="lg" lineHeight={1.2}>{info.title}</Text>
                 </Stack>
                 <Flex align="center" justify="center">
                   <Spinner size="md" color="blue.500" mr={2} />
-                  <Text color="gray.500" lineHeight={1.2}>로딩 중...</Text>
+                  <Text m={0} color="gray.500" lineHeight={1.2}>로딩 중...</Text>
                 </Flex>
               </Box>
             ))}
@@ -1897,15 +2225,39 @@ export default function MainDashboard() {
           <>
             {bottomInfoData.map((info, idx) => (
               <Box
+                as="button"
+                type="button"
                 key={idx}
+                aria-label={`${info.title} 상세 보기`}
                 bg="white"
-                p={1.5}
-                borderRadius="lg"
+                px={4}
+                py={3}
+                minH="119px"
+                borderRadius="xl"
                 boxShadow="md"
                 textAlign="center"
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
                 cursor="pointer"
                 _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)', transition: 'all 0.15s' }}
-                onClick={() => { setModalIdx(idx); onOpen(); }}
+                _focusVisible={{ outline: '3px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
+                onClick={() => {
+                  if (info.action === 'members') {
+                    setModalIdx(0);
+                    onOpen();
+                  } else if (info.action === 'games') {
+                    setModalIdx(2);
+                    onOpen();
+                  } else if (info.action === 'month') {
+                    setModalIdx(4);
+                    onOpen();
+                  } else if (info.action === 'attendance') {
+                    setModalIdx(2);
+                    onOpen();
+                  }
+                }}
                 position="relative"
               >
                 {/* 투표 상태 뱃지 - 오른쪽 상단 (로그인 여부와 관계없이 표시) */}
@@ -2023,34 +2375,65 @@ export default function MainDashboard() {
                     })()}
                   </Box>
                 )}
-            <Stack direction="row" align="center" justify="center" spacing={1.5} mb={0}>
-                  <Text fontSize="2xl" lineHeight={1}>{info.icon}</Text>
-                  <Text fontWeight="bold" fontSize="lg" lineHeight={1.2}>{info.title}</Text>
-                </Stack>
-                <Text 
-                  color="#004ea8" 
-                  fontSize="lg" 
-                  fontWeight="normal" 
-                  mt={0}
-                  lineHeight={1.2}
-                >
-                  {info.value}
-                </Text>
+                <VStack spacing={0} align="center" justify="center">
+                  <HStack align="center" justify="center" spacing={1.5}>
+                    <Text m={0} fontSize="2xl" lineHeight={1}>{info.icon}</Text>
+                    <Text m={0} fontWeight="bold" fontSize="lg" lineHeight={1.2}>{info.title}</Text>
+                  </HStack>
+                  <Text
+                    m={0}
+                    color="#64748B"
+                    fontSize="xs"
+                    fontWeight="600"
+                    lineHeight={1.15}
+                    mt="2mm"
+                  >
+                    {info.eyebrow}
+                  </Text>
+                  <Text
+                    m={0}
+                    color="#004ea8"
+                    fontSize="xl"
+                    fontWeight="800"
+                    mt={4}
+                    lineHeight={1.1}
+                  >
+                    {info.value}
+                  </Text>
+                </VStack>
               </Box>
             ))}
           </>
         )}
       </SimpleGrid>
       {/* 상세 모달 */}
-              <Modal isOpen={isOpen} onClose={onClose} isCentered size="sm">
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        isCentered
+        size={modalIdx === 2 ? '2xl' : modalIdx === 4 ? 'xl' : 'sm'}
+        scrollBehavior="inside"
+      >
         <ModalOverlay />
-          <ModalContent maxW="380px">
+        <ModalContent maxW={modalIdx === 2 ? '760px' : modalIdx === 4 ? '620px' : '380px'}>
           <ModalCloseButton />
-            <ModalBody px={7} pt={1} pb={6}>
-            {typeof modalIdx === 'number' && bottomInfoData[modalIdx] && (
+          <ModalBody px={modalIdx === 0 ? 7 : 6} pt={5} pb={6}>
+            {typeof modalIdx === 'number' && [0, 2, 4].includes(modalIdx) && (
               <Flex align="center" justify="center" gap={2} mb={4}>
-                <Text fontSize="2xl" lineHeight={1}>{bottomInfoData[modalIdx].icon}</Text>
-                <Text fontSize="lg" fontWeight="bold" lineHeight={1.2}>{bottomInfoData[modalIdx].title}</Text>
+                <Text fontSize="2xl" lineHeight={1}>
+                  {modalIdx === 0
+                    ? bottomInfoData[0].icon
+                    : modalIdx === 2
+                      ? bottomInfoData[1].icon
+                      : bottomInfoData[2].icon}
+                </Text>
+                <Text fontSize="lg" fontWeight="bold" lineHeight={1.2}>
+                  {modalIdx === 0
+                    ? bottomInfoData[0].title
+                    : modalIdx === 2
+                      ? bottomInfoData[1].title
+                      : bottomInfoData[2].title}
+                </Text>
               </Flex>
             )}
             {modalIdx === 0 && (

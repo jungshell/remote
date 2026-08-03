@@ -8,13 +8,20 @@ import { calculateVoteAttendanceDetails, calculateGameAttendanceDetails, checkMe
 import * as authController from './controllers/authController';
 import bodyParser from 'body-parser';
 import axios from 'axios';
-import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
-import nodemailer from 'nodemailer';
+import { timingSafeEqual } from 'crypto';
 import { securityHeaders, apiLimiter } from './middlewares/security';
+import { authenticateToken } from './middlewares/authMiddleware';
 import { monitoring } from './utils/monitoring';
-import { aggregateVotesByWeekday, getKstDateKey, getVoteSessionSundayDeadline, type WeekdayKey } from './utils/voteUtils';
-import { getJwtSecret } from './utils/jwtSecret';
+import {
+  aggregateVotesByWeekday,
+  getKstDateKey,
+  getVoteSessionSundayDeadline,
+  parseVoteDays,
+  voteDayToMonFriAbsentKeyForSession,
+  type WeekdayKey
+} from './utils/voteUtils';
+import { getMailConfigurationStatus, sendMail, verifyMailTransport } from './utils/mailTransport';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -112,29 +119,6 @@ app.get('/api/monitoring/status', authenticateToken, (req: any, res: any) => {
 // Rate Limiting 적용 (기존 사용자에게는 영향 없음)
 app.use('/api', apiLimiter);
 
-// JWT 인증 미들웨어
-function authenticateToken(req: any, res: any, next: any) {
-  // OPTIONS 요청은 인증하지 않음 (CORS preflight)
-  if (req.method === 'OPTIONS') {
-    return next();
-  }
-  
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '액세스 토큰이 필요합니다.' });
-  }
-
-  jwt.verify(token, getJwtSecret(), (err: any, user: any) => {
-    if (err) {
-      return res.status(403).json({ message: '유효하지 않은 토큰입니다.' });
-    }
-    req.user = user;
-    next();
-  });
-}
-
 // 정적 파일 서빙 (업로드된 이미지)
 app.use('/uploads', express.static('uploads'));
 // 갤러리 이미지를 위한 별도 경로
@@ -150,72 +134,13 @@ console.log('holidayRoutes 등록 시작');
 app.use('/api/holiday', holidayRoutes);
 console.log('holidayRoutes 등록 완료');
 
-// Gmail OAuth 콜백 엔드포인트 (직접 등록)
-app.get('/auth/google/callback', async (req, res) => {
-  try {
-    const { code } = req.query;
-    
-    if (!code) {
-      return res.status(400).send('Authorization code not found');
-    }
-
-    // 액세스 토큰과 리프레시 토큰 교환
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: process.env.GMAIL_CLIENT_ID || '',
-        client_secret: process.env.GMAIL_CLIENT_SECRET || '',
-        code: code as string,
-        grant_type: 'authorization_code',
-        redirect_uri: 'http://localhost:4000/auth/google/callback',
-      }),
-    });
-
-    const tokenData = await tokenResponse.json();
-    
-    if (tokenData.error) {
-      console.error('Token exchange error:', tokenData);
-      return res.status(400).send(`Token exchange failed: ${tokenData.error_description}`);
-    }
-
-    console.log('✅ Gmail OAuth 인증 성공');
-    console.log('✅ Gmail OAuth refresh token 발급 완료');
-    
-    // 성공 페이지 반환
-    res.send(`
-      <html>
-        <head>
-          <title>Gmail API 연결 성공</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-            .success { color: #4CAF50; font-size: 24px; margin-bottom: 20px; }
-            .token { background: #f5f5f5; padding: 10px; margin: 20px 0; word-break: break-all; }
-          </style>
-        </head>
-        <body>
-          <div class="success">✅ Gmail API 연결 성공!</div>
-          <p>이 창을 닫고 관리자 페이지로 돌아가세요.</p>
-          <div class="token">
-            <strong>새로운 Refresh Token:</strong><br>
-            ${tokenData.refresh_token}
-          </div>
-          <p><small>이 토큰을 gmail.ts 파일에 업데이트해주세요.</small></p>
-          <script>
-            setTimeout(() => {
-              window.close();
-            }, 5000);
-          </script>
-        </body>
-      </html>
-    `);
-    
-  } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.status(500).send('OAuth callback failed');
-  }
+// 과거 Gmail OAuth 콜백은 refresh token 노출 위험이 있어 폐기했다.
+// 실제 메일 발송은 GMAIL_USER/GMAIL_APP_PASSWORD 기반 SMTP를 사용한다.
+app.get('/auth/google/callback', (_req, res) => {
+  return res.status(410).json({
+    error: '사용하지 않는 Gmail OAuth 경로입니다.',
+    setup: 'Render에서는 GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN을 설정해주세요.'
+  });
 });
 
 // 안전망 라우트 제거: authRoutes에서 모든 경로를 처리
@@ -1151,20 +1076,108 @@ cron.schedule('0 9 * * *', async () => {
 });
 console.log('✅ 회원 상태 자동 체크 스케줄러 설정 완료: 매일 오전 9시 (Asia/Seoul)');
 
-async function sendAutoGameReminderEmails() {
-  const enabled = (process.env.AUTO_GAME_REMINDER_ENABLED ?? 'true') === 'true';
-  if (!enabled) return;
+type GameReminderRunOptions = {
+  dryRun?: boolean;
+  targetOffsetDays?: 0 | 1;
+};
 
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
-  if (!gmailUser || !gmailPass) {
-    console.log('ℹ️ 자동 경기 알림 스킵: Gmail 설정 누락');
-    return;
+function getGameWeekdayKey(date: Date): WeekdayKey | null {
+  const kstDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const keys: Array<WeekdayKey | null> = [null, 'MON', 'TUE', 'WED', 'THU', 'FRI', null];
+  return keys[kstDate.getDay()];
+}
+
+function getGameWeekStartRange(date: Date) {
+  const kstDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const dayOfWeek = kstDate.getDay();
+  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(kstDate);
+  monday.setDate(kstDate.getDate() + daysToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  // 레거시 데이터의 UTC/KST 저장 차이를 흡수하되 다른 주차까지 포함하지 않는다.
+  const rangeStart = new Date(monday);
+  rangeStart.setHours(rangeStart.getHours() - 12);
+  const rangeEnd = new Date(monday);
+  rangeEnd.setHours(rangeEnd.getHours() + 36);
+  return { rangeStart, rangeEnd };
+}
+
+async function getConfirmedGameVoters(game: { id: number; date: Date }) {
+  const gameDayKey = getGameWeekdayKey(new Date(game.date));
+  if (!gameDayKey) {
+    return { voteSessionId: null as number | null, recipients: [] as Array<{ id: number; name: string; email: string }> };
+  }
+
+  const sessionInclude = {
+    votes: {
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true
+          }
+        }
+      }
+    }
+  } as const;
+
+  let voteSession = await prisma.voteSession.findFirst({
+    where: { gameId: game.id },
+    orderBy: { id: 'desc' },
+    include: sessionInclude
+  });
+
+  if (!voteSession) {
+    const { rangeStart, rangeEnd } = getGameWeekStartRange(new Date(game.date));
+    voteSession = await prisma.voteSession.findFirst({
+      where: {
+        weekStartDate: {
+          gte: rangeStart,
+          lt: rangeEnd
+        }
+      },
+      orderBy: { id: 'desc' },
+      include: sessionInclude
+    });
+  }
+
+  if (!voteSession) {
+    return { voteSessionId: null as number | null, recipients: [] as Array<{ id: number; name: string; email: string }> };
+  }
+
+  const recipientsById = new Map<number, { id: number; name: string; email: string }>();
+  for (const vote of voteSession.votes) {
+    const selectedConfirmedDate = parseVoteDays(vote.selectedDays).some(
+      (day) => voteDayToMonFriAbsentKeyForSession(day, new Date(voteSession.weekStartDate)) === gameDayKey
+    );
+    const email = vote.user.email?.trim();
+    if (selectedConfirmedDate && vote.user.status === 'ACTIVE' && email) {
+      recipientsById.set(vote.user.id, {
+        id: vote.user.id,
+        name: vote.user.name,
+        email
+      });
+    }
+  }
+
+  return {
+    voteSessionId: voteSession.id,
+    recipients: [...recipientsById.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  };
+}
+
+async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) {
+  const enabled = (process.env.AUTO_GAME_REMINDER_ENABLED ?? 'true') === 'true';
+  if (!enabled) {
+    return { success: true, skipped: true, reason: 'disabled' };
   }
 
   const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const currentHour = nowKST.getHours();
-  const targetOffsetDays = currentHour === 15 ? 1 : 0; // 15시=내일, 10시=오늘
+  const targetOffsetDays = options.targetOffsetDays ?? (currentHour === 15 ? 1 : 0);
   const targetDate = new Date(nowKST);
   targetDate.setDate(nowKST.getDate() + targetOffsetDays);
   targetDate.setHours(0, 0, 0, 0);
@@ -1182,31 +1195,68 @@ async function sendAutoGameReminderEmails() {
 
   if (games.length === 0) {
     console.log('ℹ️ 자동 경기 알림 대상 경기 없음:', targetDate.toISOString().split('T')[0]);
-    return;
+    return {
+      success: true,
+      skipped: true,
+      reason: 'no-confirmed-games',
+      targetDate: getKstDateKey(targetDate)
+    };
   }
 
-  const recipients = await prisma.user.findMany({
-    where: {
-      status: 'ACTIVE',
-      email: { not: '' }
-    },
-    select: { email: true, name: true }
-  });
+  const gameTargets = await Promise.all(
+    games.map(async (game) => ({
+      game,
+      ...(await getConfirmedGameVoters(game))
+    }))
+  );
+  const recipientCount = gameTargets.reduce((sum, target) => sum + target.recipients.length, 0);
+  const mailConfig = getMailConfigurationStatus();
 
-  if (recipients.length === 0) {
-    console.log('ℹ️ 자동 경기 알림 수신자 없음');
-    return;
+  if (options.dryRun) {
+    return {
+      success: true,
+      dryRun: true,
+      targetDate: getKstDateKey(targetDate),
+      mode: targetOffsetDays === 1 ? 'day-before' : 'day-of',
+      mailConfigured: mailConfig.configured,
+      confirmedGames: games.length,
+      recipientDeliveries: recipientCount,
+      games: gameTargets.map((target) => ({
+        gameId: target.game.id,
+        voteSessionId: target.voteSessionId,
+        recipients: target.recipients.length
+      }))
+    };
   }
 
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: gmailUser,
-      pass: gmailPass
-    }
-  });
+  if (!mailConfig.configured) {
+    console.log('ℹ️ 자동 경기 알림 스킵: Gmail 설정 누락');
+    return {
+      success: false,
+      skipped: true,
+      reason: 'gmail-not-configured',
+      recipientDeliveries: recipientCount
+    };
+  }
 
-  for (const game of games) {
+  if (recipientCount === 0) {
+    console.log('ℹ️ 자동 경기 알림 수신자 없음: 확정 경기 날짜를 선택한 활성 투표자 없음');
+    return {
+      success: true,
+      skipped: true,
+      reason: 'no-confirmed-date-voters',
+      confirmedGames: games.length
+    };
+  }
+
+  await verifyMailTransport();
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let alreadySentCount = 0;
+  const reminderType = targetOffsetDays === 1 ? 'DAY_BEFORE' : 'DAY_OF';
+
+  for (const { game, recipients } of gameTargets) {
     const date = new Date(game.date);
     const dayName = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
     const formattedDate = `${date.getMonth() + 1}월 ${date.getDate()}일(${dayName})`;
@@ -1221,23 +1271,298 @@ async function sendAutoGameReminderEmails() {
       `유형: ${game.eventType || '미정'}`
     ].join('\n');
 
-    await Promise.all(
-      recipients.map((recipient) =>
-        transporter.sendMail({
-          from: gmailUser,
-          to: recipient.email || undefined,
+    for (const recipient of recipients) {
+      const deliveryKey = `GAME_REMINDER:${reminderType}:GAME:${game.id}:USER:${recipient.id}`;
+      const previous = await prisma.notificationDelivery.findUnique({
+        where: { deliveryKey },
+        select: { status: true }
+      });
+
+      if (previous?.status === 'SENT') {
+        alreadySentCount++;
+        continue;
+      }
+
+      await prisma.notificationDelivery.upsert({
+        where: { deliveryKey },
+        create: {
+          deliveryKey,
+          type: `GAME_REMINDER_${reminderType}`,
+          status: 'PENDING',
+          recipientId: recipient.id,
+          recipientEmail: recipient.email
+        },
+        update: {
+          status: 'PENDING',
+          recipientEmail: recipient.email,
+          error: null
+        }
+      });
+
+      try {
+        await sendMail({
+          to: recipient.email,
           subject,
           text
-        })
-      )
-    );
+        });
+        await prisma.notificationDelivery.update({
+          where: { deliveryKey },
+          data: {
+            status: 'SENT',
+            sentAt: new Date(),
+            error: null
+          }
+        });
+        sentCount++;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await prisma.notificationDelivery.update({
+          where: { deliveryKey },
+          data: {
+            status: 'FAILED',
+            error: errorMessage
+          }
+        });
+        failedCount++;
+        console.error('❌ 자동 경기 알림 개별 발송 실패:', {
+          gameId: game.id,
+          recipientId: recipient.id,
+          error: errorMessage
+        });
+      }
+    }
   }
 
   console.log('✅ 자동 경기 알림 발송 완료:', {
     games: games.length,
-    recipients: recipients.length,
+    recipients: recipientCount,
+    sentCount,
+    failedCount,
+    alreadySentCount,
     mode: targetOffsetDays === 1 ? 'day-before' : 'day-of'
   });
+
+  return {
+    success: failedCount === 0,
+    games: games.length,
+    recipients: recipientCount,
+    sentCount,
+    failedCount,
+    alreadySentCount,
+    mode: targetOffsetDays === 1 ? 'day-before' : 'day-of'
+  };
+}
+
+function escapeEmailHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatKoreanDateTime(value: Date) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(value);
+}
+
+type VoteReminderRunOptions = {
+  dryRun?: boolean;
+  force?: boolean;
+};
+
+async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions = {}) {
+  const enabled = (process.env.AUTO_VOTE_REMINDER_ENABLED ?? 'true') === 'true';
+  if (!enabled) {
+    return { success: true, skipped: true, reason: 'disabled' };
+  }
+
+  const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const isScheduledWindow = kstNow.getDay() === 4 && kstNow.getHours() >= 10 && kstNow.getHours() < 12;
+  if (!isScheduledWindow && !options.force) {
+    return { success: true, skipped: true, reason: 'outside-schedule-window' };
+  }
+
+  const activeSession = await prisma.voteSession.findFirst({
+    where: { isActive: true, isCompleted: false },
+    orderBy: { id: 'desc' },
+    include: {
+      votes: {
+        select: { userId: true }
+      }
+    }
+  });
+
+  if (!activeSession) {
+    return { success: true, skipped: true, reason: 'no-active-vote-session' };
+  }
+
+  const votedUserIds = new Set(activeSession.votes.map((vote) => vote.userId));
+  const activeMembers = await prisma.user.findMany({
+    where: {
+      status: 'ACTIVE',
+      email: { not: '' }
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  const recipients = activeMembers.filter((member) =>
+    Boolean(member.email?.trim()) && !votedUserIds.has(member.id)
+  );
+
+  if (options.dryRun) {
+    return {
+      success: true,
+      dryRun: true,
+      sessionId: activeSession.id,
+      activeMembers: activeMembers.length,
+      votedMembers: votedUserIds.size,
+      recipients: recipients.length
+    };
+  }
+
+  const mailConfig = getMailConfigurationStatus();
+  if (!mailConfig.configured) {
+    return {
+      success: false,
+      skipped: true,
+      reason: 'gmail-not-configured',
+      recipients: recipients.length
+    };
+  }
+
+  if (recipients.length === 0) {
+    return {
+      success: true,
+      skipped: true,
+      reason: 'no-non-voters',
+      sessionId: activeSession.id,
+      recipients: 0
+    };
+  }
+
+  await verifyMailTransport();
+
+  const targetStart = new Date(activeSession.weekStartDate);
+  const targetEnd = new Date(targetStart);
+  targetEnd.setDate(targetEnd.getDate() + 4);
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://fccg-inoi.vercel.app').replace(/\/$/, '');
+  const scheduleUrl = `${frontendUrl}/schedule-v2?utm=vote_email`;
+  const targetPeriod = `${targetStart.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })} ~ ${targetEnd.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
+  const deadline = formatKoreanDateTime(new Date(activeSession.endTime));
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let alreadySentCount = 0;
+
+  for (const recipient of recipients) {
+    const deliveryKey = `VOTE_REMINDER:${activeSession.id}:USER:${recipient.id}`;
+    const previous = await prisma.notificationDelivery.findUnique({
+      where: { deliveryKey },
+      select: { status: true }
+    });
+
+    if (previous?.status === 'SENT') {
+      alreadySentCount++;
+      continue;
+    }
+
+    await prisma.notificationDelivery.upsert({
+      where: { deliveryKey },
+      create: {
+        deliveryKey,
+        type: 'VOTE_REMINDER',
+        status: 'PENDING',
+        recipientId: recipient.id
+      },
+      update: {
+        status: 'PENDING',
+        error: null
+      }
+    });
+
+    const safeName = escapeEmailHtml(recipient.name);
+    const text = [
+      `${recipient.name}님, 다음 경기 일정 투표에 참여해주세요.`,
+      '',
+      `대상 일정: ${targetPeriod}`,
+      `투표 마감: ${deadline}`,
+      `현재 참여: ${votedUserIds.size}/${activeMembers.length}명`,
+      '',
+      scheduleUrl
+    ].join('\n');
+
+    const html = `
+      <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,'Noto Sans KR','Malgun Gothic',sans-serif;color:#152238;">
+        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #dbe5f1;border-radius:16px;overflow:hidden;">
+          <div style="padding:24px 28px;background:linear-gradient(135deg,#06244a,#075fb8);color:#ffffff;">
+            <div style="font-size:12px;letter-spacing:2px;color:#74e7ff;">FC CHAL-GGYEO</div>
+            <h1 style="margin:10px 0 0;font-size:24px;">🗳️ 투표 참여 안내</h1>
+          </div>
+          <div style="padding:28px;">
+            <p style="margin:0 0 18px;font-size:16px;line-height:1.7;"><strong>${safeName}</strong>님, 아직 일정 투표가 확인되지 않았습니다.</p>
+            <div style="padding:18px;background:#f7faff;border:1px solid #dbeafe;border-radius:12px;line-height:1.8;">
+              <div><strong>대상 일정</strong> · ${escapeEmailHtml(targetPeriod)}</div>
+              <div><strong>투표 마감</strong> · ${escapeEmailHtml(deadline)}</div>
+              <div><strong>현재 참여</strong> · ${votedUserIds.size}/${activeMembers.length}명</div>
+            </div>
+            <a href="${escapeEmailHtml(scheduleUrl)}" style="display:block;margin-top:22px;padding:14px 18px;background:#0068c9;color:#ffffff;text-decoration:none;text-align:center;font-weight:700;border-radius:10px;">일정·투표 페이지 열기</a>
+            <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#6b7280;">이미 투표했다면 이 메일과 발송 시점이 엇갈린 경우입니다.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    try {
+      await sendMail({
+        to: recipient.email,
+        subject: '🗳️ FC CHAL-GGYEO 투표 참여 안내',
+        text,
+        html
+      });
+      await prisma.notificationDelivery.update({
+        where: { deliveryKey },
+        data: {
+          status: 'SENT',
+          sentAt: new Date(),
+          error: null
+        }
+      });
+      sentCount++;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await prisma.notificationDelivery.update({
+        where: { deliveryKey },
+        data: {
+          status: 'FAILED',
+          error: message.slice(0, 1000)
+        }
+      });
+      failedCount++;
+    }
+  }
+
+  return {
+    success: failedCount === 0,
+    sessionId: activeSession.id,
+    recipients: recipients.length,
+    sentCount,
+    failedCount,
+    alreadySentCount
+  };
 }
 
 // 매주 월요일 00:01 자동 작업 함수 (재사용 가능)
@@ -1483,6 +1808,123 @@ cron.schedule('0 10,15 * * *', async () => {
 });
 
 console.log('✅ 자동 경기 알림 스케줄러 설정 완료 (10:00, 15:00 KST)');
+
+// 목요일 10:00~11:59 사이 15분마다 확인한다.
+// 수신자별 발송 기록을 DB에 저장하므로 서버 재시작/중복 실행에도 한 번만 전송된다.
+cron.schedule('*/15 * * * *', async () => {
+  try {
+    const result = await sendAutomaticVoteReminderEmails();
+    if (!result.skipped) {
+      console.log('✅ 자동 투표 독려 메일 처리 완료:', result);
+    }
+  } catch (error) {
+    console.error('❌ 자동 투표 독려 메일 처리 오류:', error);
+  }
+}, {
+  timezone: 'Asia/Seoul'
+});
+
+console.log('✅ 자동 투표 독려 메일 스케줄러 설정 완료 (목요일 10:00~11:59 KST)');
+
+function isAuthorizedCronRequest(req: express.Request) {
+  const expected = process.env.CRON_SECRET;
+  if (!expected) return false;
+
+  const authorization = req.headers.authorization;
+  const provided = authorization?.startsWith('Bearer ')
+    ? authorization.slice(7)
+    : String(req.headers['x-cron-secret'] || '');
+
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length &&
+    timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+// 무료 Render가 유휴 상태에서 내려가더라도 외부 스케줄러가 깨울 수 있는 전용 경로.
+// CRON_SECRET이 일치할 때만 실행하며, 수신자별 DB 기록으로 중복 발송을 차단한다.
+app.post('/api/cron/vote-reminder', async (req, res) => {
+  if (!isAuthorizedCronRequest(req)) {
+    return res.status(401).json({ error: '유효하지 않은 스케줄러 인증입니다.' });
+  }
+
+  try {
+    const dryRun = req.body?.dryRun === true;
+    const result = await sendAutomaticVoteReminderEmails({ dryRun, force: true });
+    return res.status(result.success ? 200 : 503).json(result);
+  } catch (error) {
+    console.error('❌ 외부 스케줄러 투표 독려 메일 오류:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// 무료 Render에서도 경기 전날/당일 알림을 실행하는 외부 스케줄러 전용 경로.
+// 실제 발송 대상은 확정 경기 날짜를 선택한 활성 투표자만 포함한다.
+app.post('/api/cron/game-reminder', async (req, res) => {
+  if (!isAuthorizedCronRequest(req)) {
+    return res.status(401).json({ error: '유효하지 않은 스케줄러 인증입니다.' });
+  }
+
+  const rawTargetOffsetDays = Number(req.body?.targetOffsetDays);
+  if (rawTargetOffsetDays !== 0 && rawTargetOffsetDays !== 1) {
+    return res.status(400).json({ error: 'targetOffsetDays는 0 또는 1이어야 합니다.' });
+  }
+
+  try {
+    const dryRun = req.body?.dryRun === true;
+    const result = await sendAutoGameReminderEmails({
+      dryRun,
+      targetOffsetDays: rawTargetOffsetDays
+    });
+    return res.status(result?.success ? 200 : 503).json(result);
+  } catch (error) {
+    console.error('❌ 외부 스케줄러 경기 알림 오류:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+app.get('/api/admin/mail-status', authenticateToken, (req: any, res) => {
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
+  }
+
+  const mailConfig = getMailConfigurationStatus();
+  return res.json({
+    ...mailConfig,
+    gameReminderEnabled: (process.env.AUTO_GAME_REMINDER_ENABLED ?? 'true') === 'true',
+    voteReminderEnabled: (process.env.AUTO_VOTE_REMINDER_ENABLED ?? 'true') === 'true',
+    schedules: {
+      gameReminder: '매일 10:00(당일), 15:00(다음 날)',
+      voteReminder: '목요일 10:00~11:59, 미참여 활성 회원에게 1회'
+    },
+    gameReminderRecipients: '확정 경기 날짜를 선택한 활성 투표자',
+    recommendedTransport: 'Gmail API (HTTPS)'
+  });
+});
+
+app.post('/api/admin/run-vote-reminder', authenticateToken, async (req: any, res) => {
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
+  }
+
+  try {
+    const dryRun = req.body?.dryRun !== false;
+    const result = await sendAutomaticVoteReminderEmails({ dryRun, force: true });
+    return res.status(result.success ? 200 : 503).json(result);
+  } catch (error) {
+    console.error('❌ 투표 독려 메일 수동 실행 오류:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
 
 // 일회성 실행 코드 제거 - 월요일 00:01 cron 스케줄러만 사용
 

@@ -35,19 +35,7 @@ export default defineConfig({
           router: ['react-router-dom'],
           state: ['zustand'],
           youtube: ['react-youtube'],
-          charts: ['recharts'],
-          pages: [
-            './src/pages/MainDashboard.tsx',
-            './src/pages/SchedulePageV2.tsx',
-            './src/pages/PhotoGalleryPage.tsx',
-            './src/pages/VideoGalleryPage.tsx',
-            './src/pages/AdminPageNew.tsx'
-          ],
-          components: [
-            './src/components/Header.tsx',
-            './src/components/MemberManagement.tsx',
-            './src/components/GameManagement.tsx'
-          ]
+          charts: ['recharts']
         }
       }
     },

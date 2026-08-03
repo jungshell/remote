@@ -34,11 +34,14 @@ import {
   DeleteIcon,
   ArrowUpIcon,
   CheckIcon,
-  CloseIcon
+  CloseIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@chakra-ui/icons';
 import { AiFillHeart } from 'react-icons/ai';
 import { useAuthStore } from '../store/auth';
 import { getApiUrl } from '../config/api';
+import { useDesktopPagedLayout } from '../hooks/useDesktopPagedLayout';
 
 // YouTube API 설정
 const YT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
@@ -119,6 +122,8 @@ const formatVideoUploadLabel = (iso?: string | null) => {
 export default function VideoGalleryPage() {
   const { user } = useAuthStore();
   const [sort, setSort] = useState('latest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const isDesktopPaged = useDesktopPagedLayout();
   const [items, setItems] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -363,6 +368,24 @@ export default function VideoGalleryPage() {
     return sorted;
   }, [items, sort]);
 
+  const videosPerPage = 8;
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / videosPerPage));
+  const visibleItems = useMemo(
+    () =>
+      isDesktopPaged
+        ? sortedItems.slice((currentPage - 1) * videosPerPage, currentPage * videosPerPage)
+        : sortedItems,
+    [currentPage, isDesktopPaged, sortedItems],
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sort, isDesktopPaged]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
   // 아이템 클릭 처리
   const handleItemClick = useCallback((item: any) => {
     setSelectedItem(item);
@@ -476,7 +499,14 @@ export default function VideoGalleryPage() {
   }, [selectedItem, items]);
 
   return (
-    <Box minH="100vh" bg="#f7f9fb" w="100%" pt="18mm">
+    <Box
+      minH="100vh"
+      bg="#f7f9fb"
+      w="100%"
+      pt="18mm"
+      overflowY={isDesktopPaged ? 'hidden' : 'visible'}
+      h={isDesktopPaged ? '100vh' : 'auto'}
+    >
       {/* 상단 컨트롤 영역 */}
       <Box px={{ base: 2, md: 4, lg: 6 }} pt={10} pb={4} w="100%" maxW="1400px" mx="auto">
         <Flex direction={{ base: 'column', md: 'row' }} gap={4} align={{ base: 'stretch', md: 'center' }} justify="space-between" mb={1.5}>
@@ -513,7 +543,7 @@ export default function VideoGalleryPage() {
           </Box>
         )}
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
-          {sortedItems.map((item) => (
+          {visibleItems.map((item) => (
             <Box 
               key={item.id} 
               bg="white" 
@@ -586,6 +616,45 @@ export default function VideoGalleryPage() {
             </Box>
           ))}
         </SimpleGrid>
+        {isDesktopPaged && totalPages > 1 && (
+          <HStack justify="center" spacing={2} mt={5}>
+            <IconButton
+              aria-label="이전 동영상 페이지"
+              icon={<ChevronLeftIcon />}
+              size="sm"
+              variant="outline"
+              isDisabled={currentPage === 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            />
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <Button
+                key={page}
+                size="sm"
+                minW="36px"
+                bg={currentPage === page ? '#0057B8' : 'white'}
+                color={currentPage === page ? 'white' : '#334155'}
+                border="1px solid"
+                borderColor={currentPage === page ? '#0057B8' : '#CBD5E1'}
+                _hover={{ bg: currentPage === page ? '#003F86' : '#EFF6FF' }}
+                onClick={() => setCurrentPage(page)}
+                aria-current={currentPage === page ? 'page' : undefined}
+              >
+                {page}
+              </Button>
+            ))}
+            <IconButton
+              aria-label="다음 동영상 페이지"
+              icon={<ChevronRightIcon />}
+              size="sm"
+              variant="outline"
+              isDisabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            />
+            <Text ml={2} color="#64748B" fontSize="xs">
+              {currentPage}/{totalPages} · 총 {sortedItems.length}개
+            </Text>
+          </HStack>
+        )}
       </Box>
 
       {/* 상세 모달 */}

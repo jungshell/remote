@@ -27,6 +27,8 @@ import {
   Textarea,
   Link,
   SlideFade,
+  Image,
+  Divider,
 } from '@chakra-ui/react';
 import NewCalendarV2 from '../components/NewCalendarV2';
 import { ArrowUpIcon, SmallCloseIcon } from '@chakra-ui/icons';
@@ -38,15 +40,14 @@ import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
 import { EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { CalendarSkeleton, VoteSectionSkeleton } from '../components/common/SkeletonLoader';
-import { shareKakaoText } from '../utils/kakaoShare';
 import {
   buildGameDetailShareText,
   buildKakaoMapSearchUrlFromGame,
-  buildVoteRosterShareCard,
   buildVoteSelfConfirmationCard,
   enrichGameDataForMapAndShare,
   resolvePrimaryVenueName,
 } from '../utils/kakaoShareCard';
+import { createVoteShareImage } from '../utils/voteShareImage';
 
 // 타입 정의
 interface VoteData {
@@ -177,7 +178,6 @@ const VOTE_FEEDBACK_STORAGE_KEY = 'fccg_vote_feedback_v1';
 
 export default function SchedulePageV2() {
   const navigate = useNavigate();
-  const kakaoAppKey = import.meta.env.VITE_KAKAO_JS_KEY as string | undefined;
   const toast = useToast();
   
   // 중앙화된 데이터 상태 관리 (내부적으로만 사용)
@@ -222,6 +222,11 @@ export default function SchedulePageV2() {
   const [showVoteSharePrompt, setShowVoteSharePrompt] = useState(false);
   const [voteShareDays, setVoteShareDays] = useState<string[]>([]);
   const [isShareAbsentVote, setIsShareAbsentVote] = useState(false);
+  const [isVoteShareStudioOpen, setIsVoteShareStudioOpen] = useState(false);
+  const [voteShareImageFile, setVoteShareImageFile] = useState<File | null>(null);
+  const [voteSharePreviewUrl, setVoteSharePreviewUrl] = useState('');
+  const [isGeneratingVoteShareImage, setIsGeneratingVoteShareImage] = useState(false);
+  const [isCopyingVoteShareImage, setIsCopyingVoteShareImage] = useState(false);
   const [, setVoteFeedbackCard] = useState<string | null>(null);
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
@@ -1170,7 +1175,7 @@ export default function SchedulePageV2() {
       
       // 3. 게임 데이터 로드 (별도 try-catch로 감싸서 실패해도 투표 데이터는 유지)
       let games: any[] = [];
-      let calendarGameData: Record<string, GameData> = {};
+      const calendarGameData: Record<string, GameData> = {};
       let validCalendarGameData: Record<string, GameData> = {};
       
       try {
@@ -1736,76 +1741,125 @@ export default function SchedulePageV2() {
     }
   };
 
-  const handleKakaoShare = async () => {
-    const shareUrl = `${window.location.origin}/schedule-v2?utm=vote_share`;
-    const shareText = voteShareText;
-
-    if (kakaoAppKey) {
-      try {
-        await shareKakaoText(kakaoAppKey, {
-          text: shareText,
-          url: shareUrl,
-          buttonTitle: '투표 확인하기',
-        });
-        return;
-      } catch (error) {
-        console.warn('카카오 공유 실패, 대체 공유로 전환:', error);
-      }
-    }
-
-    // 카카오 키가 없거나 SDK 실패 시 기본 공유로 대체
-    const fallbackText = shareText;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'FC CHAL-GGYEO 투표 완료',
-          text: fallbackText,
-          url: shareUrl,
-        });
-        return;
-      } catch (error) {
-        console.warn('기본 공유 실패:', error);
-      }
-    }
-
+  const openVoteShareStudio = async () => {
+    if (!isAdmin) return;
+    setIsVoteShareStudioOpen(true);
+    setIsGeneratingVoteShareImage(true);
     try {
-      await navigator.clipboard.writeText(fallbackText);
+      const participationInfo = voteParticipationInfo;
+      const shareImage = await createVoteShareImage({
+        votePeriodLabel: votePeriodLabel || '',
+        participationRate: participationInfo?.participationRate || 0,
+        votedNames: participationInfo?.votedMembers || [],
+        nonVotedNames: participationInfo?.nonVotedMembers || [],
+      });
+      setVoteShareImageFile(shareImage);
+      setVoteSharePreviewUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+        return URL.createObjectURL(shareImage);
+      });
+    } catch (error) {
+      console.error('투표 공유 이미지 생성 실패:', error);
+      setIsVoteShareStudioOpen(false);
       toast({
-        title: '공유 내용 복사 완료',
-        description: '카카오톡에 붙여넣기 해주세요.',
-        status: 'success',
+        title: '이미지 생성 실패',
+        description: '잠시 후 다시 시도해주세요.',
+        status: 'error',
         duration: 2500,
         isClosable: true,
       });
-    } catch (error) {
+    } finally {
+      setIsGeneratingVoteShareImage(false);
+    }
+  };
+
+  const handleCopyShareImage = async () => {
+    if (!voteShareImageFile) return;
+    setIsCopyingVoteShareImage(true);
+    try {
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+        throw new Error('image clipboard unsupported');
+      }
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'image/png': voteShareImageFile,
+        }),
+      ]);
       toast({
-        title: '공유 실패',
-        description: '공유 기능을 사용할 수 없습니다.',
+        title: '투표 이미지 복사 완료',
+        description: '카카오톡 채팅방에서 붙여넣기 해주세요.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.warn('이미지 클립보드 복사 실패:', error);
+      const downloadUrl = URL.createObjectURL(voteShareImageFile);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = voteShareImageFile.name;
+      anchor.click();
+      URL.revokeObjectURL(downloadUrl);
+      toast({
+        title: '이미지를 저장했습니다',
+        description: '이 브라우저는 이미지 복사를 지원하지 않아 파일로 저장했습니다.',
+        status: 'info',
+        duration: 3500,
+        isClosable: true,
+      });
+    } finally {
+      setIsCopyingVoteShareImage(false);
+    }
+  };
+
+  const handleDownloadShareImage = () => {
+    if (!voteShareImageFile) return;
+    const downloadUrl = URL.createObjectURL(voteShareImageFile);
+    const anchor = document.createElement('a');
+    anchor.href = downloadUrl;
+    anchor.download = voteShareImageFile.name;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
+  };
+
+  const handleCopyShareLink = async () => {
+    const shareUrl = `${window.location.origin}/schedule-v2?utm=vote_share`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: '일정 링크 복사 완료',
+        status: 'success',
+        duration: 2200,
+        isClosable: true,
+      });
+    } catch {
+      toast({
+        title: '링크를 복사할 수 없습니다',
         status: 'error',
-        duration: 2500,
+        duration: 2200,
         isClosable: true,
       });
     }
   };
 
-  const handleCopyShareText = async () => {
+  const handleNativeImageShare = async () => {
+    if (!voteShareImageFile || !navigator.share) return;
+    const shareData = {
+      title: 'FC CHAL-GGYEO 투표 현황',
+      text: '아직 투표 전이라면 일정 페이지에서 참여해주세요.',
+      url: `${window.location.origin}/schedule-v2?utm=vote_share`,
+      files: [voteShareImageFile],
+    };
+    if (!navigator.canShare?.(shareData)) {
+      handleDownloadShareImage();
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(voteShareText);
-      toast({
-        title: '메시지 복사 완료',
-        description: '카카오톡에 붙여넣기 해주세요.',
-        status: 'success',
-        duration: 2500,
-        isClosable: true,
-      });
+      await navigator.share(shareData);
     } catch (error) {
-      toast({
-        title: '복사 실패',
-        description: '메시지를 복사할 수 없습니다.',
-        status: 'error',
-        duration: 2500,
-        isClosable: true,
-      });
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        console.warn('시스템 이미지 공유 실패:', error);
+      }
     }
   };
 
@@ -2099,21 +2153,6 @@ export default function SchedulePageV2() {
     if (!first || !last) return '';
     return `${formatLabel(first)} ~ ${formatLabel(last)}`;
   }, [nextWeekVoteData]);
-
-  const voteShareText = useMemo(() => {
-    const shareUrl = `${window.location.origin}/schedule-v2?utm=vote_share`;
-    const participationInfo = voteParticipationInfo;
-    const votedMembers = participationInfo?.votedMembers || [];
-    const nonVotedMembers = participationInfo?.nonVotedMembers || [];
-    return buildVoteRosterShareCard({
-      votePeriodLabel: votePeriodLabel || '',
-      votedNames: votedMembers,
-      nonVotedNames: nonVotedMembers,
-      participationRate: participationInfo?.participationRate || 0,
-      totalMembers: participationInfo?.totalMembers || (votedMembers.length + nonVotedMembers.length),
-      scheduleUrl: shareUrl,
-    });
-  }, [voteParticipationInfo, votePeriodLabel]);
 
   useEffect(() => {
     const sid =
@@ -3848,7 +3887,7 @@ export default function SchedulePageV2() {
                           size={{ base: "xs", md: "sm" }}
                           bg="#FEE500"
                           color="#004ea8"
-                          onClick={handleCopyShareText}
+                          onClick={openVoteShareStudio}
                           fontWeight="bold"
                           fontSize={{ base: "xs", md: "sm" }}
                           w={{ base: "24px", md: "28px" }}
@@ -3858,6 +3897,7 @@ export default function SchedulePageV2() {
                           justifySelf="center"
                           alignSelf="center"
                           _hover={{ bg: "#F7D600" }}
+                          aria-label="관리자 투표 공유 이미지 만들기"
                         >
                           K
                         </Button>
@@ -4833,6 +4873,122 @@ export default function SchedulePageV2() {
         </ModalContent>
       </Modal>
 
+      {/* 관리자·총괄관리자 전용 투표 공유 스튜디오 */}
+      <Modal
+        isOpen={Boolean(isAdmin && isVoteShareStudioOpen)}
+        onClose={() => setIsVoteShareStudioOpen(false)}
+        isCentered
+        size="4xl"
+        scrollBehavior="inside"
+      >
+        <ModalOverlay bg="rgba(3, 18, 41, 0.72)" backdropFilter="blur(5px)" />
+        <ModalContent borderRadius="2xl" overflow="hidden" bg="#F8FAFC">
+          <ModalHeader color="#0F172A" pb={3}>
+            <HStack spacing={3}>
+              <Box
+                bg="#FEE500"
+                color="#172033"
+                borderRadius="lg"
+                px={3}
+                py={1.5}
+                fontWeight="900"
+                fontSize="sm"
+              >
+                K
+              </Box>
+              <Box>
+                <Text fontSize="lg" fontWeight="900">
+                  투표 공유 이미지
+                </Text>
+                <Text mt={0.5} fontSize="xs" color="#475569" fontWeight="500">
+                  미리보기를 확인한 뒤 카카오톡에 붙여 넣으세요.
+                </Text>
+              </Box>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton color="#0F172A" />
+          <Divider borderColor="#E2E8F0" />
+          <ModalBody p={{ base: 4, md: 6 }}>
+            {isGeneratingVoteShareImage ? (
+              <VStack minH="420px" justify="center" spacing={4}>
+                <Spinner size="xl" thickness="4px" color="#0057B8" />
+                <Text color="#475569">최신 투표 현황으로 이미지를 만드는 중입니다.</Text>
+              </VStack>
+            ) : voteSharePreviewUrl ? (
+              <Grid
+                templateColumns={{ base: '1fr', lg: 'minmax(320px, 0.92fr) minmax(280px, 0.58fr)' }}
+                gap={6}
+                alignItems="start"
+              >
+                <Box
+                  bg="#E2E8F0"
+                  borderRadius="xl"
+                  p={{ base: 2, md: 3 }}
+                  border="1px solid"
+                  borderColor="#CBD5E1"
+                >
+                  <Image
+                    src={voteSharePreviewUrl}
+                    alt="FC CHAL-GGYEO 투표 참여 현황 공유 이미지 미리보기"
+                    w="100%"
+                    maxH="62vh"
+                    objectFit="contain"
+                    borderRadius="lg"
+                    boxShadow="lg"
+                  />
+                </Box>
+                <VStack align="stretch" spacing={3}>
+                  <Box bg="white" borderRadius="xl" p={4} border="1px solid" borderColor="#E2E8F0">
+                    <Text color="#0F172A" fontWeight="800">
+                      공유 전 확인
+                    </Text>
+                    <Text mt={2} color="#475569" fontSize="sm" lineHeight="1.65">
+                      참여·미참여 명단은 가나다순으로 정리됩니다. 이 이미지는 관리자와
+                      총괄관리자만 만들 수 있습니다.
+                    </Text>
+                  </Box>
+                  <Button
+                    bg="#0057B8"
+                    color="white"
+                    _hover={{ bg: '#003F86' }}
+                    onClick={handleCopyShareImage}
+                    isLoading={isCopyingVoteShareImage}
+                    loadingText="복사 중"
+                    size="lg"
+                  >
+                    이미지 복사
+                  </Button>
+                  {typeof navigator !== 'undefined' && navigator.share && (
+                    <Button
+                      bg="#FEE500"
+                      color="#172033"
+                      _hover={{ bg: '#F7D600' }}
+                      onClick={handleNativeImageShare}
+                    >
+                      카카오톡·앱으로 공유
+                    </Button>
+                  )}
+                  <Button variant="outline" borderColor="#94A3B8" onClick={handleDownloadShareImage}>
+                    이미지 저장
+                  </Button>
+                  <Button variant="ghost" color="#0057B8" onClick={handleCopyShareLink}>
+                    일정 링크 복사
+                  </Button>
+                  <Text color="#64748B" fontSize="xs" lineHeight="1.55">
+                    이미지 복사를 지원하지 않는 브라우저에서는 자동으로 PNG 파일이
+                    저장됩니다.
+                  </Text>
+                </VStack>
+              </Grid>
+            ) : (
+              <Text color="#475569" textAlign="center" py={16}>
+                공유 이미지를 표시할 수 없습니다.
+              </Text>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
       {/* 투표 완료 공유 안내 */}
       <SlideFade in={isAdmin && showVoteSharePrompt} offsetY="20px" style={{ zIndex: 2000 }}>
         {isAdmin && showVoteSharePrompt && (
@@ -4878,9 +5034,9 @@ export default function SchedulePageV2() {
               color="black"
               transition="transform 0.15s ease, background 0.15s ease"
               _hover={{ bg: '#F7D600', transform: 'scale(1.02)' }}
-              onClick={handleKakaoShare}
+              onClick={openVoteShareStudio}
             >
-              카카오톡 공유
+              공유 이미지 보기
             </Button>
             <Button
               size="sm"
@@ -4888,9 +5044,9 @@ export default function SchedulePageV2() {
               color="#0B63CE"
               _hover={{ bg: 'blue.50', transform: 'scale(1.02)' }}
               transition="transform 0.15s ease"
-              onClick={handleCopyShareText}
+              onClick={handleCopyShareLink}
             >
-              메시지 복사
+              링크 복사
             </Button>
           </HStack>
         </Box>

@@ -1,0 +1,74 @@
+name: FCCG game reminder
+
+on:
+  schedule:
+    # 한국시간 매일 10시: 오늘 경기, 15시: 내일 경기.
+    # 무료 Render 기동과 GitHub 예약 지연에 대비해 각 시간대에 세 번 확인한다.
+    - cron: "7,22,37 10 * * *"
+      timezone: "Asia/Seoul"
+    - cron: "7,22,37 15 * * *"
+      timezone: "Asia/Seoul"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "dry-run으로 확인할 경기"
+        required: true
+        default: "today"
+        type: choice
+        options:
+          - "today"
+          - "tomorrow"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fccg-game-reminder
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    name: Wake Render and run game reminder
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Call protected reminder endpoint
+        env:
+          BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
+          CRON_SECRET: ${{ secrets.FCCG_CRON_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          MANUAL_TARGET: ${{ inputs.target }}
+        run: |
+          test -n "$BACKEND_URL"
+          test -n "$CRON_SECRET"
+
+          dry_run=false
+          target_offset_days=0
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            dry_run=true
+            if [ "$MANUAL_TARGET" = "tomorrow" ]; then
+              target_offset_days=1
+            fi
+          elif [ "$SCHEDULE" = "7,22,37 15 * * *" ]; then
+            target_offset_days=1
+          fi
+
+          request_body="{\"dryRun\":${dry_run},\"targetOffsetDays\":${target_offset_days}}"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --location \
+            --retry 4 \
+            --retry-all-errors \
+            --retry-delay 20 \
+            --max-time 240 \
+            --request POST \
+            "${BACKEND_URL%/}/api/cron/game-reminder" \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Content-Type: application/json" \
+            --data "$request_body"

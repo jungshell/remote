@@ -2043,7 +2043,7 @@ export default function AdminPageNew() {
       content: newAnnouncement.content!,
       type: newAnnouncement.type || 'normal',
       startDate: newAnnouncement.startDate || new Date().toISOString().split('T')[0],
-      endDate: new Announcement.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: newAnnouncement.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       isActive: newAnnouncement.isActive !== false,
       author: user?.name || '관리자',
       createdAt: new Date().toISOString(),
@@ -2323,7 +2323,7 @@ export default function AdminPageNew() {
     const allMembers = unifiedVoteData.allMembers || userList;
     
     // 가장 최근 세션에서 투표한 사용자 ID 추출
-    let votedUserIds = new Set();
+    const votedUserIds = new Set();
     
     // 활성 세션이 있으면 활성 세션 사용, 없으면 가장 최근 완료된 세션 사용
     const targetSession = unifiedVoteData.activeSession?.isActive 
@@ -2661,7 +2661,10 @@ export default function AdminPageNew() {
 
   // 자동 알림 체크 (1분마다)
   useEffect(() => {
-    if (!isNotificationSystemActive) return;
+    // 자동 메일은 백엔드 cron이 담당한다. 브라우저 타이머를 함께 실행하면
+    // 관리자 페이지가 열린 동안 동일 메일이 중복 발송될 수 있다.
+    const browserAutoNotificationsEnabled = false;
+    if (!isNotificationSystemActive || !browserAutoNotificationsEnabled) return;
 
     const interval = setInterval(() => {
       checkAndSendNotifications();
@@ -2826,7 +2829,6 @@ export default function AdminPageNew() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGamePreviewOpen, loadGameMailPreviewImage]);
 
   const handleGamePreviewClose = () => {
@@ -4091,18 +4093,18 @@ export default function AdminPageNew() {
                         <HStack justify="space-between" align="center">
                           <Text fontSize="lg" fontWeight="bold" color="#004ea8">📊 알림 시스템 상태</Text>
                           <Switch
-                            isChecked={isNotificationSystemActive}
-                            onChange={(e) => setIsNotificationSystemActive(e.target.checked)}
+                            isChecked
+                            isDisabled
                             colorScheme="green"
                           />
                         </HStack>
                         
                         <HStack spacing={4} mt="-26.44px">
-                          <Badge colorScheme={isNotificationSystemActive ? 'green' : 'red'} size="lg">
-                            {isNotificationSystemActive ? '활성화' : '비활성화'}
+                          <Badge colorScheme="green" size="lg">
+                            서버 자동
                           </Badge>
                           <Text fontSize="sm" color="gray.600">
-                            {isNotificationSystemActive ? '자동 알림이 활성화되어 있습니다' : '자동 알림이 비활성화되어 있습니다'}
+                            관리자 페이지를 닫아도 서버가 경기 알림과 투표 독려 메일을 처리합니다.
                           </Text>
                         </HStack>
                       </VStack>

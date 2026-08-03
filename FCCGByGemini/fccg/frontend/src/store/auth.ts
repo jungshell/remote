@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name: string;
   role: string;
+  createdAt?: string;
   phone?: string;
   avatarUrl?: string;
   attendance?: number; // 출석률(참여율)
@@ -50,7 +51,7 @@ function loadAuthFromStorage() {
     
     const user = localStorage.getItem('user');
     // 여러 소스에서 토큰 찾기
-    let token = localStorage.getItem('token') || 
+    const token = localStorage.getItem('token') ||
                 localStorage.getItem('auth_token_backup') || 
                 sessionStorage.getItem('token');
     
@@ -106,7 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     console.log('🔄 토큰 복구 시도 시작...');
     
     // 여러 소스에서 토큰 찾기
-    let token = localStorage.getItem('token') || 
+    const token = localStorage.getItem('token') ||
                 localStorage.getItem('auth_token_backup') || 
                 sessionStorage.getItem('token');
     

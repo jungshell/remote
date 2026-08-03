@@ -1,15 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Flex, Text, Button, HStack, Badge, Modal, ModalOverlay, ModalContent, ModalBody, useDisclosure, Box, FormControl, FormLabel, Input, useToast, Tooltip, IconButton, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerCloseButton, VStack, StackDivider, useBreakpointValue } from '@chakra-ui/react';
 import { CalendarIcon, ViewIcon, SettingsIcon, AttachmentIcon, ExternalLinkIcon, InfoIcon, HamburgerIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
 import { changePassword, updateProfile } from '../api/auth';
-import Signup from '../pages/Signup';
-import Login from '../pages/Login';
 import { useNavigate, useLocation } from 'react-router-dom';
 import eventBus, { EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
 import ManualModal from './ManualModal';
 import { getApiBaseUrl } from '../config/api';
+import PlayerPassportPanel from './profile/PlayerPassportPanel';
+
+const Signup = lazy(() => import('../pages/Signup'));
+const Login = lazy(() => import('../pages/Login'));
 
 type NavItem = {
   label: string;
@@ -41,6 +43,7 @@ export default function Header() {
   const toast = useToast();
   const memberManual = useDisclosure();
   const mobileNav = useDisclosure();
+  const playerPassport = useDisclosure();
   const isMobile = useBreakpointValue({ base: true, md: false });
   const navItems: NavItem[] = [
     { label: '일정', path: '/schedule-v2', icon: CalendarIcon },
@@ -154,7 +157,11 @@ export default function Header() {
   }, [token]);
 
   const handleNamePillClick = () => {
+    playerPassport.onOpen();
+  };
+  const handlePassportEdit = () => {
     setEditName(user?.name || '');
+    playerPassport.onClose();
     setIsNameModalOpen(true);
   };
   const handleNameSave = async () => {
@@ -480,10 +487,16 @@ export default function Header() {
                 <HStack align="center" spacing={2} flexShrink={0}>
                   <Badge bg="#004ea8" color="white" borderRadius="full" px={2} py={1} whiteSpace="nowrap">정</Badge>
                   <Text
+                    as="button"
+                    type="button"
+                    aria-label={`${user.name}님의 플레이어 패스포트 열기`}
                     fontWeight="bold"
                     cursor="pointer"
                     _hover={{ textDecoration: 'underline', color: '#00397a' }}
+                    _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
                     onClick={handleNamePillClick}
+                    bg="transparent"
+                    p={0}
                     whiteSpace="nowrap"
                     overflow="hidden"
                     textOverflow="ellipsis"
@@ -562,7 +575,17 @@ export default function Header() {
                 <VStack align="stretch" spacing={3}>
                   <HStack spacing={2}>
                     <Badge bg="#004ea8" color="white" borderRadius="full" px={2} py={1}>정</Badge>
-                    <Text fontWeight="bold">{user.name}</Text>
+                    <Button
+                      variant="link"
+                      color="#0F172A"
+                      fontWeight="bold"
+                      onClick={() => {
+                        mobileNav.onClose();
+                        playerPassport.onOpen();
+                      }}
+                    >
+                      {user.name}
+                    </Button>
                   </HStack>
                   <Box>
                     <Text fontSize="sm" color="gray.500">투표율</Text>
@@ -585,6 +608,28 @@ export default function Header() {
           </DrawerBody>
         </DrawerContent>
       </Drawer>
+      <Drawer
+        placement="right"
+        onClose={playerPassport.onClose}
+        isOpen={playerPassport.isOpen}
+        size="sm"
+      >
+        <DrawerOverlay />
+        <DrawerContent bg="#F8FAFC">
+          <DrawerCloseButton
+            color="#0F172A"
+            _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,87,184,0.28)' }}
+          />
+          <DrawerHeader color="#0F172A" borderBottomWidth="1px" borderColor="#E2E8F0">
+            내 선수 정보
+          </DrawerHeader>
+          <DrawerBody px={{ base: 4, md: 6 }} py={6}>
+            {user && (
+              <PlayerPassportPanel user={user} onEditProfile={handlePassportEdit} />
+            )}
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
       {/* 로그인/회원가입 모달 */}
       <Modal isOpen={isOpen} onClose={() => { setShowSignup(false); onClose(); }} isCentered size="sm">
         <ModalOverlay />
@@ -599,11 +644,13 @@ export default function Header() {
           position="relative"
         >
           <ModalBody p={0} pt={0} pb={1} px={0} display="flex" alignItems="center" justifyContent="center" height="400px" minHeight="400px">
-            {showSignup ? (
-              <Signup onSwitch={() => setShowSignup(false)} onClose={() => { setShowSignup(false); onClose(); }} />
-            ) : (
-              <Login onSwitch={() => setShowSignup(true)} onClose={() => { setShowSignup(false); onClose(); }} />
-            )}
+            <Suspense fallback={<Box color="gray.500">불러오는 중...</Box>}>
+              {showSignup ? (
+                <Signup onSwitch={() => setShowSignup(false)} onClose={() => { setShowSignup(false); onClose(); }} />
+              ) : (
+                <Login onSwitch={() => setShowSignup(true)} onClose={() => { setShowSignup(false); onClose(); }} />
+              )}
+            </Suspense>
           </ModalBody>
         </ModalContent>
       </Modal>

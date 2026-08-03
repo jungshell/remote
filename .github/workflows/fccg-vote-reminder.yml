@@ -1,0 +1,52 @@
+name: FCCG vote reminder
+
+on:
+  schedule:
+    # GitHub 예약 작업 지연과 Render 무료 인스턴스의 콜드 스타트를 고려해
+    # 목요일 오전 10~11시(한국시간)에 15분 간격으로 재호출한다.
+    - cron: "7,22,37,52 10-11 * * 4"
+      timezone: "Asia/Seoul"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fccg-vote-reminder
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    name: Wake Render and run vote reminder
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Call protected reminder endpoint
+        env:
+          BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
+          CRON_SECRET: ${{ secrets.FCCG_CRON_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          test -n "$BACKEND_URL"
+          test -n "$CRON_SECRET"
+
+          request_body='{"dryRun":false}'
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            request_body='{"dryRun":true}'
+          fi
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --location \
+            --retry 4 \
+            --retry-all-errors \
+            --retry-delay 20 \
+            --max-time 240 \
+            --request POST \
+            "${BACKEND_URL%/}/api/cron/vote-reminder" \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Content-Type: application/json" \
+            --data "$request_body"
