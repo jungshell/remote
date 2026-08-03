@@ -484,33 +484,45 @@ export default function Header() {
                     </Tooltip>
                   </>
                 )}
-                <Box
-                  as="button"
-                  type="button"
-                  aria-label={`${user.name}님의 플레이어 패스포트 열기`}
-                  onClick={handleNamePillClick}
-                  display="flex"
-                  alignItems="center"
-                  gap={1}
-                  minW={0}
-                  transition="all 0.18s ease"
-                  _hover={{ color: '#0B5CAD' }}
-                  _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
-                >
-                  <Text
-                    fontWeight="800"
-                    color="#102A43"
-                    whiteSpace="nowrap"
-                    overflow="hidden"
-                    textOverflow="ellipsis"
-                    maxW={{ base: '60px', md: '100px' }}
+                <HStack align="center" spacing={2} flexShrink={0}>
+                  <Box
+                    w="26px"
+                    h="26px"
+                    flexShrink={0}
+                    borderRadius="full"
+                    bg="#004ea8"
+                    color="white"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    fontSize="xs"
+                    fontWeight="900"
                   >
-                    {user.name}
-                  </Text>
-                  <Text color="#8AA0B8" fontSize="lg" lineHeight="1" aria-hidden="true">
-                    ›
-                  </Text>
-                </Box>
+                    {user.name.slice(0, 1)}
+                  </Box>
+                  <Tooltip label="플레이어 패스포트 열기" placement="bottom" hasArrow bg="gray.800" color="white">
+                    <Text
+                      as="button"
+                      type="button"
+                      aria-label={`${user.name}님의 플레이어 패스포트 열기`}
+                      onClick={handleNamePillClick}
+                      fontWeight="800"
+                      color="#102A43"
+                      cursor="pointer"
+                      bg="transparent"
+                      p={0}
+                      whiteSpace="nowrap"
+                      overflow="hidden"
+                      textOverflow="ellipsis"
+                      maxW={{ base: '72px', md: '112px' }}
+                      transition="color 0.18s ease"
+                      _hover={{ color: '#0B5CAD', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                      _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '3px' }}
+                    >
+                      {user.name} <Box as="span" color="#8AA0B8" fontSize="lg" lineHeight="1" aria-hidden="true">›</Box>
+                    </Text>
+                  </Tooltip>
+                </HStack>
               </HStack>
               <Button size="sm" bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} onClick={() => { logout(); navigate('/'); }} whiteSpace="nowrap">로그아웃</Button>
               <IconButton
@@ -580,6 +592,20 @@ export default function Header() {
               {user ? (
                 <VStack align="stretch" spacing={3}>
                   <HStack spacing={2}>
+                    <Box
+                      w="26px"
+                      h="26px"
+                      borderRadius="full"
+                      bg="#004ea8"
+                      color="white"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      fontSize="xs"
+                      fontWeight="900"
+                    >
+                      {user.name.slice(0, 1)}
+                    </Box>
                     <Button
                       variant="link"
                       color="#0F172A"
