@@ -2055,7 +2055,7 @@ export default function MainDashboard() {
           bg="linear-gradient(145deg, #031B38 0%, #064A96 58%, #0B78D0 100%)"
           display="flex"
           flexDirection="column"
-          justifyContent="space-between"
+          justifyContent="flex-start"
           _before={{
             content: '""',
             position: 'absolute',
@@ -2067,7 +2067,7 @@ export default function MainDashboard() {
             pointerEvents: 'none',
           }}
         >
-          <HStack w="full" justify="space-between" position="relative" zIndex={1}>
+          <HStack w="full" justify="flex-start" position="relative" zIndex={1}>
             <Text
               fontSize="xs"
               fontWeight="900"
@@ -2076,7 +2076,6 @@ export default function MainDashboard() {
             >
               NEXT MATCH
             </Text>
-            <Text fontSize="xs" color="rgba(255,255,255,0.65)">경기 정보를 한눈에 확인하세요</Text>
           </HStack>
 
           {nextMatchDisplay ? (
@@ -2113,27 +2112,12 @@ export default function MainDashboard() {
                   {nextMatchDisplay.location}
                 </Text>
               </Box>
-              <Box w="full">
-                <HStack justify="space-between" align="start" mb={1}>
-                  <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
-                    확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
-                  </Tag>
-                  {matchWeather?.available && (
-                    <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7">
-                      {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
-                    </Tag>
-                  )}
-                </HStack>
-                {user && nextMatchDisplay.confirmedParticipantNames.length > 0 && (
-                  <>
-                    <Text fontSize="xs" color="#D9FAFF" lineHeight="1.45" noOfLines={2}>
-                      {nextMatchDisplay.confirmedParticipantNames.join(' · ')}
-                    </Text>
-                    <Button variant="link" size="xs" color="#A7F3FF" mt={0.5} onClick={onParticipantListOpen}>전체 명단 보기</Button>
-                  </>
-                )}
-              </Box>
-              <Box position="relative" borderRadius="lg" overflow="hidden" h="118px" w="100%" border="1px solid rgba(255,255,255,0.32)" bg="linear-gradient(135deg, #8FD0ED, #D6EEF9)">
+              {matchWeather?.available && (
+                <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7">
+                  {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
+                </Tag>
+              )}
+              <Box position="relative" borderRadius="lg" overflow="hidden" h="130px" w="100%" border="1px solid rgba(255,255,255,0.32)" bg="linear-gradient(135deg, #8FD0ED, #D6EEF9)">
                 {matchVenuePreview && !isMapPreviewFailed && (
                   <Image src={matchVenuePreview.mapPreviewUrl} alt={`${nextMatchDisplay.location} 지도`} w="100%" h="100%" objectFit="cover" loading="lazy" onError={() => setIsMapPreviewFailed(true)} />
                 )}
@@ -2144,6 +2128,14 @@ export default function MainDashboard() {
                   <Text fontSize="2xs" fontWeight="700">지도에서 위치와 길찾기를 확인할 수 있습니다.</Text>
                 </Box>
               </Box>
+              <HStack w="full" justify="space-between" align="center">
+                <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
+                  확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
+                </Tag>
+                {user && nextMatchDisplay.confirmedParticipantNames.length > 0 && (
+                  <Button variant="link" size="xs" color="#A7F3FF" onClick={onParticipantListOpen}>전체 명단 보기 ›</Button>
+                )}
+              </HStack>
             </VStack>
           ) : (
             <VStack align="start" spacing={3} position="relative" zIndex={1}>
@@ -2158,7 +2150,7 @@ export default function MainDashboard() {
             </VStack>
           )}
 
-          <HStack spacing={2} position="relative" zIndex={1}>
+          <HStack spacing={2} mt={3} position="relative" zIndex={1}>
             {nextMatchDisplay && (
               <Button
                 as="a"
