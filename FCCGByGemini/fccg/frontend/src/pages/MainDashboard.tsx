@@ -70,6 +70,18 @@ const getGameParticipantNames = (game: any): string[] => {
   );
 };
 
+const getWeatherIcon = (code?: number) => {
+  if (code === 0) return '☀️';
+  if (code !== undefined && [1, 2].includes(code)) return '🌤️';
+  if (code === 3) return '☁️';
+  if (code !== undefined && [45, 48].includes(code)) return '🌫️';
+  if (code !== undefined && [51, 53, 55, 56, 57].includes(code)) return '🌦️';
+  if (code !== undefined && [61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return '🌧️';
+  if (code !== undefined && [71, 73, 75, 77, 85, 86].includes(code)) return '🌨️';
+  if (code !== undefined && [95, 96, 99].includes(code)) return '⛈️';
+  return '🌡️';
+};
+
 const getGameDateLabel = (dateValue: unknown) => {
   const date = new Date(String(dateValue || ''));
   if (Number.isNaN(date.getTime())) return '날짜 미정';
@@ -409,16 +421,19 @@ export default function MainDashboard() {
   } | null>(null);
   const [matchWeather, setMatchWeather] = useState<{
     available?: boolean;
+    code?: number;
     summary?: string;
     temperature?: number;
     precipitationProbability?: number;
     windSpeed?: number;
   } | null>(null);
+  const [isMapPreviewFailed, setIsMapPreviewFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setMatchVenuePreview(null);
     setMatchWeather(null);
+    setIsMapPreviewFailed(false);
     if (!matchdayGame) return () => { cancelled = true; };
 
     const loadVenue = async () => {
@@ -1200,6 +1215,11 @@ export default function MainDashboard() {
 
   // 상세 모달 상태
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isParticipantListOpen,
+    onOpen: onParticipantListOpen,
+    onClose: onParticipantListClose,
+  } = useDisclosure();
   const [modalIdx, setModalIdx] = useState<number | null>(null);
 
   // 멤버 리스트 상태
@@ -1955,6 +1975,7 @@ export default function MainDashboard() {
       badge: diffDays === 0 ? 'TODAY' : `D-${diffDays}`,
       dateLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일 ${dayName}요일`,
       timeLabel: matchdayGame.time || '시간 확정 대기',
+      dateTimeLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일(${dayName}) · ${matchdayGame.time || '시간 확정 대기'}`,
       location,
       eventType,
       mapUrl: `https://map.kakao.com/?q=${encodeURIComponent(mapQuery)}`,
@@ -2023,10 +2044,12 @@ export default function MainDashboard() {
           flex={{ base: '1', md: '0 0 32%' }}
           position="relative"
           overflow="hidden"
-          p={{ base: 6, md: 7, lg: 8 }}
+          p={{ base: 5, md: 6, lg: 7 }}
           borderRadius="2xl"
           boxShadow="none"
-          minH={{ base: '330px', md: 'clamp(360px, 52vh, 520px)' }}
+          h={{ base: 'auto', md: '520px' }}
+          minH={{ base: '330px', md: '520px' }}
+          alignSelf={{ base: 'auto', md: 'flex-start' }}
           maxW={{ base: '100%', md: '430px' }}
           color="white"
           bg="linear-gradient(145deg, #031B38 0%, #064A96 58%, #0B78D0 100%)"
@@ -2053,73 +2076,73 @@ export default function MainDashboard() {
             >
               NEXT MATCH
             </Text>
-            <Badge
-              bg="#FEE500"
-              color="#172033"
-              borderRadius="full"
-              px={3}
-              py={1}
-              fontWeight="900"
-            >
-              {nextMatchDisplay?.badge || 'WAIT'}
-            </Badge>
+            <Text fontSize="xs" color="rgba(255,255,255,0.65)">경기 정보를 한눈에 확인하세요</Text>
           </HStack>
 
           {nextMatchDisplay ? (
-            <VStack align="start" spacing={3} position="relative" zIndex={1}>
-              <Badge
-                bg="rgba(255,255,255,0.14)"
-                color="white"
-                border="1px solid rgba(255,255,255,0.24)"
-                borderRadius="full"
-                px={3}
-                py={1}
-              >
-                {nextMatchDisplay.eventType}
-              </Badge>
+            <VStack align="start" spacing={2.5} position="relative" zIndex={1}>
+              <HStack w="full" justify="space-between">
+                <Badge
+                  bg="rgba(255,255,255,0.14)"
+                  color="white"
+                  border="1px solid rgba(255,255,255,0.24)"
+                  borderRadius="full"
+                  px={3}
+                  py={1}
+                >
+                  {nextMatchDisplay.eventType}
+                </Badge>
+                <Badge bg="#FEE500" color="#172033" borderRadius="full" px={3} py={1} fontWeight="900">
+                  {nextMatchDisplay.badge}
+                </Badge>
+              </HStack>
               <Text
-                fontSize={{ base: '3xl', lg: '4xl' }}
+                fontSize={{ base: '2xl', lg: '3xl' }}
                 fontWeight="900"
                 letterSpacing="-0.045em"
                 lineHeight="1.08"
+                whiteSpace="nowrap"
               >
-                {nextMatchDisplay.dateLabel}
+                {nextMatchDisplay.dateTimeLabel}
               </Text>
-              <Text fontSize={{ base: 'xl', lg: '2xl' }} fontWeight="800" color="#A7F3FF">
-                {nextMatchDisplay.timeLabel}
-              </Text>
-              <Box pt={3}>
+              <Box pt={1}>
                 <Text fontSize="xs" color="rgba(255,255,255,0.68)" fontWeight="700">
-                  VENUE
+                  장소
                 </Text>
                 <Text mt={1} fontSize="lg" fontWeight="800" lineHeight="1.35">
                   {nextMatchDisplay.location}
                 </Text>
               </Box>
-              <HStack spacing={2} flexWrap="wrap">
-                <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
-                  확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
-                </Tag>
-                {user && nextMatchDisplay.confirmedParticipantNames.slice(0, 3).map((name) => (
-                  <Tag key={name} size="sm" bg="rgba(124,235,255,0.18)" color="#D9FAFF">{name}</Tag>
-                ))}
-                {user && nextMatchDisplay.confirmedParticipantNames.length > 3 && (
-                  <Tag size="sm" bg="rgba(124,235,255,0.18)" color="#D9FAFF">+{nextMatchDisplay.confirmedParticipantNames.length - 3}</Tag>
-                )}
-                {matchWeather?.available && (
-                  <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7">
-                    {matchWeather.summary} {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
+              <Box w="full">
+                <HStack justify="space-between" align="start" mb={1}>
+                  <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
+                    확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
                   </Tag>
+                  {matchWeather?.available && (
+                    <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7">
+                      {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
+                    </Tag>
+                  )}
+                </HStack>
+                {user && nextMatchDisplay.confirmedParticipantNames.length > 0 && (
+                  <>
+                    <Text fontSize="xs" color="#D9FAFF" lineHeight="1.45" noOfLines={2}>
+                      {nextMatchDisplay.confirmedParticipantNames.join(' · ')}
+                    </Text>
+                    <Button variant="link" size="xs" color="#A7F3FF" mt={0.5} onClick={onParticipantListOpen}>전체 명단 보기</Button>
+                  </>
                 )}
-              </HStack>
-              <Box borderRadius="lg" overflow="hidden" h="82px" w="100%" border="1px solid rgba(255,255,255,0.25)" bg="rgba(2,24,55,0.35)">
-                {matchVenuePreview ? (
-                  <Image src={matchVenuePreview.mapPreviewUrl} alt={`${nextMatchDisplay.location} 지도`} w="100%" h="100%" objectFit="cover" loading="lazy" />
-                ) : (
-                  <Flex h="100%" align="center" px={3} color="rgba(255,255,255,0.82)">
-                    <Text fontSize="sm">📍 장소 지도를 준비하고 있습니다.</Text>
-                  </Flex>
+              </Box>
+              <Box position="relative" borderRadius="lg" overflow="hidden" h="118px" w="100%" border="1px solid rgba(255,255,255,0.32)" bg="linear-gradient(135deg, #8FD0ED, #D6EEF9)">
+                {matchVenuePreview && !isMapPreviewFailed && (
+                  <Image src={matchVenuePreview.mapPreviewUrl} alt={`${nextMatchDisplay.location} 지도`} w="100%" h="100%" objectFit="cover" loading="lazy" onError={() => setIsMapPreviewFailed(true)} />
                 )}
+                <Box position="absolute" insetX={2} top={2} px={2} py={1} borderRadius="md" bg="rgba(3,27,56,0.78)" color="white">
+                  <Text fontSize="xs" fontWeight="800" noOfLines={1}>📍 {nextMatchDisplay.location}</Text>
+                </Box>
+                <Box position="absolute" insetX={2} bottom={2} px={2} py={1} borderRadius="md" bg="rgba(255,255,255,0.9)" color="#064A96">
+                  <Text fontSize="2xs" fontWeight="700">지도에서 위치와 길찾기를 확인할 수 있습니다.</Text>
+                </Box>
               </Box>
             </VStack>
           ) : (
@@ -2584,6 +2607,26 @@ export default function MainDashboard() {
               </Box>
             )}
             {modalIdx !== null && modalIdx !== 0 && getDetailContent(modalIdx)}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isParticipantListOpen} onClose={onParticipantListClose} isCentered>
+        <ModalOverlay />
+        <ModalContent maxW="440px">
+          <ModalCloseButton />
+          <ModalBody px={6} pt={6} pb={6}>
+            <Text fontSize="lg" fontWeight="800" color="#063F80">다음 경기 확정 참가자</Text>
+            <Text mt={1} mb={4} color="gray.600" fontSize="sm">
+              {nextMatchDisplay?.confirmedParticipantCount || 0}명 기준 · 투표 결과가 아닌 관리자 확정 명단입니다.
+            </Text>
+            <Wrap spacing={2}>
+              {(nextMatchDisplay?.confirmedParticipantNames || []).map((name) => (
+                <WrapItem key={name}>
+                  <Tag size="md" colorScheme="blue">{name}</Tag>
+                </WrapItem>
+              ))}
+            </Wrap>
           </ModalBody>
         </ModalContent>
       </Modal>
