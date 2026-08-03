@@ -3,18 +3,20 @@
 import { useState } from "react";
 import { ImprovementActionPanel } from "@/components/admin/ImprovementActionPanel";
 import { ManagementExportPanel } from "@/components/admin/ManagementExportPanel";
+import { ScheduleConsole } from "@/components/admin/ScheduleConsole";
 import { UserApprovalPanel } from "@/components/admin/UserApprovalPanel";
 import { ResponseDashboard } from "@/components/dashboard/ResponseDashboard";
 import { Badge } from "@/components/ui/Badge";
 import { BrandMark } from "@/components/ui/BrandMark";
 
-type AdminTab = "members" | "kpi" | "excel" | "improvements";
+type AdminTab = "members" | "kpi" | "excel" | "improvements" | "schedule";
 
 const TABS: Array<{ id: AdminTab; label: string; hint: string }> = [
   { id: "members", label: "회원·권한", hint: "승인·정보수정·권한부여" },
   { id: "kpi", label: "KPI", hint: "본부·유형 지표" },
   { id: "excel", label: "Excel", hint: "경영평가 내보내기" },
   { id: "improvements", label: "개선과제", hint: "과제 등록·추적" },
+  { id: "schedule", label: "일정조사", hint: "위원 가용시간 취합" },
 ];
 
 export function AdminConsole() {
@@ -60,6 +62,7 @@ export function AdminConsole() {
         {tab === "kpi" ? <ResponseDashboard mode="admin" /> : null}
         {tab === "excel" ? <ManagementExportPanel /> : null}
         {tab === "improvements" ? <ImprovementActionPanel /> : null}
+        {tab === "schedule" ? <ScheduleConsole /> : null}
       </section>
     </>
   );

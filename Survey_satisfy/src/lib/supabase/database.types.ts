@@ -294,6 +294,75 @@ export interface Database {
           },
         ];
       };
+      schedule_polls: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          created_by: string | null;
+          dates: Json;
+          time_slots: Json;
+          include_lunch: boolean;
+          include_dinner: boolean;
+          status: string;
+          deadline: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          title: string;
+          description?: string | null;
+          created_by?: string | null;
+          dates?: Json;
+          time_slots?: Json;
+          include_lunch?: boolean;
+          include_dinner?: boolean;
+          status?: string;
+          deadline?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          description?: string | null;
+          created_by?: string | null;
+          dates?: Json;
+          time_slots?: Json;
+          include_lunch?: boolean;
+          include_dinner?: boolean;
+          status?: string;
+          deadline?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      schedule_responses: {
+        Row: {
+          id: string;
+          poll_id: string;
+          respondent_name: string;
+          selections: Json;
+          note: string | null;
+          submitted_at: string;
+        };
+        Insert: {
+          id?: string;
+          poll_id: string;
+          respondent_name: string;
+          selections?: Json;
+          note?: string | null;
+          submitted_at?: string;
+        };
+        Update: {
+          id?: string;
+          poll_id?: string;
+          respondent_name?: string;
+          selections?: Json;
+          note?: string | null;
+          submitted_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
