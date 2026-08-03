@@ -1962,10 +1962,17 @@ export default function MainDashboard() {
         : matchdayGame.eventType || '자체';
     const location = matchdayGame.location || '장소 확정 대기';
     const mapQuery = matchdayGame.locationAddress || location;
-    const confirmedParticipants = getGameParticipantNames(matchdayGame);
-    const manualNames = parseNameList(matchdayGame.memberNames).filter((name) => !confirmedParticipants.includes(name));
-    const confirmedParticipantNames = [...new Set([...confirmedParticipants, ...manualNames])];
-    const confirmedParticipantCount = confirmedParticipantNames.length + Number(matchdayGame.mercenaryCount || 0);
+    const attendanceMemberNames = Array.isArray(matchdayGame.attendances)
+      ? matchdayGame.attendances
+          .filter((attendance: any) => attendance?.status === 'YES')
+          .map((attendance: any) => attendance?.user?.name)
+          .filter((name: unknown): name is string => typeof name === 'string' && name.trim().length > 0)
+      : [];
+    const selectedMemberNames = parseNameList(matchdayGame.selectedMembers);
+    const confirmedMemberNames = [...new Set([...attendanceMemberNames, ...selectedMemberNames])];
+    const manualGuestNames = parseNameList(matchdayGame.memberNames).filter((name) => !confirmedMemberNames.includes(name));
+    const nonMemberCount = manualGuestNames.length + Number(matchdayGame.mercenaryCount || 0);
+    const confirmedParticipantCount = confirmedMemberNames.length + nonMemberCount;
 
     return {
       badge: diffDays === 0 ? 'TODAY' : `D-${diffDays}`,
@@ -1976,7 +1983,8 @@ export default function MainDashboard() {
       eventType,
       mapUrl: `https://map.kakao.com/?q=${encodeURIComponent(mapQuery)}`,
       naverMapUrl: `https://map.naver.com/p/search/${encodeURIComponent(mapQuery)}`,
-      confirmedParticipantNames,
+      confirmedMemberNames,
+      nonMemberCount,
       confirmedParticipantCount,
     };
   })();
@@ -2117,7 +2125,7 @@ export default function MainDashboard() {
                 <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
                   확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
                 </Tag>
-                {user && nextMatchDisplay.confirmedParticipantNames.length > 0 && (
+                {user && (nextMatchDisplay.confirmedMemberNames.length > 0 || nextMatchDisplay.nonMemberCount > 0) && (
                   <Button
                     size="xs"
                     px={2}
@@ -2175,20 +2183,6 @@ export default function MainDashboard() {
                 네이버
               </Button>
             )}
-            <Button
-              size="sm"
-              bg="#FEE500"
-              color="#172033"
-              border="1px solid"
-              borderColor="#FEE500"
-              fontWeight="900"
-              boxShadow="0 6px 16px rgba(0,0,0,0.16)"
-              _hover={{ bg: '#F7D600', borderColor: '#F7D600', transform: 'translateY(-1px)' }}
-              _focusVisible={{ boxShadow: '0 0 0 3px rgba(254,229,0,0.38)' }}
-              onClick={() => navigate('/schedule-v2')}
-            >
-              일정 상세
-            </Button>
           </HStack>
         </Box>
         {/* 유튜브 슬라이드 */}
@@ -2608,12 +2602,18 @@ export default function MainDashboard() {
               {nextMatchDisplay?.confirmedParticipantCount || 0}명 기준 · 투표 결과가 아닌 관리자 확정 명단입니다.
             </Text>
             <Wrap spacing={2}>
-              {(nextMatchDisplay?.confirmedParticipantNames || []).map((name) => (
+              {(nextMatchDisplay?.confirmedMemberNames || []).map((name) => (
                 <WrapItem key={name}>
                   <Tag size="md" colorScheme="blue">{name}</Tag>
                 </WrapItem>
               ))}
             </Wrap>
+            {(nextMatchDisplay?.nonMemberCount || 0) > 0 && (
+              <Box mt={4} p={3} borderRadius="md" bg="orange.50" color="orange.800">
+                <Text fontSize="sm" fontWeight="800">비회원·게스트 {nextMatchDisplay?.nonMemberCount}명</Text>
+                <Text fontSize="xs" mt={1}>비회원은 이름을 노출하지 않고 인원수로만 표시합니다.</Text>
+              </Box>
+            )}
           </ModalBody>
         </ModalContent>
       </Modal>
