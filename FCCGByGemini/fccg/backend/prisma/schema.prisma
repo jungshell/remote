@@ -52,6 +52,8 @@ model Game {
   time            String?
   location        String
   locationAddress String?       // 장소 주소 (신주소)
+  locationLatitude Float?
+  locationLongitude Float?
   gameType        String
   eventType       String?
   mercenaryCount  Int           @default(0)

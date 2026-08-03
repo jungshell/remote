@@ -69,6 +69,7 @@ import VoteSessionManagement from '../components/VoteSessionManagement';
 import { useAuthStore } from '../store/auth';
 import ManualModal from '../components/ManualModal';
 import FloatingHelpButton from '../components/FloatingHelpButton';
+import MailDiagnosticsPanel from '../components/MailDiagnosticsPanel';
 
 // ===== 타입 정의 =====
 interface ThisWeekSchedule {
@@ -4070,6 +4071,7 @@ export default function AdminPageNew() {
               {/* 알림 관리 */}
               {selectedMenu === 'notifications' && hasPermission('all') && (
                 <VStack spacing={8} align="stretch" w="100%">
+                  <MailDiagnosticsPanel />
                   <Flex justify="space-between" align="center">
                     <HStack spacing={3}>
                     <Text fontSize="2xl">🔔</Text>

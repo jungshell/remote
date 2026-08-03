@@ -54,6 +54,10 @@ export function getMailConfigurationStatus() {
     configured: mode !== 'none',
     mode,
     gmailUserConfigured: Boolean(process.env.GMAIL_USER),
+    gmailClientIdConfigured: Boolean(process.env.GMAIL_CLIENT_ID),
+    gmailClientSecretConfigured: Boolean(process.env.GMAIL_CLIENT_SECRET),
+    gmailRefreshTokenConfigured: Boolean(process.env.GMAIL_REFRESH_TOKEN),
+    gmailAppPasswordConfigured: Boolean(process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS),
     gmailApiConfigured: hasGmailApiConfig(),
     smtpConfigured: hasSmtpConfig()
   };
@@ -158,7 +162,7 @@ async function getGmailAccessToken() {
   };
 
   if (!response.ok || !result.access_token) {
-    throw new Error(result.error_description || result.error || 'Gmail API access token 발급 실패');
+    throw new Error(`Gmail OAuth token check failed (HTTP ${response.status}): ${result.error_description || result.error || 'access token not returned'}`);
   }
 
   gmailAccessTokenCache = {
@@ -183,11 +187,11 @@ async function sendViaGmailApi(message: MailMessage) {
 
   const result = await response.json() as {
     id?: string;
-    error?: { message?: string };
+    error?: { message?: string; status?: string; code?: number };
   };
 
   if (!response.ok) {
-    throw new Error(result.error?.message || 'Gmail API 메일 발송 실패');
+    throw new Error(`Gmail API send failed (HTTP ${response.status}${result.error?.status ? ` ${result.error.status}` : ''}): ${result.error?.message || 'message was rejected'}`);
   }
 
   return {

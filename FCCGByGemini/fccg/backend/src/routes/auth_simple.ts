@@ -1206,6 +1206,8 @@ router.post('/games', authenticateToken, requireAdmin, async (req, res) => {
       time,
       location,
       locationAddress,
+      locationLatitude,
+      locationLongitude,
       gameType,
       eventType,
       memberNames,
@@ -1259,6 +1261,8 @@ router.post('/games', authenticateToken, requireAdmin, async (req, res) => {
           time: time || '미정',
           location: location || '장소 미정',
           locationAddress: locationAddress || null,
+          locationLatitude: Number.isFinite(Number(locationLatitude)) ? Number(locationLatitude) : null,
+          locationLongitude: Number.isFinite(Number(locationLongitude)) ? Number(locationLongitude) : null,
           gameType: gameType || '미정',
           eventType: eventType || '미정',
           createdById: userId,
@@ -1358,7 +1362,7 @@ router.post('/games', authenticateToken, requireAdmin, async (req, res) => {
 router.put('/games/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, time, location, locationAddress, gameType, eventType, memberNames, selectedMembers, mercenaryCount } = req.body;
+    const { date, time, location, locationAddress, locationLatitude, locationLongitude, gameType, eventType, memberNames, selectedMembers, mercenaryCount } = req.body;
     const userId = (req as any).user?.userId;
 
       
@@ -1453,6 +1457,12 @@ router.put('/games/:id', authenticateToken, requireAdmin, async (req, res) => {
           time: time || undefined,
           location: location || undefined,
           locationAddress: locationAddress !== undefined ? locationAddress : undefined,
+          locationLatitude: locationLatitude !== undefined
+            ? (Number.isFinite(Number(locationLatitude)) ? Number(locationLatitude) : null)
+            : undefined,
+          locationLongitude: locationLongitude !== undefined
+            ? (Number.isFinite(Number(locationLongitude)) ? Number(locationLongitude) : null)
+            : undefined,
           gameType: gameType || undefined,
           eventType: eventType || undefined,
           mercenaryCount: mercenaryCount || 0,
@@ -1564,6 +1574,172 @@ router.get('/search-location', async (req, res) => {
 });
 
 // 투표 테스트 엔드포인트
+const weatherCache = new Map<string, { expiresAt: number; value: unknown }>();
+
+function toSafeCoordinate(value: unknown, min: number, max: number) {
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) && coordinate >= min && coordinate <= max ? coordinate : null;
+}
+
+function describeWeatherCode(code: number) {
+  if (code === 0) return '맑음';
+  if ([1, 2].includes(code)) return '대체로 맑음';
+  if (code === 3) return '흐림';
+  if ([45, 48].includes(code)) return '안개';
+  if ([51, 53, 55, 56, 57].includes(code)) return '이슬비';
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return '비';
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return '눈';
+  if ([95, 96, 99].includes(code)) return '뇌우';
+  return '예보 확인 중';
+}
+
+router.get('/map-preview', async (req, res) => {
+  const latitude = toSafeCoordinate(req.query.lat, -90, 90);
+  const longitude = toSafeCoordinate(req.query.lng, -180, 180);
+  if (latitude === null || longitude === null) return res.status(400).json({ error: '유효한 위도와 경도가 필요합니다.' });
+
+  const kakaoApiKey = process.env.KAKAO_API_KEY || process.env.KAKAO_MAP_API_KEY || '4413813ca702d0fb6239ae38d9202d7e';
+  const url = new URL('https://dapi.kakao.com/v2/maps/staticmap');
+  url.searchParams.set('center', `${longitude},${latitude}`);
+  url.searchParams.set('size', '640x220');
+  url.searchParams.set('level', '4');
+  url.searchParams.set('markers', `location:${longitude},${latitude}|option:false`);
+
+  try {
+    const response = await fetch(url, { headers: { Authorization: `KakaoAK ${kakaoApiKey}` } });
+    if (!response.ok) throw new Error(`Kakao static map HTTP ${response.status}`);
+    const image = Buffer.from(await response.arrayBuffer());
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(image);
+  } catch (error) {
+    console.error('지도 미리보기 조회 실패:', error);
+    res.status(502).json({ error: '지도 미리보기를 불러오지 못했습니다.' });
+  }
+});
+
+router.get('/weather-preview', async (req, res) => {
+  const latitude = toSafeCoordinate(req.query.lat, -90, 90);
+  const longitude = toSafeCoordinate(req.query.lng, -180, 180);
+  const date = typeof req.query.date === 'string' ? req.query.date : '';
+  const time = typeof req.query.time === 'string' && /^\d{1,2}:\d{2}$/.test(req.query.time) ? req.query.time.padStart(5, '0') : '19:00';
+  if (latitude === null || longitude === null || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '유효한 위치와 경기 날짜가 필요합니다.' });
+
+  const cacheKey = `${latitude.toFixed(3)},${longitude.toFixed(3)},${date},${time}`;
+  const cached = weatherCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return res.json(cached.value);
+
+  try {
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude', String(latitude));
+    url.searchParams.set('longitude', String(longitude));
+    url.searchParams.set('hourly', 'temperature_2m,weather_code,precipitation_probability,wind_speed_10m');
+    url.searchParams.set('timezone', 'Asia/Seoul');
+    url.searchParams.set('forecast_days', '16');
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Open-Meteo HTTP ${response.status}`);
+    const data: any = await response.json();
+    const target = `${date}T${time}`;
+    const index = Array.isArray(data?.hourly?.time) ? data.hourly.time.indexOf(target) : -1;
+    const value = index >= 0
+      ? { available: true, observedAt: target, temperature: Math.round(Number(data.hourly.temperature_2m[index]) * 10) / 10, precipitationProbability: Number(data.hourly.precipitation_probability[index] ?? 0), windSpeed: Math.round(Number(data.hourly.wind_speed_10m[index] ?? 0) * 10) / 10, code: Number(data.hourly.weather_code[index] ?? -1), summary: describeWeatherCode(Number(data.hourly.weather_code[index] ?? -1)) }
+      : { available: false, reason: 'forecast-not-available' };
+    weatherCache.set(cacheKey, { value, expiresAt: Date.now() + 10 * 60 * 1000 });
+    res.json(value);
+  } catch (error) {
+    console.error('날씨 미리보기 조회 실패:', error);
+    res.status(502).json({ available: false, reason: 'weather-provider-unavailable' });
+  }
+});
+
+function parseStoredNames(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === 'string' && name.trim().length > 0) : [];
+  } catch {
+    return value.split(',').map((name) => name.trim()).filter(Boolean);
+  }
+}
+
+async function getConfirmationMailDiagnostic(gameId?: number) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const game = await prisma.game.findFirst({
+    where: gameId ? { id: gameId } : { confirmed: true, date: { gte: now }, eventType: { not: '회식' } },
+    orderBy: { date: 'asc' },
+    include: { attendances: { include: { user: { select: { id: true, name: true, email: true, status: true } } } } },
+  }) || await prisma.game.findFirst({
+    where: gameId ? { id: gameId } : { confirmed: true, eventType: { not: '회식' } },
+    orderBy: { date: 'desc' },
+    include: { attendances: { include: { user: { select: { id: true, name: true, email: true, status: true } } } } },
+  });
+
+  if (!game) return { game: null, recipients: [], unresolvedNames: [], history: [] };
+
+  const confirmedAttendances = game.attendances.filter((attendance) => attendance.status === 'YES');
+  const savedNames = [...new Set([...parseStoredNames(game.selectedMembers), ...parseStoredNames(game.memberNames)])];
+  const usersByName = new Map(confirmedAttendances.map((attendance) => [attendance.user.name, attendance.user]));
+  if (usersByName.size === 0 && savedNames.length > 0) {
+    const users = await prisma.user.findMany({ where: { name: { in: savedNames } }, select: { id: true, name: true, email: true, status: true } });
+    users.forEach((user) => usersByName.set(user.name, user));
+  }
+
+  const recipients = Array.from(usersByName.values()).map((user) => ({
+    id: user.id,
+    name: user.name,
+    active: user.status === 'ACTIVE',
+    emailConfigured: Boolean(user.email && user.email.trim()),
+    eligible: user.status === 'ACTIVE' && Boolean(user.email && user.email.trim()),
+  }));
+  const unresolvedNames = savedNames.filter((name) => !usersByName.has(name));
+  const history = await prisma.notificationDelivery.findMany({
+    where: { type: 'GAME_CONFIRMATION', deliveryKey: { startsWith: `GAME_CONFIRMATION:GAME:${game.id}:` } },
+    orderBy: { updatedAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    game: { id: game.id, date: game.date, time: game.time, location: game.location },
+    recipients,
+    unresolvedNames,
+    history: history.map((delivery) => ({
+      status: delivery.status,
+      recipientId: delivery.recipientId,
+      recipientEmail: delivery.recipientEmail,
+      error: delivery.error,
+      sentAt: delivery.sentAt,
+      updatedAt: delivery.updatedAt,
+    })),
+  };
+}
+
+router.get('/admin/mail-diagnostics', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const gameId = typeof req.query.gameId === 'string' ? Number(req.query.gameId) : undefined;
+    const diagnostic = await getConfirmationMailDiagnostic(Number.isInteger(gameId) ? gameId : undefined);
+    res.json({ mailConfiguration: getMailConfigurationStatus(), ...diagnostic });
+  } catch (error) {
+    console.error('메일 진단 조회 실패:', error);
+    res.status(500).json({ error: '메일 진단 정보를 불러오지 못했습니다.' });
+  }
+});
+
+router.post('/admin/mail-diagnostics/verify', authenticateToken, requireAdmin, async (_req, res) => {
+  try {
+    const result = await verifyMailTransport();
+    res.json({ ...result, checkedAt: new Date().toISOString(), sent: false });
+  } catch (error) {
+    res.status(200).json({
+      success: false,
+      checkedAt: new Date().toISOString(),
+      sent: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 router.get('/votes/test', (req, res) => {
   res.status(200).json({ 
     message: '투표 API 테스트 성공',
@@ -4626,7 +4802,6 @@ async function sendTestEmailNotification(
 
     let successCount = 0;
     let failCount = 0;
-
     // 수신자들에게 이메일 발송
     console.log(`📧 총 ${recipients.length}명에게 이메일 발송 시작...`);
     for (const recipient of recipients) {
@@ -4691,6 +4866,34 @@ async function sendTestEmailNotification(
 }
 
 // 이메일 알림 발송 함수
+async function saveGameConfirmationDelivery(input: {
+  gameId: number;
+  user: { id?: number; email?: string | null };
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  error?: string | null;
+}) {
+  if (!input.user.id) return;
+  const deliveryKey = `GAME_CONFIRMATION:GAME:${input.gameId}:USER:${input.user.id}`;
+  await prisma.notificationDelivery.upsert({
+    where: { deliveryKey },
+    create: {
+      deliveryKey,
+      type: 'GAME_CONFIRMATION',
+      status: input.status,
+      recipientId: input.user.id,
+      recipientEmail: input.user.email || null,
+      error: input.error || null,
+      sentAt: input.status === 'SENT' ? new Date() : null,
+    },
+    update: {
+      status: input.status,
+      recipientEmail: input.user.email || null,
+      error: input.error || null,
+      sentAt: input.status === 'SENT' ? new Date() : null,
+    },
+  });
+}
+
 async function sendEmailNotification(attendances, message, gameDate, game) {
   try {
     const mailConfig = getMailConfigurationStatus();
@@ -4713,9 +4916,12 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
     let successCount = 0;
     let failCount = 0;
 
+    const attempts: Array<{ userId?: number; name?: string; status: 'SENT' | 'FAILED'; error?: string }> = [];
+
     // 참석자들에게 이메일 발송
     for (const attendance of attendances) {
       if (attendance.user.email) {
+        await saveGameConfirmationDelivery({ gameId: game.id, user: attendance.user, status: 'PENDING' });
         const mailOptions = {
           from: process.env.GMAIL_USER,
           to: attendance.user.email,
@@ -4748,11 +4954,16 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
 
         try {
         await sendMail(mailOptions);
+        await saveGameConfirmationDelivery({ gameId: game.id, user: attendance.user, status: 'SENT' });
         console.log(`📧 이메일 발송 완료: ${attendance.user.email}`);
           successCount++;
+          attempts.push({ userId: attendance.user.id, name: attendance.user.name, status: 'SENT' });
         } catch (emailError) {
           console.error(`❌ 이메일 발송 실패 (${attendance.user.email}):`, emailError);
           failCount++;
+          const errorMessage = emailError instanceof Error ? emailError.message : String(emailError);
+          await saveGameConfirmationDelivery({ gameId: game.id, user: attendance.user, status: 'FAILED', error: errorMessage.slice(0, 1000) });
+          attempts.push({ userId: attendance.user.id, name: attendance.user.name, status: 'FAILED', error: errorMessage });
         }
       }
     }
@@ -4762,7 +4973,8 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
       success: successCount > 0, 
       successCount, 
       failCount,
-      total: attendances.length 
+      total: attendances.length,
+      attempts
     };
     
   } catch (error) {

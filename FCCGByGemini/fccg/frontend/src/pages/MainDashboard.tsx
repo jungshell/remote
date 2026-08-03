@@ -1,4 +1,4 @@
-import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag } from '@chakra-ui/react';
+import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag, Image } from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { MdMusicNote, MdMusicOff } from 'react-icons/md';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
@@ -401,6 +401,71 @@ export default function MainDashboard() {
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
     return upcoming[0] || thisWeekGame || null;
   }, [realTimeGames, thisWeekGame]);
+
+  const [matchVenuePreview, setMatchVenuePreview] = useState<{
+    latitude: number;
+    longitude: number;
+    mapPreviewUrl: string;
+  } | null>(null);
+  const [matchWeather, setMatchWeather] = useState<{
+    available?: boolean;
+    summary?: string;
+    temperature?: number;
+    precipitationProbability?: number;
+    windSpeed?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMatchVenuePreview(null);
+    setMatchWeather(null);
+    if (!matchdayGame) return () => { cancelled = true; };
+
+    const loadVenue = async () => {
+      try {
+        let latitude = Number(matchdayGame.locationLatitude);
+        let longitude = Number(matchdayGame.locationLongitude);
+        const baseUrl = await getApiBaseUrl();
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          const query = matchdayGame.locationAddress || matchdayGame.location;
+          const response = await fetch(`${baseUrl}/search-location?query=${encodeURIComponent(query)}`);
+          const data = response.ok ? await response.json() : null;
+          const place = data?.documents?.[0];
+          latitude = Number(place?.y);
+          longitude = Number(place?.x);
+        }
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || cancelled) return;
+        setMatchVenuePreview({
+          latitude,
+          longitude,
+          mapPreviewUrl: `${baseUrl}/map-preview?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}`,
+        });
+      } catch (error) {
+        console.warn('다음 경기 지도 좌표를 불러오지 못했습니다.', error);
+      }
+    };
+    void loadVenue();
+    return () => { cancelled = true; };
+  }, [matchdayGame?.id, matchdayGame?.location, matchdayGame?.locationAddress, matchdayGame?.locationLatitude, matchdayGame?.locationLongitude]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!matchdayGame || !matchVenuePreview) return () => { cancelled = true; };
+    const loadWeather = async () => {
+      try {
+        const baseUrl = await getApiBaseUrl();
+        const date = getKstDateKey(matchdayGame.date);
+        const time = matchdayGame.time || '19:00';
+        const response = await fetch(`${baseUrl}/weather-preview?lat=${matchVenuePreview.latitude}&lng=${matchVenuePreview.longitude}&date=${date}&time=${encodeURIComponent(time)}`);
+        if (!response.ok || cancelled) return;
+        setMatchWeather(await response.json());
+      } catch (error) {
+        console.warn('다음 경기 날씨를 불러오지 못했습니다.', error);
+      }
+    };
+    void loadWeather();
+    return () => { cancelled = true; };
+  }, [matchdayGame?.id, matchdayGame?.date, matchdayGame?.time, matchVenuePreview?.latitude, matchVenuePreview?.longitude]);
 
   // 🔄 이벤트 시스템 리스너 설정
   useEffect(() => {
@@ -1881,6 +1946,10 @@ export default function MainDashboard() {
         : matchdayGame.eventType || '자체';
     const location = matchdayGame.location || '장소 확정 대기';
     const mapQuery = matchdayGame.locationAddress || location;
+    const confirmedParticipants = getGameParticipantNames(matchdayGame);
+    const manualNames = parseNameList(matchdayGame.memberNames).filter((name) => !confirmedParticipants.includes(name));
+    const confirmedParticipantNames = [...new Set([...confirmedParticipants, ...manualNames])];
+    const confirmedParticipantCount = confirmedParticipantNames.length + Number(matchdayGame.mercenaryCount || 0);
 
     return {
       badge: diffDays === 0 ? 'TODAY' : `D-${diffDays}`,
@@ -1889,6 +1958,9 @@ export default function MainDashboard() {
       location,
       eventType,
       mapUrl: `https://map.kakao.com/?q=${encodeURIComponent(mapQuery)}`,
+      naverMapUrl: `https://map.naver.com/p/search/${encodeURIComponent(mapQuery)}`,
+      confirmedParticipantNames,
+      confirmedParticipantCount,
     };
   })();
 
@@ -2024,6 +2096,31 @@ export default function MainDashboard() {
                   {nextMatchDisplay.location}
                 </Text>
               </Box>
+              <HStack spacing={2} flexWrap="wrap">
+                <Tag size="sm" bg="rgba(255,255,255,0.14)" color="white" border="1px solid rgba(255,255,255,0.22)">
+                  확정 참가 {nextMatchDisplay.confirmedParticipantCount}명
+                </Tag>
+                {user && nextMatchDisplay.confirmedParticipantNames.slice(0, 3).map((name) => (
+                  <Tag key={name} size="sm" bg="rgba(124,235,255,0.18)" color="#D9FAFF">{name}</Tag>
+                ))}
+                {user && nextMatchDisplay.confirmedParticipantNames.length > 3 && (
+                  <Tag size="sm" bg="rgba(124,235,255,0.18)" color="#D9FAFF">+{nextMatchDisplay.confirmedParticipantNames.length - 3}</Tag>
+                )}
+                {matchWeather?.available && (
+                  <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7">
+                    {matchWeather.summary} {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
+                  </Tag>
+                )}
+              </HStack>
+              <Box borderRadius="lg" overflow="hidden" h="82px" w="100%" border="1px solid rgba(255,255,255,0.25)" bg="rgba(2,24,55,0.35)">
+                {matchVenuePreview ? (
+                  <Image src={matchVenuePreview.mapPreviewUrl} alt={`${nextMatchDisplay.location} 지도`} w="100%" h="100%" objectFit="cover" loading="lazy" />
+                ) : (
+                  <Flex h="100%" align="center" px={3} color="rgba(255,255,255,0.82)">
+                    <Text fontSize="sm">📍 장소 지도를 준비하고 있습니다.</Text>
+                  </Flex>
+                )}
+              </Box>
             </VStack>
           ) : (
             <VStack align="start" spacing={3} position="relative" zIndex={1}>
@@ -2050,7 +2147,22 @@ export default function MainDashboard() {
                 color="#064A96"
                 _hover={{ bg: '#E0F2FE' }}
               >
-                지도 보기
+                카카오맵
+              </Button>
+            )}
+            {nextMatchDisplay && (
+              <Button
+                as="a"
+                href={nextMatchDisplay.naverMapUrl}
+                target="_blank"
+                rel="noreferrer"
+                size="sm"
+                variant="outline"
+                borderColor="rgba(255,255,255,0.55)"
+                color="white"
+                _hover={{ bg: 'rgba(255,255,255,0.12)' }}
+              >
+                네이버
               </Button>
             )}
             <Button
