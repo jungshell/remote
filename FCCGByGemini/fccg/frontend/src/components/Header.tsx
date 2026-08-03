@@ -491,30 +491,12 @@ export default function Header() {
                   onClick={handleNamePillClick}
                   display="flex"
                   alignItems="center"
-                  gap={2}
+                  gap={1}
                   minW={0}
-                  borderRadius="full"
-                  p={1}
                   transition="all 0.18s ease"
-                  _hover={{ bg: '#EFF6FF', transform: 'translateY(-1px)' }}
+                  _hover={{ color: '#0B5CAD' }}
                   _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
                 >
-                  <Box
-                    w="28px"
-                    h="28px"
-                    flexShrink={0}
-                    borderRadius="full"
-                    bg="linear-gradient(135deg, #0B5CAD 0%, #0EA5E9 100%)"
-                    color="white"
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    fontSize="xs"
-                    fontWeight="900"
-                    boxShadow="0 3px 8px rgba(0, 78, 168, 0.22)"
-                  >
-                    {user.name.slice(0, 1)}
-                  </Box>
                   <Text
                     fontWeight="800"
                     color="#102A43"
@@ -524,6 +506,9 @@ export default function Header() {
                     maxW={{ base: '60px', md: '100px' }}
                   >
                     {user.name}
+                  </Text>
+                  <Text color="#8AA0B8" fontSize="lg" lineHeight="1" aria-hidden="true">
+                    ›
                   </Text>
                 </Box>
               </HStack>
@@ -594,26 +579,12 @@ export default function Header() {
               </VStack>
               {user ? (
                 <VStack align="stretch" spacing={3}>
-                  <HStack spacing={2.5}>
-                    <Box
-                      w="34px"
-                      h="34px"
-                      borderRadius="full"
-                      bg="linear-gradient(135deg, #0B5CAD 0%, #0EA5E9 100%)"
-                      color="white"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      fontSize="sm"
-                      fontWeight="900"
-                      boxShadow="0 3px 8px rgba(0, 78, 168, 0.22)"
-                    >
-                      {user.name.slice(0, 1)}
-                    </Box>
+                  <HStack spacing={2}>
                     <Button
                       variant="link"
                       color="#0F172A"
                       fontWeight="bold"
+                      rightIcon={<Text color="gray.400" fontSize="lg" lineHeight="1">›</Text>}
                       onClick={() => {
                         mobileNav.onClose();
                         playerPassport.onOpen();
