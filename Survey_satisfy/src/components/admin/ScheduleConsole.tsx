@@ -6,10 +6,23 @@ import { Badge } from "@/components/ui/Badge";
 import { ScheduleResults } from "@/components/admin/ScheduleResults";
 import { DatePickerField } from "@/components/manager/DatePickerField";
 import { MultiDatePicker } from "@/components/schedule/MultiDatePicker";
-import type { SchedulePoll } from "@/types/schedule";
+import type { SchedulePoll, ScheduleTimeSlot } from "@/types/schedule";
 
 const HOUR_OPTIONS = [9, 10, 11, 13, 14, 15, 16, 17, 18];
 const DEFAULT_HOURS = [10, 11, 13, 14, 15];
+
+type EditorMode = "create" | "edit" | "copy";
+
+/** 저장된 시간대에서 시각(시) 목록 복원 — 편집·복사 시 사용 */
+function hoursFromSlots(slots: ScheduleTimeSlot[]): number[] {
+  const hours = slots
+    .map((slot) => {
+      const match = slot.id.match(/^h(\d+)$/);
+      return match ? Number(match[1]) : NaN;
+    })
+    .filter((n) => !Number.isNaN(n));
+  return hours.length > 0 ? hours : DEFAULT_HOURS;
+}
 
 /** 제목으로 안내 문구 초안 생성 */
 function generateDescription(title: string, name: string): string {
@@ -30,7 +43,7 @@ ${committee} 참여해주셔서 감사드립니다.
 감사합니다.`;
 }
 
-type View = "list" | "create" | "results";
+type View = "list" | "editor" | "results";
 
 function scheduleUrl(id: string) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -41,8 +54,17 @@ export function ScheduleConsole() {
   const [polls, setPolls] = useState<SchedulePoll[]>([]);
   const [view, setView] = useState<View>("list");
   const [selected, setSelected] = useState<SchedulePoll | null>(null);
+  const [editorMode, setEditorMode] = useState<EditorMode>("create");
+  const [editorInitial, setEditorInitial] = useState<SchedulePoll | null>(null);
   const [status, setStatus] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+
+  function openEditor(mode: EditorMode, poll: SchedulePoll | null) {
+    setEditorMode(mode);
+    setEditorInitial(poll);
+    setStatus("");
+    setView("editor");
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,12 +122,15 @@ export function ScheduleConsole() {
     setReloadKey((key) => key + 1);
   }
 
-  if (view === "create") {
+  if (view === "editor") {
     return (
-      <SchedulePollCreator
+      <SchedulePollEditor
+        mode={editorMode}
+        initial={editorInitial}
         onCancel={() => setView("list")}
-        onCreated={() => {
+        onSaved={(message) => {
           setView("list");
+          setStatus(message);
           setReloadKey((key) => key + 1);
         }}
       />
@@ -151,7 +176,7 @@ export function ScheduleConsole() {
         </div>
         <button
           type="button"
-          onClick={() => setView("create")}
+          onClick={() => openEditor("create", null)}
           className="focus-ring label-machined border border-white px-5 py-3 hover:bg-white hover:text-black"
         >
           + 새 일정조사
@@ -187,6 +212,8 @@ export function ScheduleConsole() {
                   }}
                 />
                 <ActionButton label="링크 복사" onClick={() => void handleCopyLink(poll.id)} />
+                <ActionButton label="수정" onClick={() => openEditor("edit", poll)} />
+                <ActionButton label="복사본 만들기" onClick={() => openEditor("copy", poll)} />
                 <ActionButton
                   label={poll.status === "진행중" ? "종료" : "재개"}
                   onClick={() => void handleToggleStatus(poll)}
@@ -226,16 +253,29 @@ function ActionButton({
   );
 }
 
-function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; onCreated: () => void }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+function SchedulePollEditor({
+  mode,
+  initial,
+  onCancel,
+  onSaved,
+}: {
+  mode: EditorMode;
+  initial: SchedulePoll | null;
+  onCancel: () => void;
+  onSaved: (message: string) => void;
+}) {
+  const isEdit = mode === "edit";
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [lastAutoDesc, setLastAutoDesc] = useState("");
   const [userName, setUserName] = useState("");
-  const [dates, setDates] = useState<string[]>([]);
-  const [hours, setHours] = useState<number[]>(DEFAULT_HOURS);
-  const [includeLunch, setIncludeLunch] = useState(false);
-  const [includeDinner, setIncludeDinner] = useState(false);
-  const [deadline, setDeadline] = useState("");
+  const [dates, setDates] = useState<string[]>(initial?.dates ?? []);
+  const [hours, setHours] = useState<number[]>(
+    initial ? hoursFromSlots(initial.timeSlots) : DEFAULT_HOURS,
+  );
+  const [includeLunch, setIncludeLunch] = useState(initial?.includeLunch ?? false);
+  const [includeDinner, setIncludeDinner] = useState(initial?.includeDinner ?? false);
+  const [deadline, setDeadline] = useState(initial?.deadline ? initial.deadline.slice(0, 10) : "");
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -246,6 +286,11 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
       }
     });
   }, []);
+
+  const heading = isEdit ? "일정조사 수정" : mode === "copy" ? "일정조사 복사본 만들기" : "새 일정조사";
+  const eyebrow = isEdit ? "Edit Schedule" : mode === "copy" ? "Copy Schedule" : "New Schedule";
+  const submitLabel = isEdit ? "수정 내용 저장" : "일정조사 생성 · 링크 발급";
+  const savingLabel = isEdit ? "저장 중" : "생성 중";
 
   // 제목 입력 시 안내 문구 초안 자동 생성 (직접 편집한 경우는 덮어쓰지 않음)
   function handleTitleChange(value: string) {
@@ -267,7 +312,7 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
     setHours((prev) => (prev.includes(hour) ? prev.filter((h) => h !== hour) : [...prev, hour]));
   }
 
-  async function handleCreate() {
+  async function handleSave() {
     if (!title.trim()) {
       setStatus("조사 제목을 입력해 주세요.");
       return;
@@ -285,27 +330,31 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
     setIsSaving(true);
     setStatus("");
     try {
-      const response = await authFetch("/api/schedule-polls", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description,
-          dates,
-          timeSlots,
-          includeLunch,
-          includeDinner,
-          deadline: deadline || null,
-        }),
-      });
+      const payload = {
+        title,
+        description,
+        dates,
+        timeSlots,
+        includeLunch,
+        includeDinner,
+        deadline: deadline || null,
+      };
+      const response = await authFetch(
+        isEdit ? `/api/schedule-polls/${initial!.id}` : "/api/schedule-polls",
+        {
+          method: isEdit ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const data = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !data.ok) {
-        setStatus(data.error ?? "생성에 실패했습니다.");
+        setStatus(data.error ?? "저장에 실패했습니다.");
         return;
       }
-      onCreated();
+      onSaved(isEdit ? "수정했습니다." : mode === "copy" ? "복사본을 만들었습니다." : "일정조사를 만들었습니다.");
     } catch {
-      setStatus("생성 중 오류가 발생했습니다.");
+      setStatus("저장 중 오류가 발생했습니다.");
     } finally {
       setIsSaving(false);
     }
@@ -315,8 +364,13 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
     <section className="panel p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="label-machined text-[var(--text-muted)]">New Schedule</p>
-          <h2 className="mt-2 text-2xl font-black uppercase">새 일정조사</h2>
+          <p className="label-machined text-[var(--text-muted)]">{eyebrow}</p>
+          <h2 className="mt-2 text-2xl font-black uppercase">{heading}</h2>
+          {mode === "copy" ? (
+            <p className="mt-2 text-sm text-[var(--text-body)]">
+              기존 조사 내용을 복사했습니다. 제목·날짜 등을 수정한 뒤 새 조사로 발급됩니다.
+            </p>
+          ) : null}
         </div>
         <button type="button" onClick={onCancel} className="label-machined text-[var(--text-body)] hover:text-white">
           ← 목록
@@ -406,10 +460,10 @@ function SchedulePollCreator({ onCancel, onCreated }: { onCancel: () => void; on
         <button
           type="button"
           disabled={isSaving}
-          onClick={() => void handleCreate()}
+          onClick={() => void handleSave()}
           className="focus-ring label-machined mt-2 border border-white px-6 py-4 hover:bg-white hover:text-black disabled:opacity-50"
         >
-          {isSaving ? "생성 중" : "일정조사 생성 · 링크 발급"}
+          {isSaving ? savingLabel : submitLabel}
         </button>
         {status ? <p className="text-sm text-[var(--warning)]">{status}</p> : null}
       </div>
