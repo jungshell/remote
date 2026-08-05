@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ScheduleResponseForm } from "@/components/schedule/ScheduleResponseForm";
 import { pollRowToRecord } from "@/lib/schedule/utils";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
@@ -5,6 +6,24 @@ import type { SchedulePoll } from "@/types/schedule";
 
 interface SchedulePageProps {
   params: Promise<{ id: string }>;
+}
+
+/** 링크 미리보기(카톡·문자 등)에 일정조사 제목만 노출 */
+export async function generateMetadata({ params }: SchedulePageProps): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = getSupabaseAdminClient();
+  let title = "일정조사";
+  if (supabase) {
+    const { data } = await supabase.from("schedule_polls").select("title").eq("id", id).maybeSingle();
+    if (data?.title) {
+      title = data.title;
+    }
+  }
+  return {
+    title,
+    openGraph: { title, type: "website" },
+    twitter: { card: "summary", title },
+  };
 }
 
 type LoadResult =
