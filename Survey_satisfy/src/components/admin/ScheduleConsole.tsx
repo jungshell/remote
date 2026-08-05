@@ -6,12 +6,19 @@ import { Badge } from "@/components/ui/Badge";
 import { ScheduleResults } from "@/components/admin/ScheduleResults";
 import { DatePickerField } from "@/components/manager/DatePickerField";
 import { MultiDatePicker } from "@/components/schedule/MultiDatePicker";
+import { formatScheduleDeadline } from "@/lib/schedule/utils";
 import type { SchedulePoll, ScheduleTimeSlot } from "@/types/schedule";
 
 const HOUR_OPTIONS = [9, 10, 11, 13, 14, 15, 16, 17, 18];
 const DEFAULT_HOURS = [10, 11, 13, 14, 15];
+const DEADLINE_HOURS = [12, 13, 14, 15, 16, 17];
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 type EditorMode = "create" | "edit" | "copy";
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
 
 /** 저장된 시간대에서 시각(시) 목록 복원 — 편집·복사 시 사용 */
 function hoursFromSlots(slots: ScheduleTimeSlot[]): number[] {
@@ -24,8 +31,46 @@ function hoursFromSlots(slots: ScheduleTimeSlot[]): number[] {
   return hours.length > 0 ? hours : DEFAULT_HOURS;
 }
 
-/** 제목으로 안내 문구 초안 생성 */
-function generateDescription(title: string, name: string): string {
+/** 폼 입력(마감 날짜 + 시각) → 서버 저장용 ISO. KST 기준을 UTC로 고정 변환 */
+function toDeadlineIso(date: string, hour: number | null): string | null {
+  if (!date) {
+    return null;
+  }
+  if (hour == null) {
+    return date; // 날짜만 지정(기존 동작): 서버가 자정 기준으로 저장
+  }
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, hour - 9, 0, 0)).toISOString();
+}
+
+/** 저장된 마감(UTC ISO) → 폼 편집용 { 날짜, 시각 } 복원 */
+function splitDeadline(iso: string | null | undefined): { date: string; hour: number | null } {
+  if (!iso) {
+    return { date: "", hour: null };
+  }
+  const base = new Date(iso);
+  if (Number.isNaN(base.getTime())) {
+    return { date: "", hour: null };
+  }
+  const kst = new Date(base.getTime() + 9 * 60 * 60 * 1000);
+  const date = `${kst.getUTCFullYear()}-${pad2(kst.getUTCMonth() + 1)}-${pad2(kst.getUTCDate())}`;
+  const hour = kst.getUTCHours();
+  return { date, hour: DEADLINE_HOURS.includes(hour) ? hour : null };
+}
+
+/** 안내 문구용 마감 표기: "8월 5일(수) 17시" */
+function deadlinePhrase(date: string, hour: number | null): string {
+  if (!date) {
+    return "";
+  }
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+  const datePart = `${m}월 ${d}일(${weekday})`;
+  return hour != null ? `${datePart} ${hour}시` : datePart;
+}
+
+/** 제목으로 안내 문구 초안 생성 (마감이 있으면 회신 마감 문구 포함) */
+function generateDescription(title: string, name: string, deadlineText: string): string {
   const base = title.replace(/\s*일정\s*조사\s*$/, "").trim();
   if (!base) {
     return "";
@@ -35,10 +80,11 @@ function generateDescription(title: string, name: string): string {
   const committee = (roundMatch?.[2] ?? base).trim();
   const meeting = round ? `제${round}차 ${committee}` : committee;
   const greeter = name ? `충남콘텐츠진흥원 ${name}입니다.` : "충남콘텐츠진흥원입니다.";
+  const deadlineClause = deadlineText ? `${deadlineText}까지 ` : "";
   return `안녕하세요. ${greeter}
 
 ${committee} 참여해주셔서 감사드립니다.
-관련하여 ${meeting}를 진행하고자 하오니 가능한 일정 투표 부탁드립니다.
+관련하여 ${meeting}를 진행하고자 하오니 ${deadlineClause}가능한 일정 투표 부탁드립니다.
 
 감사합니다.`;
 }
@@ -198,7 +244,7 @@ export function ScheduleConsole() {
                   후보 {poll.dates.length}일 · 시간대 {poll.timeSlots.length}개
                   {poll.includeLunch ? " · 오찬" : ""}
                   {poll.includeDinner ? " · 석식" : ""}
-                  {poll.deadline ? ` · 마감 ${poll.deadline.slice(0, 10)}` : ""}
+                  {poll.deadline ? ` · 마감 ${formatScheduleDeadline(poll.deadline)}` : ""}
                 </p>
                 <p className="mt-1 break-all font-mono text-[11px] text-[var(--text-muted)]">{scheduleUrl(poll.id)}</p>
               </div>
@@ -265,6 +311,7 @@ function SchedulePollEditor({
   onSaved: (message: string) => void;
 }) {
   const isEdit = mode === "edit";
+  const initialDeadline = splitDeadline(initial?.deadline);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [lastAutoDesc, setLastAutoDesc] = useState("");
@@ -275,7 +322,8 @@ function SchedulePollEditor({
   );
   const [includeLunch, setIncludeLunch] = useState(initial?.includeLunch ?? false);
   const [includeDinner, setIncludeDinner] = useState(initial?.includeDinner ?? false);
-  const [deadline, setDeadline] = useState(initial?.deadline ? initial.deadline.slice(0, 10) : "");
+  const [deadline, setDeadline] = useState(initialDeadline.date);
+  const [deadlineHour, setDeadlineHour] = useState<number | null>(initialDeadline.hour);
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -292,18 +340,39 @@ function SchedulePollEditor({
   const submitLabel = isEdit ? "수정 내용 저장" : "일정조사 생성 · 링크 발급";
   const savingLabel = isEdit ? "저장 중" : "생성 중";
 
-  // 제목 입력 시 안내 문구 초안 자동 생성 (직접 편집한 경우는 덮어쓰지 않음)
-  function handleTitleChange(value: string) {
-    setTitle(value);
+  // 안내 문구가 자동 생성분 그대로면(직접 편집 전) 최신 값으로 다시 채운다
+  function maybeAutoDescription(nextTitle: string, nextDate: string, nextHour: number | null) {
     if (description === "" || description === lastAutoDesc) {
-      const draft = generateDescription(value, userName);
+      const draft = generateDescription(nextTitle, userName, deadlinePhrase(nextDate, nextHour));
       setDescription(draft);
       setLastAutoDesc(draft);
     }
   }
 
+  function handleTitleChange(value: string) {
+    setTitle(value);
+    maybeAutoDescription(value, deadline, deadlineHour);
+  }
+
+  function handleDeadlineDate(value: string) {
+    setDeadline(value);
+    maybeAutoDescription(title, value, deadlineHour);
+  }
+
+  function handleDeadlineHour(hour: number) {
+    const next = deadlineHour === hour ? null : hour;
+    setDeadlineHour(next);
+    maybeAutoDescription(title, deadline, next);
+  }
+
+  function clearDeadline() {
+    setDeadline("");
+    setDeadlineHour(null);
+    maybeAutoDescription(title, "", null);
+  }
+
   function regenerateDescription() {
-    const draft = generateDescription(title, userName);
+    const draft = generateDescription(title, userName, deadlinePhrase(deadline, deadlineHour));
     setDescription(draft);
     setLastAutoDesc(draft);
   }
@@ -337,7 +406,7 @@ function SchedulePollEditor({
         timeSlots,
         includeLunch,
         includeDinner,
-        deadline: deadline || null,
+        deadline: toDeadlineIso(deadline, deadlineHour),
       };
       const response = await authFetch(
         isEdit ? `/api/schedule-polls/${initial!.id}` : "/api/schedule-polls",
@@ -441,20 +510,58 @@ function SchedulePollEditor({
           </div>
         </div>
 
-        {/* 오찬/석식/마감 */}
-        <div className="grid gap-3 sm:grid-cols-3">
+        {/* 오찬/석식 */}
+        <div className="grid gap-3 sm:grid-cols-2">
           <ToggleField label="오찬 참석 조사 포함" active={includeLunch} onClick={() => setIncludeLunch((v) => !v)} />
           <ToggleField label="석식 참석 조사 포함" active={includeDinner} onClick={() => setIncludeDinner((v) => !v)} />
-          <DatePickerField label="응답 마감 (선택)" value={deadline} onChange={setDeadline} />
-          {deadline ? (
-            <button
-              type="button"
-              onClick={() => setDeadline("")}
-              className="focus-ring self-start text-xs text-[var(--text-muted)] underline underline-offset-4 hover:text-white"
-            >
-              마감 지우기
-            </button>
-          ) : null}
+        </div>
+
+        {/* 응답 마감 (날짜 + 시각) */}
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="label-machined text-[var(--text-muted)]">응답 마감 (선택)</span>
+            {deadline ? (
+              <button
+                type="button"
+                onClick={clearDeadline}
+                className="focus-ring text-xs text-[var(--text-muted)] underline underline-offset-4 hover:text-white"
+              >
+                마감 지우기
+              </button>
+            ) : null}
+          </div>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <DatePickerField label="마감 날짜" value={deadline} onChange={handleDeadlineDate} />
+            <div>
+              <span className="label-machined text-[var(--text-muted)]">마감 시각 (12~17시 중 선택)</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {DEADLINE_HOURS.map((hour) => {
+                  const active = deadlineHour === hour;
+                  return (
+                    <button
+                      key={hour}
+                      type="button"
+                      aria-pressed={active}
+                      disabled={!deadline}
+                      onClick={() => handleDeadlineHour(hour)}
+                      className={`focus-ring min-h-11 border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                        active
+                          ? "border-white bg-white text-black"
+                          : "border-[var(--hairline)] text-[var(--text-body)] hover:border-white hover:text-white"
+                      }`}
+                    >
+                      {hour}시
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                {deadline
+                  ? "시각을 선택하면 안내 문구에 회신 마감이 자동 반영됩니다."
+                  : "먼저 마감 날짜를 선택하세요."}
+              </p>
+            </div>
+          </div>
         </div>
 
         <button

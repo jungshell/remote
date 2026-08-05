@@ -18,6 +18,36 @@ export function generateSchedulePollId() {
   return `schedule-${suffix}`;
 }
 
+const SCHEDULE_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * 저장된 마감(UTC timestamptz) → 한국시각 표시 문자열.
+ * 서버(UTC)·클라이언트(KST) 어디서 렌더해도 동일하도록 고정 +9 오프셋으로 계산한다.
+ * 예: "2026-08-05(수) 17시"
+ */
+export function formatScheduleDeadline(iso: string | null | undefined): string {
+  if (!iso) {
+    return "";
+  }
+  const base = new Date(iso);
+  if (Number.isNaN(base.getTime())) {
+    return "";
+  }
+  const kst = new Date(base.getTime() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = kst.getUTCMonth() + 1;
+  const d = kst.getUTCDate();
+  const weekday = SCHEDULE_WEEKDAYS[kst.getUTCDay()];
+  const hour = kst.getUTCHours();
+  const dateText = `${y}-${pad2(m)}-${pad2(d)}(${weekday})`;
+  // 마감 시각은 UI에서 12~17시만 지정 가능 → 오전(날짜만 지정한 기존 마감)은 날짜만 표기
+  return hour >= 12 ? `${dateText} ${hour}시` : dateText;
+}
+
 export function parseDates(raw: unknown): string[] {
   if (!Array.isArray(raw)) {
     return [];

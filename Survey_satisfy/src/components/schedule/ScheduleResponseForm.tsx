@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatScheduleDeadline } from "@/lib/schedule/utils";
 import type { ScheduleDateSelection, SchedulePoll } from "@/types/schedule";
 
 interface ScheduleResponseFormProps {
@@ -123,7 +124,7 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--text-body)]">{poll.description}</p>
           ) : null}
           <p className="mt-3 text-xs text-[var(--text-muted)]">
-            가능한 시간을 모두 선택해 주세요. (복수 선택){poll.deadline ? ` · 마감 ${poll.deadline.slice(0, 10)}` : ""}
+            가능한 시간을 모두 선택해 주세요. (복수 선택){poll.deadline ? ` · 마감 ${formatScheduleDeadline(poll.deadline)}` : ""}
           </p>
         </div>
 
