@@ -19,10 +19,12 @@ export async function generateMetadata({ params }: SchedulePageProps): Promise<M
       title = data.title;
     }
   }
+  const description = "가능한 날짜·시간을 선택해 주세요.";
   return {
     title,
-    openGraph: { title, type: "website" },
-    twitter: { card: "summary", title },
+    description,
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description },
   };
 }
 
