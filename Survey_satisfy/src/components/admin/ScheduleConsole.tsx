@@ -312,6 +312,7 @@ function SchedulePollEditor({
 }) {
   const isEdit = mode === "edit";
   const initialDeadline = splitDeadline(initial?.deadline);
+  const initialDeadlinePhrase = deadlinePhrase(initialDeadline.date, initialDeadline.hour);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [lastAutoDesc, setLastAutoDesc] = useState("");
@@ -340,9 +341,28 @@ function SchedulePollEditor({
   const submitLabel = isEdit ? "수정 내용 저장" : "일정조사 생성 · 링크 발급";
   const savingLabel = isEdit ? "저장 중" : "생성 중";
 
+  // 현재 문구가 "자동 생성분 그대로"인지 판정 — 수정 화면에서 불러온 자동 문구도 인식한다
+  function isAutoDescription(current: string, forTitle: string): boolean {
+    if (current === "" || current === lastAutoDesc) {
+      return true;
+    }
+    // 제목만으로 만든 형태(마감 없음)
+    if (current === generateDescription(forTitle, userName, "")) {
+      return true;
+    }
+    // 처음 불러온 시점의 마감을 포함해 만든 형태
+    if (
+      initialDeadlinePhrase &&
+      current === generateDescription(forTitle, userName, initialDeadlinePhrase)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   // 안내 문구가 자동 생성분 그대로면(직접 편집 전) 최신 값으로 다시 채운다
   function maybeAutoDescription(nextTitle: string, nextDate: string, nextHour: number | null) {
-    if (description === "" || description === lastAutoDesc) {
+    if (isAutoDescription(description, nextTitle)) {
       const draft = generateDescription(nextTitle, userName, deadlinePhrase(nextDate, nextHour));
       setDescription(draft);
       setLastAutoDesc(draft);
