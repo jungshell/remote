@@ -1079,6 +1079,7 @@ console.log('✅ 회원 상태 자동 체크 스케줄러 설정 완료: 매일 
 type GameReminderRunOptions = {
   dryRun?: boolean;
   targetOffsetDays?: 0 | 1;
+  force?: boolean;
 };
 
 function getGameWeekdayKey(date: Date): WeekdayKey | null {
@@ -1171,7 +1172,7 @@ async function getConfirmedGameVoters(game: { id: number; date: Date }) {
 
 async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) {
   const enabled = (process.env.AUTO_GAME_REMINDER_ENABLED ?? 'true') === 'true';
-  if (!enabled) {
+  if (!enabled && !options.force) {
     return { success: true, skipped: true, reason: 'disabled' };
   }
 
@@ -1273,12 +1274,13 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
 
     for (const recipient of recipients) {
       const deliveryKey = `GAME_REMINDER:${reminderType}:GAME:${game.id}:USER:${recipient.id}`;
+      // TODO: findUnique→upsert 대신 create+P2002 catch로 교체하면 나노초 동시 호출도 완전 안전
       const previous = await prisma.notificationDelivery.findUnique({
         where: { deliveryKey },
         select: { status: true }
       });
 
-      if (previous?.status === 'SENT') {
+      if (previous?.status === 'SENT' || previous?.status === 'PENDING') {
         alreadySentCount++;
         continue;
       }
@@ -1381,12 +1383,12 @@ type VoteReminderRunOptions = {
 
 async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions = {}) {
   const enabled = (process.env.AUTO_VOTE_REMINDER_ENABLED ?? 'true') === 'true';
-  if (!enabled) {
+  if (!enabled && !options.force) {
     return { success: true, skipped: true, reason: 'disabled' };
   }
 
   const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-  const isScheduledWindow = kstNow.getDay() === 4 && kstNow.getHours() >= 10 && kstNow.getHours() < 12;
+  const isScheduledWindow = [1, 2, 3, 4].includes(kstNow.getDay()) && kstNow.getHours() === 10;
   if (!isScheduledWindow && !options.force) {
     return { success: true, skipped: true, reason: 'outside-schedule-window' };
   }
@@ -1469,13 +1471,14 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
   let alreadySentCount = 0;
 
   for (const recipient of recipients) {
-    const deliveryKey = `VOTE_REMINDER:${activeSession.id}:USER:${recipient.id}`;
+    const deliveryKey = `VOTE_REMINDER:${activeSession.id}:USER:${recipient.id}:DATE:${getKstDateKey(new Date())}`;
+    // TODO: findUnique→upsert 대신 create+P2002 catch로 교체하면 나노초 동시 호출도 완전 안전
     const previous = await prisma.notificationDelivery.findUnique({
       where: { deliveryKey },
       select: { status: true }
     });
 
-    if (previous?.status === 'SENT') {
+    if (previous?.status === 'SENT' || previous?.status === 'PENDING') {
       alreadySentCount++;
       continue;
     }
@@ -1796,10 +1799,13 @@ cron.schedule('15 * * * *', async () => {
 });
 console.log('✅ 매시간 투표세션 검증 스케줄러 설정 완료 (매시 15분 KST)');
 
-// 경기 자동 알림 (한국시간 기준): 당일 10시, 전날 15시
-cron.schedule('0 10,15 * * *', async () => {
+// 경기 자동 알림 (한국시간 기준): 매일 오전 10시 1회 — 오늘·내일 경기 동시 처리
+cron.schedule('0 10 * * *', async () => {
   try {
-    await sendAutoGameReminderEmails();
+    await Promise.all([
+      sendAutoGameReminderEmails({ targetOffsetDays: 0 }),
+      sendAutoGameReminderEmails({ targetOffsetDays: 1 })
+    ]);
   } catch (error) {
     console.error('❌ 자동 경기 알림 발송 오류:', error);
   }
@@ -1807,7 +1813,7 @@ cron.schedule('0 10,15 * * *', async () => {
   timezone: 'Asia/Seoul'
 });
 
-console.log('✅ 자동 경기 알림 스케줄러 설정 완료 (10:00, 15:00 KST)');
+console.log('✅ 자동 경기 알림 스케줄러 설정 완료 (10:00 KST, 오늘·내일 경기)');
 
 // 목요일 10:00~11:59 사이 15분마다 확인한다.
 // 수신자별 발송 기록을 DB에 저장하므로 서버 재시작/중복 실행에도 한 번만 전송된다.
@@ -1861,25 +1867,31 @@ app.post('/api/cron/vote-reminder', async (req, res) => {
   }
 });
 
-// 무료 Render에서도 경기 전날/당일 알림을 실행하는 외부 스케줄러 전용 경로.
-// 실제 발송 대상은 확정 경기 날짜를 선택한 활성 투표자만 포함한다.
+// 경기 알림 외부 스케줄러 전용 경로.
+// - 자동 실행(schedule): targetOffsetDays 없음 → 오늘+내일 동시 처리 (force=true)
+// - 수동 dryRun(workflow_dispatch): targetOffsetDays=0(today) 또는 1(tomorrow) → 해당 일만 dryRun
 app.post('/api/cron/game-reminder', async (req, res) => {
   if (!isAuthorizedCronRequest(req)) {
     return res.status(401).json({ error: '유효하지 않은 스케줄러 인증입니다.' });
   }
 
-  const rawTargetOffsetDays = Number(req.body?.targetOffsetDays);
-  if (rawTargetOffsetDays !== 0 && rawTargetOffsetDays !== 1) {
-    return res.status(400).json({ error: 'targetOffsetDays는 0 또는 1이어야 합니다.' });
-  }
-
   try {
     const dryRun = req.body?.dryRun === true;
-    const result = await sendAutoGameReminderEmails({
-      dryRun,
-      targetOffsetDays: rawTargetOffsetDays
-    });
-    return res.status(result?.success ? 200 : 503).json(result);
+    const rawOffset = req.body?.targetOffsetDays;
+
+    if (rawOffset === 0 || rawOffset === 1) {
+      // 수동 dryRun: 지정된 날만 처리
+      const result = await sendAutoGameReminderEmails({ dryRun, targetOffsetDays: rawOffset, force: true });
+      return res.status(result?.success ? 200 : 503).json(result);
+    }
+
+    // 자동 실행: 오늘·내일 동시 처리
+    const [todayResult, tomorrowResult] = await Promise.all([
+      sendAutoGameReminderEmails({ dryRun, targetOffsetDays: 0, force: true }),
+      sendAutoGameReminderEmails({ dryRun, targetOffsetDays: 1, force: true })
+    ]);
+    const success = (todayResult?.success ?? true) && (tomorrowResult?.success ?? true);
+    return res.status(success ? 200 : 503).json({ today: todayResult, tomorrow: tomorrowResult });
   } catch (error) {
     console.error('❌ 외부 스케줄러 경기 알림 오류:', error);
     return res.status(500).json({
@@ -1900,8 +1912,8 @@ app.get('/api/admin/mail-status', authenticateToken, (req: any, res) => {
     gameReminderEnabled: (process.env.AUTO_GAME_REMINDER_ENABLED ?? 'true') === 'true',
     voteReminderEnabled: (process.env.AUTO_VOTE_REMINDER_ENABLED ?? 'true') === 'true',
     schedules: {
-      gameReminder: '매일 10:00(당일), 15:00(다음 날)',
-      voteReminder: '목요일 10:00~11:59, 미참여 활성 회원에게 1회'
+      gameReminder: 'GitHub Actions 매일 10:07 KST — 오늘·내일 경기 각 1회',
+      voteReminder: 'GitHub Actions 월~목 10:17 KST — 미투표 활성 회원에게 하루 1회'
     },
     gameReminderRecipients: '확정 경기 날짜를 선택한 활성 투표자',
     recommendedTransport: 'Gmail API (HTTPS)'

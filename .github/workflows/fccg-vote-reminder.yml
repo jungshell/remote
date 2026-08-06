@@ -2,9 +2,9 @@ name: FCCG vote reminder
 
 on:
   schedule:
-    # GitHub 예약 작업 지연과 Render 무료 인스턴스의 콜드 스타트를 고려해
-    # 목요일 오전 10~11시(한국시간)에 15분 간격으로 재호출한다.
-    - cron: "7,22,37,52 10-11 * * 4"
+    # 한국시간 월~목 오전 10:17 1회 실행.
+    # NotificationDelivery DATE 키로 하루 1회 중복 발송이 차단된다.
+    - cron: "17 10 * * 1-4"
       timezone: "Asia/Seoul"
   workflow_dispatch:
 

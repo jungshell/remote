@@ -2,11 +2,9 @@ name: FCCG game reminder
 
 on:
   schedule:
-    # 한국시간 매일 10시: 오늘 경기, 15시: 내일 경기.
-    # 무료 Render 기동과 GitHub 예약 지연에 대비해 각 시간대에 세 번 확인한다.
-    - cron: "7,22,37 10 * * *"
-      timezone: "Asia/Seoul"
-    - cron: "7,22,37 15 * * *"
+    # 한국시간 매일 오전 10:07 1회 실행.
+    # 오늘 경기와 내일 경기를 한 번에 처리한다.
+    - cron: "7 10 * * *"
       timezone: "Asia/Seoul"
   workflow_dispatch:
     inputs:
@@ -38,25 +36,22 @@ jobs:
           BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
           CRON_SECRET: ${{ secrets.FCCG_CRON_SECRET }}
           EVENT_NAME: ${{ github.event_name }}
-          SCHEDULE: ${{ github.event.schedule }}
           MANUAL_TARGET: ${{ inputs.target }}
         run: |
           test -n "$BACKEND_URL"
           test -n "$CRON_SECRET"
 
-          dry_run=false
-          target_offset_days=0
-
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            dry_run=true
+            # 수동 dryRun: 선택한 날만 확인
             if [ "$MANUAL_TARGET" = "tomorrow" ]; then
-              target_offset_days=1
+              request_body='{"dryRun":true,"targetOffsetDays":1}'
+            else
+              request_body='{"dryRun":true,"targetOffsetDays":0}'
             fi
-          elif [ "$SCHEDULE" = "7,22,37 15 * * *" ]; then
-            target_offset_days=1
+          else
+            # 자동 실행: 오늘·내일 모두 처리 (targetOffsetDays 없음)
+            request_body='{"dryRun":false}'
           fi
-
-          request_body="{\"dryRun\":${dry_run},\"targetOffsetDays\":${target_offset_days}}"
 
           curl \
             --fail-with-body \
