@@ -104,6 +104,8 @@ model Vote {
   updatedAt     DateTime    @updatedAt
   voteSession   VoteSession @relation(fields: [voteSessionId], references: [id])
   user          User        @relation(fields: [userId], references: [id])
+
+  @@unique([userId, voteSessionId])
 }
 
 model Gallery {

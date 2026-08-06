@@ -279,7 +279,7 @@ export function filterVotesForResultsDisplay<T extends { user?: { status?: strin
 
 /** 투표 행(JSON selectedDays)을 요일별 득표·참가자 이름으로 집계 (한글 날짜/영문 코드 혼용 지원) */
 export function aggregateVotesByWeekday(
-  votes: Array<{ selectedDays: string; user?: { name: string; status?: string } | null }>,
+  votes: Array<{ selectedDays: string; userId?: number; user?: { name: string; status?: string } | null }>,
   sessionWeekStart?: Date
 ): { counts: Record<WeekdayKey, number>; participantsByDay: Record<WeekdayKey, string[]> } {
   const counts: Record<WeekdayKey, number> = {
@@ -303,7 +303,15 @@ export function aggregateVotesByWeekday(
 
   const filteredVotes = filterVotesForResultsDisplay(votes);
 
+  // userId 기준 중복 투표 제거 — 동일 사용자의 여러 레코드 중 마지막(최신) 것만 사용
+  const dedupMap = new Map<number | string, typeof filteredVotes[0]>();
+  let anonIdx = 0;
   for (const vote of filteredVotes) {
+    const uid = vote.userId;
+    dedupMap.set(uid != null ? uid : `__anon_${anonIdx++}`, vote);
+  }
+
+  for (const vote of dedupMap.values()) {
     const days = parseVoteDays(vote.selectedDays);
     const name = vote.user?.name;
     for (const day of days) {

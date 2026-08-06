@@ -1911,8 +1911,17 @@ router.get('/votes/results', async (req, res) => {
     }
 
     const sessionWeekStart = new Date(session.weekStartDate);
-    const votesForResults = filterVotesForResultsDisplay(session.votes);
-    
+    const filtered = filterVotesForResultsDisplay(session.votes);
+
+    // userId 기준 중복 투표 제거 (1인 1투표 보장)
+    const dedupMap = new Map<number | string, typeof filtered[0]>();
+    let anonIdx = 0;
+    for (const v of filtered) {
+      const key = v.userId != null ? v.userId : `__anon_${anonIdx++}`;
+      dedupMap.set(key, v);
+    }
+    const votesForResults = Array.from(dedupMap.values());
+
     // 요일별 투표 결과 집계
     const dayVotes: any = {
       MON: { count: 0, participants: [] },
