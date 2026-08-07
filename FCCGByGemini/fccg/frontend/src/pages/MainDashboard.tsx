@@ -480,11 +480,6 @@ export default function MainDashboard() {
     return diff < 0 ? null : diff;
   }, [normalizedVoteSession, currentTime]);
 
-  const handleOpenVoteModal = useCallback(() => {
-    setModalIdx(3);
-    onOpen();
-  }, [onOpen]);
-
   // ─────────────────────────────────────────────────────────────────────────
 
   const [matchVenuePreview, setMatchVenuePreview] = useState<{
@@ -1285,6 +1280,11 @@ export default function MainDashboard() {
   // 상세 모달 상태
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [modalIdx, setModalIdx] = useState<number | null>(null);
+
+  const handleOpenVoteModal = useCallback(() => {
+    setModalIdx(3);
+    onOpen();
+  }, [onOpen]);
 
   // 멤버 리스트 상태
   const [membersLoading, setMembersLoading] = useState(false);
