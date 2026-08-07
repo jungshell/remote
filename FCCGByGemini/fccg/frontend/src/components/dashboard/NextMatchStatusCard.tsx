@@ -231,12 +231,12 @@ function VoteProgressBar({
     <Box w="full">
       {/* Large animated % with label */}
       <Text
-        fontSize="3xl"
+        fontSize="2xl"
         fontWeight="900"
         letterSpacing="-0.04em"
         lineHeight="1"
         color={pctColor}
-        mb={1.5}
+        mb={1}
       >
         <Text as="span" fontSize="xs" fontWeight="600" letterSpacing="0.01em" opacity={0.75} mr={1}>참여율</Text>
         {progress}%
@@ -306,7 +306,7 @@ export function NextMatchStatusCard({
       zIndex={1}
       w="full"
       flex="1"
-      mt={3}
+      mt={2}
       sx={{
         animation: `${fadeUp} 400ms ease-out both`,
         '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
@@ -342,7 +342,7 @@ export function NextMatchStatusCard({
       </Text>
 
       {/* Description with visual hierarchy */}
-      <Box mt={3}>
+      <Box mt={2}>
         {descLines[0] && (
           <Text fontSize="sm" color="rgba(255,255,255,0.75)" lineHeight="1.7">
             {descLines[0]}
@@ -357,7 +357,7 @@ export function NextMatchStatusCard({
 
       {/* Sub-info */}
       {(showDeadline || showLastGame) && (
-        <HStack mt={2} spacing={3} flexWrap="wrap" align="center">
+        <HStack mt={1.5} spacing={3} flexWrap="wrap" align="center">
           {showDeadline && (
             <Box
               px={2}
@@ -384,10 +384,10 @@ export function NextMatchStatusCard({
 
       {/* Progress bar */}
       {showProgress && (
-        <Box w="full" mt={3.5}>
+        <Box w="full" mt={2.5}>
           <VoteProgressBar votedCount={votedCount} totalMembers={totalMembers} state={state} />
           {state === 'VOTED' && (
-            <Text mt={2} fontSize="xs" fontWeight="600" color="rgba(134,239,172,0.7)">
+            <Text mt={1.5} fontSize="xs" fontWeight="600" color="rgba(134,239,172,0.7)">
               ✔ 참여해주셔서 감사합니다.
             </Text>
           )}
@@ -396,7 +396,7 @@ export function NextMatchStatusCard({
 
       {/* CTA */}
       {content.cta && (
-        <Box mt="auto" pt={5}>
+        <Box mt="auto" pt={3}>
           <Button
             size="sm"
             variant="unstyled"
