@@ -1,6 +1,11 @@
 import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag } from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { MdMusicNote, MdMusicOff } from 'react-icons/md';
+import {
+  NextMatchStatusCard,
+  NextMatchPill,
+  type NextMatchState,
+} from '../components/dashboard/NextMatchStatusCard';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
@@ -419,6 +424,68 @@ export default function MainDashboard() {
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
     return upcoming[0] ?? null;
   }, [realTimeGames]);
+
+  // ── NEXT MATCH 빈 상태 판정 ────────────────────────────────────────────────
+
+  const nextMatchState = useMemo<NextMatchState>(() => {
+    const hasActive =
+      normalizedVoteSession?.isActive && !normalizedVoteSession?.isCompleted;
+
+    if (hasActive) {
+      if (!user) return 'ANON_VOTE';
+      const participants: any[] = normalizedVoteSession?.participants ?? [];
+      const userVoted = participants.some((p: any) => p.userId === user.id);
+      return userVoted ? 'VOTED' : 'VOTE_REQUIRED';
+    }
+
+    // 활성 투표 없음 — KST 요일로 판단
+    const kstDate = getKstDateKey(currentTime);
+    const [y, m, d] = kstDate.split('-').map(Number);
+    const kstDay = new Date(y, m - 1, d).getDay(); // 0=일,1=월…6=토
+    return kstDay >= 1 && kstDay <= 4 ? 'NO_GAME_THIS_WEEK' : 'SCHEDULING';
+  }, [normalizedVoteSession, user, currentTime]);
+
+  const lastGameForCard = useMemo(() => {
+    const now = currentTime;
+    const past = realTimeGames.filter((g: any) => {
+      const dt = new Date(g?.date);
+      return (
+        !Number.isNaN(dt.getTime()) &&
+        dt < now &&
+        g?.confirmed !== false &&
+        g?.eventType !== '회식'
+      );
+    });
+    if (!past.length) return null;
+    past.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const dt = new Date(past[0].date);
+    const kstWeekday = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', weekday: 'short' }).format(dt);
+    return `${dt.getMonth() + 1}월 ${dt.getDate()}일(${kstWeekday})`;
+  }, [realTimeGames, currentTime]);
+
+  const totalActiveMembers = useMemo(() => {
+    const n = unifiedVoteData?.allMembers?.length ?? 0;
+    return n > 0 ? n : realTimeMemberCount;
+  }, [unifiedVoteData, realTimeMemberCount]);
+
+  const voteDeadlineDaysLeft = useMemo(() => {
+    if (!normalizedVoteSession?.endTime) return null;
+    const todayKst = getKstDateKey(currentTime);
+    const [ty, tm, td] = todayKst.split('-').map(Number);
+    const todayMs = new Date(ty, tm - 1, td).getTime();
+    const dlKst = getKstDateKey(new Date(normalizedVoteSession.endTime));
+    const [dy, dm, dd] = dlKst.split('-').map(Number);
+    const dlMs = new Date(dy, dm - 1, dd).getTime();
+    const diff = Math.round((dlMs - todayMs) / 86_400_000);
+    return diff < 0 ? null : diff;
+  }, [normalizedVoteSession, currentTime]);
+
+  const handleOpenVoteModal = useCallback(() => {
+    setModalIdx(3);
+    onOpen();
+  }, [onOpen]);
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [matchVenuePreview, setMatchVenuePreview] = useState<{
     latitude: number;
@@ -2181,7 +2248,7 @@ export default function MainDashboard() {
             pointerEvents: 'none',
           }}
         >
-          <HStack w="full" justify="flex-start" position="relative" zIndex={1}>
+          <HStack w="full" justify="space-between" align="center" position="relative" zIndex={1}>
             <Text
               fontSize="xs"
               fontWeight="900"
@@ -2190,6 +2257,7 @@ export default function MainDashboard() {
             >
               {nextMatchDisplay?.isGameDay ? 'MATCHDAY' : 'NEXT MATCH'}
             </Text>
+            {!nextMatchDisplay && <NextMatchPill state={nextMatchState} />}
           </HStack>
 
           {nextMatchDisplay ? (
@@ -2305,16 +2373,17 @@ export default function MainDashboard() {
               </VStack>
             </VStack>
           ) : (
-            <VStack align="start" spacing={3} position="relative" zIndex={1}>
-              <Text fontSize={{ base: '3xl', lg: '4xl' }} fontWeight="900" lineHeight="1.15">
-                다음 경기
-                <br />
-                일정 조율 중
-              </Text>
-              <Text color="rgba(255,255,255,0.78)" lineHeight="1.7">
-                일정이 확정되면 날짜와 장소를 가장 먼저 알려드릴게요.
-              </Text>
-            </VStack>
+            <NextMatchStatusCard
+              state={nextMatchState}
+              votedCount={normalizedVoteSession?.totalParticipants ?? 0}
+              totalMembers={totalActiveMembers}
+              deadlineDaysLeft={voteDeadlineDaysLeft}
+              lastGameLabel={lastGameForCard}
+              onVote={handleOpenVoteModal}
+              onViewVote={handleOpenVoteModal}
+              onViewSchedule={() => navigate('/schedule-v2')}
+              onLogin={() => navigate('/login')}
+            />
           )}
 
         </Box>
