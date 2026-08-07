@@ -39,6 +39,12 @@ export const apiLimiter = isProduction
       message: '요청이 너무 자주 발생하고 있습니다. 잠시 후 다시 시도해주세요.',
       standardHeaders: true,
       legacyHeaders: false,
+      // [DIAG] 실제 rate limit 키(IP) 로깅 — 확인 후 제거 예정
+      keyGenerator: (req) => {
+        const key = req.ip ?? 'unknown';
+        console.log(`[RATE-LIMIT-KEY] ip=${key} ips=${JSON.stringify(req.ips)} xff=${req.headers['x-forwarded-for']} path=${req.path}`);
+        return key;
+      },
       skip: (req) => {
         // 헬스체크 엔드포인트는 rate limit 제외 (keepalive용)
         const path = req.path || req.url?.split('?')[0] || '';

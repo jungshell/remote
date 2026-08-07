@@ -86,6 +86,20 @@ app.use(securityHeaders);
 app.use(bodyParser.json({ limit: '50mb' })); // body-parser로 대체, 업로드용 크기 제한 증가
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' })); // multipart/form-data 지원
 
+// [DIAG] IP 진단 엔드포인트 — rate limiter 적용 전, trust proxy 설정 효과 확인용. 확인 후 제거 예정.
+app.get('/debug/ip', (_req, res) => {
+  const req = _req as any;
+  res.json({
+    'req.ip':               req.ip,
+    'req.ips':              req.ips,
+    'x-forwarded-for':      req.headers['x-forwarded-for'],
+    'x-real-ip':            req.headers['x-real-ip'],
+    'socket.remoteAddress': req.socket?.remoteAddress,
+    trustProxySetting:      req.app.get('trust proxy'),
+    note: 'trust proxy가 설정되지 않으면 req.ip = 소켓 직접 주소(Render 내부 IP). x-forwarded-for가 실제 클라이언트 IP.',
+  });
+});
+
 // 헬스체크 엔드포인트 (rate limiter 적용 전에 등록 - keepalive용)
 app.get('/health', (req, res) => {
   const healthStatus = monitoring.getHealthStatus();
