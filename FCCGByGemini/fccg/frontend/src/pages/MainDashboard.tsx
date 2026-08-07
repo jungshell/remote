@@ -417,8 +417,8 @@ export default function MainDashboard() {
         );
       })
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    return upcoming[0] || thisWeekGame || null;
-  }, [realTimeGames, thisWeekGame]);
+    return upcoming[0] ?? null;
+  }, [realTimeGames]);
 
   const [matchVenuePreview, setMatchVenuePreview] = useState<{
     latitude: number;
@@ -1952,10 +1952,7 @@ export default function MainDashboard() {
     today.setHours(0, 0, 0, 0);
     const matchDateOnly = new Date(gameDate);
     matchDateOnly.setHours(0, 0, 0, 0);
-    const diffDays = Math.max(
-      0,
-      Math.round((matchDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)),
-    );
+    const diffDays = Math.round((matchDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     const dayName = ['일', '월', '화', '수', '목', '금', '토'][gameDate.getDay()];
     const eventType =
       ['풋살', 'FRIENDLY', 'FRIENDLY_MATCH'].includes(matchdayGame.eventType)
