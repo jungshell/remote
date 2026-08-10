@@ -21,7 +21,7 @@ import {
   voteDayToMonFriAbsentKeyForSession,
   type WeekdayKey
 } from './utils/voteUtils';
-import { getMailConfigurationStatus, sendMail, verifyMailTransport } from './utils/mailTransport';
+import { getMailConfigurationStatus, sendMail } from './utils/mailTransport';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1264,11 +1264,10 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
     };
   }
 
-  await verifyMailTransport();
-
   let sentCount = 0;
   let failedCount = 0;
   let alreadySentCount = 0;
+  let lastTransport = 'none';
   const reminderType = targetOffsetDays === 1 ? 'DAY_BEFORE' : 'DAY_OF';
 
   for (const { game, recipients } of gameTargets) {
@@ -1316,11 +1315,12 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
       });
 
       try {
-        await sendMail({
+        const mailResult = await sendMail({
           to: recipient.email,
           subject,
           text
         });
+        lastTransport = mailResult.mode;
         await prisma.notificationDelivery.update({
           where: { deliveryKey },
           data: {
@@ -1365,7 +1365,8 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
     sentCount,
     failedCount,
     alreadySentCount,
-    mode: targetOffsetDays === 1 ? 'day-before' : 'day-of'
+    mode: targetOffsetDays === 1 ? 'day-before' : 'day-of',
+    transport: lastTransport
   };
 }
 
@@ -1470,8 +1471,6 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
     };
   }
 
-  await verifyMailTransport();
-
   const targetStart = new Date(activeSession.weekStartDate);
   const targetEnd = new Date(targetStart);
   targetEnd.setDate(targetEnd.getDate() + 4);
@@ -1483,6 +1482,7 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
   let sentCount = 0;
   let failedCount = 0;
   let alreadySentCount = 0;
+  let lastTransport = 'none';
 
   for (const recipient of recipients) {
     const deliveryKey = `VOTE_REMINDER:${activeSession.id}:USER:${recipient.id}:DATE:${getKstDateKey(new Date())}`;
@@ -1544,12 +1544,13 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
     `;
 
     try {
-      await sendMail({
+      const mailResult = await sendMail({
         to: recipient.email,
         subject: '🗳️ FC CHAL-GGYEO 투표 참여 안내',
         text,
         html
       });
+      lastTransport = mailResult.mode;
       await prisma.notificationDelivery.update({
         where: { deliveryKey },
         data: {
@@ -1578,7 +1579,8 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
     recipients: recipients.length,
     sentCount,
     failedCount,
-    alreadySentCount
+    alreadySentCount,
+    transport: lastTransport
   };
 }
 
