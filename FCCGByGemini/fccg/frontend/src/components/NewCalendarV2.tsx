@@ -985,12 +985,10 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                 </DateNumber>
               </Flex>
               
-              {/* 경기 정보 표시 (8월 18-22일 더미데이터만 제외) */}
-              {dayInfo.hasGame && dayInfo.gameData && 
+              {/* 경기 정보 표시 */}
+              {dayInfo.hasGame && dayInfo.gameData &&
                dayInfo.date && !isNaN(dayInfo.date.getTime()) &&
-               dayInfo.gameData.date && // 날짜가 있는지 확인
-               !(dayjs(dayInfo.date).month() === 7 && 
-                 (dayjs(dayInfo.date).date() >= 18 && dayjs(dayInfo.date).date() <= 22)) && (
+               dayInfo.gameData.date && (
                 <GameInfoBox
                   onClick={() => {
                     if (dayInfo.gameData && dayInfo.gameData.date) {
