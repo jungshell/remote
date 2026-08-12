@@ -1237,7 +1237,11 @@ export default function SchedulePageV2() {
           // ISO 문자열 생성 전 한 번 더 검증
           let dateString: string;
           try {
-            dateString = gameDate.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+            // KST 로컬 날짜 기준으로 키 생성 (UTC 변환 시 날짜 틀어짐 방지)
+            const _y = gameDate.getFullYear();
+            const _m = String(gameDate.getMonth() + 1).padStart(2, '0');
+            const _d = String(gameDate.getDate()).padStart(2, '0');
+            dateString = `${_y}-${_m}-${_d}`; // YYYY-MM-DD 형식
             
             // dateString이 유효한 형식인지 검증 (YYYY-MM-DD)
             if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString) || dateString.includes('NaN')) {
