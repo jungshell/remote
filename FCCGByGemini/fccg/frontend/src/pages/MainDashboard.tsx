@@ -1306,7 +1306,8 @@ export default function MainDashboard() {
           if (response.ok) {
             const data = await response.json();
           if (data.members && data.members.length > 0) {
-              updateRealTimeMembers(data.members);
+              const activeOnly = data.members.filter((m: any) => m.status === 'ACTIVE');
+              updateRealTimeMembers(activeOnly);
           } else {
             // API 실패 시 빈 배열 사용
               updateRealTimeMembers([]);
