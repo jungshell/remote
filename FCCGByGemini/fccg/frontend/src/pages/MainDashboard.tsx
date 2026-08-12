@@ -464,7 +464,9 @@ export default function MainDashboard() {
   }, [realTimeGames, currentTime]);
 
   const totalActiveMembers = useMemo(() => {
-    const n = unifiedVoteData?.allMembers?.length ?? 0;
+    const n = (unifiedVoteData?.allMembers ?? []).filter(
+      (m: any) => m.status === 'ACTIVE'
+    ).length;
     return n > 0 ? n : realTimeMemberCount;
   }, [unifiedVoteData, realTimeMemberCount]);
 
