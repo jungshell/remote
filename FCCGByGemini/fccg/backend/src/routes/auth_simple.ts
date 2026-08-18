@@ -4284,217 +4284,127 @@ async function sendGameConfirmationNotification(game) {
 }
 
 // 이메일 템플릿 생성 함수
-        function createGameConfirmationEmail(data) {
-          const totalMembers = data.participants.length;
-          const manualMembersCount = data.manualMembers ? data.manualMembers.length : 0;
-          const totalCount = totalMembers + manualMembersCount + (data.mercenaryCount || 0);
-  
+function createGameConfirmationEmail(data) {
+  const members = Array.isArray(data.participants) ? data.participants : [];
+  const manuals = Array.isArray(data.manualMembers) ? data.manualMembers : [];
+  const mercCount = data.mercenaryCount || 0;
+
+  // 참석 인원 합산: 개인 멤버 수 + 수기 그룹의 숫자 합 + 용병
+  const manualTotalCount = manuals.reduce((sum: number, entry: string) => {
+    const m = String(entry).match(/(\d+)명/);
+    return sum + (m ? parseInt(m[1], 10) : 1);
+  }, 0);
+  const totalCount = members.length + manualTotalCount + mercCount;
+
+  const naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(data.gameLocation)}`;
+
+  const memberChips = members.map((name: string) =>
+    `<span style="display:inline-block;background:#162B4A;color:#7BBAFF;border:1px solid #1E3D6A;border-radius:14px;padding:5px 13px;font-size:13px;font-weight:600;margin:3px 3px 3px 0;">${name}</span>`
+  ).join('');
+
+  const manualChips = manuals.map((entry: string) =>
+    `<span style="display:inline-block;background:#2D1600;color:#FF9A3C;border:1px solid #4A2500;border-radius:14px;padding:5px 13px;font-size:13px;font-weight:600;margin:3px 3px 3px 0;">${entry}</span>`
+  ).join('');
+
+  const mercChip = mercCount > 0
+    ? `<span style="display:inline-block;background:#1A1A1A;color:#888;border:1px solid #333;border-radius:14px;padding:5px 13px;font-size:13px;font-weight:600;margin:3px 3px 3px 0;">용병 ${mercCount}명</span>`
+    : '';
+
   return `
-    <style>
-      .email-container {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        max-width: 600px;
-        margin: 0 auto;
-        background-color: #ffffff;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-      }
-      .header {
-        background: linear-gradient(135deg, #3182CE 0%, #2B6CB0 100%);
-        color: white;
-        padding: 40px 30px;
-        text-align: center;
-        position: relative;
-      }
-      .header h1 {
-        margin: 0;
-        font-size: 24px;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-      }
-      .header p {
-        margin: 8px 0 0 0;
-        opacity: 0.9;
-        font-size: 14px;
-      }
-      .content {
-        padding: 30px 25px;
-      }
-      .main-title {
-        color: #2D3748;
-        margin-bottom: 25px;
-        font-size: 24px;
-        font-weight: bold;
-        text-align: center;
-      }
-      .info-section {
-        background-color: #ffffff;
-        border: 2px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 30px;
-        margin: 25px 0;
-      }
-      .info-item {
-        margin: 15px 0;
-        display: flex;
-        align-items: center;
-        font-size: 16px;
-        padding: 6px 0;
-      }
-      .info-item .icon {
-        font-size: 18px;
-        margin-right: 12px;
-        min-width: 24px;
-      }
-      .info-item .label {
-        font-weight: bold;
-        color: #2D3748;
-        margin-right: 8px;
-        min-width: 60px;
-      }
-      .info-item .value {
-        color: #4A5568;
-        font-size: 16px;
-      }
-      .info-item .location-container {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .kakao-map-btn {
-        background-color: #FEE500;
-        color: #3C1E1E;
-        border: none;
-        border-radius: 4px;
-        padding: 4px 8px;
-        font-size: 12px;
-        font-weight: bold;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-block;
-      }
-      .participants-section {
-        background-color: #F7FAFC;
-        border: 2px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 30px;
-        margin: 25px 0;
-      }
-      .participants-header {
-        display: flex;
-        align-items: center;
-        margin-bottom: 15px;
-        font-size: 18px;
-        font-weight: bold;
-        color: #2D3748;
-      }
-      .participants-header .icon {
-        font-size: 20px;
-        margin-right: 10px;
-      }
-      .participant-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 12px;
-      }
-      .participant-tag {
-        padding: 8px 12px;
-        border-radius: 16px;
-        font-size: 14px;
-        font-weight: 500;
-        margin: 3px;
-      }
-      .participant-tag.member {
-        background-color: #3182CE;
-        color: white;
-      }
-      .participant-tag.mercenary {
-        background-color: #2D3748;
-        color: white;
-      }
-      .participant-tag.other {
-        background-color: #ED8936;
-        color: white;
-      }
-      .footer {
-        background-color: #F7FAFC;
-        padding: 30px;
-        text-align: center;
-        border-top: 2px solid #E2E8F0;
-      }
-      .footer p {
-        margin: 5px 0;
-        font-size: 14px;
-        color: #718096;
-      }
-      .instruction-text {
-        color: #4A5568;
-        margin: 20px 0;
-        font-size: 14px;
-        line-height: 1.5;
-        text-align: center;
-      }
-    </style>
-    <div class="email-container">
-      <div class="header">
-        <h1>📅 일정 확정</h1>
-        <p>${data.teamName} 축구팀</p>
-      </div>
-      <div class="content">
-        <div class="main-title">일정이 확정되었습니다!</div>
-        
-        <div class="info-section">
-          <div class="info-item">
-            <span class="icon">⚽</span>
-            <span class="label">유형:</span>
-            <span class="value">${data.gameType}</span>
-          </div>
-          <div class="info-item">
-            <span class="icon">⏰</span>
-            <span class="label">일시:</span>
-            <span class="value">${data.gameDate} ${data.gameTime}</span>
-          </div>
-          <div class="info-item">
-            <span class="icon">📍</span>
-            <span class="label">장소:</span>
-            <div class="location-container">
-              <span class="value">${data.gameLocation}</span>
-              <a href="https://map.kakao.com/link/search/${encodeURIComponent(data.gameLocation)}" target="_blank" class="kakao-map-btn">K</a>
-            </div>
-          </div>
-        </div>
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0A1118;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0A1118;padding:24px 0;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#0F1923;border-radius:12px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
 
-        <div class="participants-section">
-          <div class="participants-header">
-            <span class="icon">👥</span>
-            <span>참석자 정보: ${totalCount}명 (회원 ${totalMembers}명${manualMembersCount > 0 ? ` + 기타 ${manualMembersCount}명` : ''}${data.mercenaryCount > 0 ? ` + 용병 ${data.mercenaryCount}명` : ''})</span>
-          </div>
-          <div class="participant-list">
-            ${data.participants.map(participant => 
-              `<span class="participant-tag member">${participant}</span>`
-            ).join('')}
-            ${data.manualMembers ? data.manualMembers.map(member => 
-              `<span class="participant-tag other">${member}</span>`
-            ).join('') : ''}
-            ${data.mercenaryCount > 0 ? `<span class="participant-tag mercenary">용병 ${data.mercenaryCount}명</span>` : ''}
-          </div>
-        </div>
+      <!-- HEADER -->
+      <tr>
+        <td style="background:#0F1923;padding:24px 36px 0;border-bottom:none;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="font-size:13px;font-weight:800;letter-spacing:0.12em;color:#C8F135;">⚽ FC찰껴</td>
+              <td align="right" style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#3A4E60;">Match Alert</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
 
-        <div class="instruction-text">
-          참석 가능하신 분들은 확인해주세요!<br>
-          일정이 변경되거나 참석이 어려우신 경우 빠른 시일 내에 연락주세요.
-        </div>
-      </div>
-      <div class="footer">
-        <p>${data.teamName} 축구팀 관리 시스템</p>
-        <p>이 이메일은 자동으로 발송되었습니다.</p>
-      </div>
-    </div>
+      <!-- HERO: DATE + BIG TIME -->
+      <tr>
+        <td style="padding:24px 36px 20px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#C8F135;margin-bottom:6px;">내일 경기</div>
+          <div style="font-size:32px;font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1;margin-bottom:4px;">${data.gameDate}</div>
+          <div style="font-size:72px;font-weight:900;letter-spacing:-0.04em;color:#C8F135;line-height:0.9;margin-top:16px;">${data.gameTime}</div>
+        </td>
+      </tr>
+
+      <!-- DIVIDER -->
+      <tr><td style="padding:0 36px;"><div style="height:1px;background:#1F2D3A;"></div></td></tr>
+
+      <!-- INFO: LOCATION + TYPE -->
+      <tr>
+        <td style="padding:20px 36px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <!-- 장소 -->
+              <td width="60%" style="vertical-align:top;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:6px;">장소</div>
+                <div style="font-size:15px;font-weight:700;color:#E8ECF0;margin-bottom:10px;">${data.gameLocation}</div>
+                <a href="${naverMapUrl}" target="_blank" style="display:inline-block;background:#03C75A;color:#fff;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:0.06em;padding:6px 12px;border-radius:5px;">네이버지도 ↗</a>
+              </td>
+              <!-- 유형 -->
+              <td width="40%" style="vertical-align:top;text-align:right;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:6px;">유형</div>
+                <span style="display:inline-block;background:#1A2D3E;border:1px solid #2A3F52;border-radius:5px;padding:4px 10px;font-size:12px;font-weight:700;color:#7AAFCC;letter-spacing:0.06em;">${data.gameType}</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- DIVIDER -->
+      <tr><td style="padding:0 36px;"><div style="height:1px;background:#1F2D3A;"></div></td></tr>
+
+      <!-- PARTICIPANTS -->
+      <tr>
+        <td style="padding:20px 36px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:4px;">참가인원</div>
+                <div style="font-size:22px;font-weight:900;color:#C8F135;letter-spacing:-0.02em;margin-bottom:14px;">${totalCount}<span style="font-size:13px;font-weight:600;color:#4A6070;margin-left:3px;">명</span></div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div style="line-height:2;">
+                  ${memberChips}${manualChips}${mercChip}
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- FOOTER -->
+      <tr>
+        <td style="background:#080F17;padding:16px 36px;border-top:1px solid #111B26;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="font-size:11px;color:#2A3F52;">수신거부</td>
+              <td align="right" style="font-size:11px;color:#2A3F52;">FC찰껴 · 자동발송</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
   `;
 }
 
@@ -4909,7 +4819,7 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
       console.log('⚠️ Gmail 환경변수가 설정되지 않음 - 이메일 발송 건너뜀');
       console.log('📧 이메일 알림 내용 (콘솔 출력):');
       console.log('='.repeat(50));
-      console.log(`제목: 🏆 FC CHAL-GGYEO 일정 확정 - ${gameDate}`);
+      console.log(`제목: 🏆 FC찰껴 일정 확정 - ${gameDate}`);
       console.log('내용:');
       console.log(message);
       console.log('='.repeat(50));
@@ -4928,7 +4838,7 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
         const mailOptions = {
           from: process.env.GMAIL_USER,
           to: attendance.user.email,
-          subject: `🏆 FC CHAL-GGYEO 일정 확정 - ${gameDate}`,
+          subject: `🏆 FC찰껴 일정 확정 - ${gameDate}`,
           text: message,
           html: createGameConfirmationEmail({
             gameDate: gameDate,
@@ -4951,7 +4861,7 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
               }
             })(),
             mercenaryCount: game.mercenaryCount || 0,
-            teamName: 'FC CHAL-GGYEO'
+            teamName: 'FC찰껴'
           })
         };
 
@@ -4984,7 +4894,7 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
     console.error('❌ 이메일 발송 실패:', error);
     console.log('📧 이메일 알림 내용 (오류 시 콘솔 출력):');
     console.log('='.repeat(50));
-    console.log(`제목: 🏆 FC CHAL-GGYEO 일정 확정 - ${gameDate}`);
+    console.log(`제목: 🏆 FC찰껴 일정 확정 - ${gameDate}`);
     console.log('내용:');
     console.log(message);
     console.log('='.repeat(50));
