@@ -33,6 +33,7 @@ export async function GET(request: Request) {
 interface CreateBody {
   title?: string;
   description?: string;
+  pollType?: string;
   dates?: unknown;
   timeSlots?: unknown;
   includeLunch?: boolean;
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "조사 제목을 입력해 주세요." }, { status: 400 });
   }
 
+  const pollType = body.pollType === "confirm" ? "confirm" : "availability";
   const dates = parseDates(body.dates);
   const timeSlots = parseTimeSlots(body.timeSlots);
 
@@ -66,6 +68,12 @@ export async function POST(request: Request) {
   if (timeSlots.length === 0) {
     return NextResponse.json({ ok: false, error: "시간대를 1개 이상 추가해 주세요." }, { status: 400 });
   }
+  if (pollType === "confirm" && (dates.length !== 1 || timeSlots.length !== 1)) {
+    return NextResponse.json(
+      { ok: false, error: "확정 일정은 날짜·시각을 각각 하나만 지정해 주세요." },
+      { status: 400 },
+    );
+  }
 
   const { data, error } = await supabase
     .from("schedule_polls")
@@ -73,6 +81,7 @@ export async function POST(request: Request) {
       id: generateSchedulePollId(),
       title: body.title.trim(),
       description: body.description?.trim() || null,
+      poll_type: pollType,
       created_by: auth.user.id,
       dates: dates as unknown as Json,
       time_slots: timeSlots as unknown as Json,

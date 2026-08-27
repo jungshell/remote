@@ -7,7 +7,7 @@ import { ScheduleResults } from "@/components/admin/ScheduleResults";
 import { DatePickerField } from "@/components/manager/DatePickerField";
 import { MultiDatePicker } from "@/components/schedule/MultiDatePicker";
 import { formatScheduleDeadline } from "@/lib/schedule/utils";
-import type { SchedulePoll, ScheduleTimeSlot } from "@/types/schedule";
+import type { SchedulePoll, SchedulePollType, ScheduleTimeSlot } from "@/types/schedule";
 
 const HOUR_OPTIONS = [9, 10, 11, 13, 14, 15, 16, 17, 18];
 const DEFAULT_HOURS = [10, 11, 13, 14, 15];
@@ -69,9 +69,15 @@ function deadlinePhrase(date: string, hour: number | null): string {
   return hour != null ? `${datePart} ${hour}시` : datePart;
 }
 
-/** 제목으로 안내 문구 초안 생성 (마감이 있으면 회신 마감 문구 포함) */
-function generateDescription(title: string, name: string, deadlineText: string): string {
-  const base = title.replace(/\s*일정\s*조사\s*$/, "").trim();
+/** 제목으로 안내 문구 초안 생성 (유형·마감·확정일시 반영) */
+function generateDescription(
+  title: string,
+  name: string,
+  deadlineText: string,
+  pollType: SchedulePollType,
+  confirmedText: string,
+): string {
+  const base = title.replace(/\s*일정\s*(조사|재확인|확인)?\s*$/, "").trim();
   if (!base) {
     return "";
   }
@@ -81,6 +87,17 @@ function generateDescription(title: string, name: string, deadlineText: string):
   const meeting = round ? `제${round}차 ${committee}` : committee;
   const greeter = name ? `충남콘텐츠진흥원 ${name}입니다.` : "충남콘텐츠진흥원입니다.";
   const deadlineClause = deadlineText ? `${deadlineText}까지 ` : "";
+
+  if (pollType === "confirm") {
+    const scheduleLine = confirmedText ? `\n\n▶ 일시: ${confirmedText}` : "";
+    return `안녕하세요. ${greeter}
+
+${committee} 참여해주셔서 감사드립니다.
+아래 확정된 일정에 참석 가능 여부를 ${deadlineClause}회신 부탁드립니다.${scheduleLine}
+
+감사합니다.`;
+  }
+
   return `안녕하세요. ${greeter}
 
 ${committee} 참여해주셔서 감사드립니다.
@@ -238,10 +255,15 @@ export function ScheduleConsole() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={poll.status === "진행중" ? "success" : "default"}>{poll.status}</Badge>
+                  <Badge tone={poll.pollType === "confirm" ? "info" : "default"}>
+                    {poll.pollType === "confirm" ? "참석 확인" : "가용시간"}
+                  </Badge>
                   <h3 className="text-lg font-bold text-white">{poll.title}</h3>
                 </div>
                 <p className="mt-2 text-sm text-[var(--text-body)]">
-                  후보 {poll.dates.length}일 · 시간대 {poll.timeSlots.length}개
+                  {poll.pollType === "confirm"
+                    ? `확정 ${poll.dates[0] ? poll.dates[0].slice(5) : "-"} ${poll.timeSlots[0]?.label ?? ""}`
+                    : `후보 ${poll.dates.length}일 · 시간대 ${poll.timeSlots.length}개`}
                   {poll.includeLunch ? " · 오찬" : ""}
                   {poll.includeDinner ? " · 석식" : ""}
                   {poll.deadline ? ` · 마감 ${formatScheduleDeadline(poll.deadline)}` : ""}
@@ -313,6 +335,7 @@ function SchedulePollEditor({
   const isEdit = mode === "edit";
   const initialDeadline = splitDeadline(initial?.deadline);
   const initialDeadlinePhrase = deadlinePhrase(initialDeadline.date, initialDeadline.hour);
+  const [pollType, setPollType] = useState<SchedulePollType>(initial?.pollType ?? "availability");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [lastAutoDesc, setLastAutoDesc] = useState("");
@@ -328,6 +351,8 @@ function SchedulePollEditor({
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const isConfirm = pollType === "confirm";
+
   useEffect(() => {
     void fetchCurrentUser().then((user) => {
       if (user?.name) {
@@ -341,19 +366,25 @@ function SchedulePollEditor({
   const submitLabel = isEdit ? "수정 내용 저장" : "일정조사 생성 · 링크 발급";
   const savingLabel = isEdit ? "저장 중" : "생성 중";
 
+  // 확정 일정 유형에서 "확정 일시" 문구 — dates[0]/hours[0] 기준
+  function confirmedTextFrom(ds: string[], hs: number[]): string {
+    return pollType === "confirm" ? deadlinePhrase(ds[0] ?? "", hs[0] ?? null) : "";
+  }
+
   // 현재 문구가 "자동 생성분 그대로"인지 판정 — 수정 화면에서 불러온 자동 문구도 인식한다
   function isAutoDescription(current: string, forTitle: string): boolean {
     if (current === "" || current === lastAutoDesc) {
       return true;
     }
+    const confirmedText = confirmedTextFrom(dates, hours);
     // 제목만으로 만든 형태(마감 없음)
-    if (current === generateDescription(forTitle, userName, "")) {
+    if (current === generateDescription(forTitle, userName, "", pollType, confirmedText)) {
       return true;
     }
     // 처음 불러온 시점의 마감을 포함해 만든 형태
     if (
       initialDeadlinePhrase &&
-      current === generateDescription(forTitle, userName, initialDeadlinePhrase)
+      current === generateDescription(forTitle, userName, initialDeadlinePhrase, pollType, confirmedText)
     ) {
       return true;
     }
@@ -361,9 +392,39 @@ function SchedulePollEditor({
   }
 
   // 안내 문구가 자동 생성분 그대로면(직접 편집 전) 최신 값으로 다시 채운다
-  function maybeAutoDescription(nextTitle: string, nextDate: string, nextHour: number | null) {
-    if (isAutoDescription(description, nextTitle)) {
-      const draft = generateDescription(nextTitle, userName, deadlinePhrase(nextDate, nextHour));
+  function maybeAutoDescription(next: {
+    title?: string;
+    deadlineDate?: string;
+    deadlineHour?: number | null;
+    dates?: string[];
+    hours?: number[];
+  }) {
+    const t = next.title ?? title;
+    if (!isAutoDescription(description, t)) {
+      return;
+    }
+    const dDate = next.deadlineDate ?? deadline;
+    const dHour = next.deadlineHour !== undefined ? next.deadlineHour : deadlineHour;
+    const confirmedText = confirmedTextFrom(next.dates ?? dates, next.hours ?? hours);
+    const draft = generateDescription(t, userName, deadlinePhrase(dDate, dHour), pollType, confirmedText);
+    setDescription(draft);
+    setLastAutoDesc(draft);
+  }
+
+  function handlePollType(next: SchedulePollType) {
+    if (next === pollType) {
+      return;
+    }
+    // 유형 전환 시 확정형은 날짜·시각 1개만 유지
+    const nextDates = next === "confirm" ? dates.slice(0, 1) : dates;
+    const nextHours = next === "confirm" ? hours.slice(0, 1) : hours;
+    setPollType(next);
+    setDates(nextDates);
+    setHours(nextHours);
+    // 유형이 바뀌면 문구 템플릿도 갱신 (자동 문구인 경우)
+    if (isAutoDescription(description, title)) {
+      const confirmedText = next === "confirm" ? deadlinePhrase(nextDates[0] ?? "", nextHours[0] ?? null) : "";
+      const draft = generateDescription(title, userName, deadlinePhrase(deadline, deadlineHour), next, confirmedText);
       setDescription(draft);
       setLastAutoDesc(draft);
     }
@@ -371,34 +432,56 @@ function SchedulePollEditor({
 
   function handleTitleChange(value: string) {
     setTitle(value);
-    maybeAutoDescription(value, deadline, deadlineHour);
+    maybeAutoDescription({ title: value });
   }
 
   function handleDeadlineDate(value: string) {
     setDeadline(value);
-    maybeAutoDescription(title, value, deadlineHour);
+    maybeAutoDescription({ deadlineDate: value });
   }
 
   function handleDeadlineHour(hour: number) {
     const next = deadlineHour === hour ? null : hour;
     setDeadlineHour(next);
-    maybeAutoDescription(title, deadline, next);
+    maybeAutoDescription({ deadlineHour: next });
   }
 
   function clearDeadline() {
     setDeadline("");
     setDeadlineHour(null);
-    maybeAutoDescription(title, "", null);
+    maybeAutoDescription({ deadlineDate: "", deadlineHour: null });
+  }
+
+  // 후보/확정 날짜 변경 (확정형은 단일 선택)
+  function handleDatesChange(nextAll: string[]) {
+    const next = isConfirm ? nextAll.slice(-1) : nextAll;
+    setDates(next);
+    maybeAutoDescription({ dates: next });
+  }
+
+  // 시각 토글 — 가용형은 복수, 확정형은 단일
+  function toggleHour(hour: number) {
+    const next = isConfirm
+      ? hours.includes(hour)
+        ? []
+        : [hour]
+      : hours.includes(hour)
+        ? hours.filter((h) => h !== hour)
+        : [...hours, hour];
+    setHours(next);
+    maybeAutoDescription({ hours: next });
   }
 
   function regenerateDescription() {
-    const draft = generateDescription(title, userName, deadlinePhrase(deadline, deadlineHour));
+    const draft = generateDescription(
+      title,
+      userName,
+      deadlinePhrase(deadline, deadlineHour),
+      pollType,
+      confirmedTextFrom(dates, hours),
+    );
     setDescription(draft);
     setLastAutoDesc(draft);
-  }
-
-  function toggleHour(hour: number) {
-    setHours((prev) => (prev.includes(hour) ? prev.filter((h) => h !== hour) : [...prev, hour]));
   }
 
   async function handleSave() {
@@ -406,15 +489,26 @@ function SchedulePollEditor({
       setStatus("조사 제목을 입력해 주세요.");
       return;
     }
-    if (dates.length === 0) {
-      setStatus("후보 날짜를 1개 이상 선택해 주세요.");
-      return;
+    if (isConfirm) {
+      if (dates.length !== 1) {
+        setStatus("확정 날짜를 하나 선택해 주세요.");
+        return;
+      }
+      if (hours.length !== 1) {
+        setStatus("확정 시각을 하나 선택해 주세요.");
+        return;
+      }
+    } else {
+      if (dates.length === 0) {
+        setStatus("후보 날짜를 1개 이상 선택해 주세요.");
+        return;
+      }
+      if (hours.length === 0) {
+        setStatus("가능 시각을 1개 이상 선택해 주세요.");
+        return;
+      }
     }
     const timeSlots = [...hours].sort((a, b) => a - b).map((hour) => ({ id: `h${hour}`, label: `${hour}시` }));
-    if (timeSlots.length === 0) {
-      setStatus("가능 시각을 1개 이상 선택해 주세요.");
-      return;
-    }
 
     setIsSaving(true);
     setStatus("");
@@ -422,7 +516,8 @@ function SchedulePollEditor({
       const payload = {
         title,
         description,
-        dates,
+        pollType,
+        dates: isConfirm ? dates.slice(0, 1) : dates,
         timeSlots,
         includeLunch,
         includeDinner,
@@ -467,12 +562,31 @@ function SchedulePollEditor({
       </div>
 
       <div className="mt-6 grid gap-4">
+        {/* 조사 유형 */}
+        <div>
+          <span className="label-machined text-[var(--text-muted)]">조사 유형</span>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <TypeCard
+              active={!isConfirm}
+              title="가용시간 조사"
+              desc="여러 후보 날짜·시각 중 가능한 시간을 복수로 받습니다."
+              onClick={() => handlePollType("availability")}
+            />
+            <TypeCard
+              active={isConfirm}
+              title="참석 확인"
+              desc="확정된 하나의 일정에 참석/불참/미정을 받습니다."
+              onClick={() => handlePollType("confirm")}
+            />
+          </div>
+        </div>
+
         <label className="block">
           <span className="label-machined text-[var(--text-muted)]">제목</span>
           <input
             value={title}
             onChange={(event) => handleTitleChange(event.target.value)}
-            placeholder="예: 제1차 임원추천위원회 일정조사"
+            placeholder={isConfirm ? "예: 제2차 임원추천위원회 일정 참석 확인" : "예: 제1차 임원추천위원회 일정조사"}
             className="focus-ring mt-2 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
           />
         </label>
@@ -497,17 +611,21 @@ function SchedulePollEditor({
           />
         </div>
 
-        {/* 후보 날짜 (달력 복수 선택) */}
+        {/* 날짜 선택 (가용형=복수 / 확정형=1개) */}
         <div>
-          <span className="label-machined text-[var(--text-muted)]">후보 날짜 (달력에서 여러 개 클릭)</span>
+          <span className="label-machined text-[var(--text-muted)]">
+            {isConfirm ? "확정 날짜 (달력에서 1개 선택)" : "후보 날짜 (달력에서 여러 개 클릭)"}
+          </span>
           <div className="mt-2">
-            <MultiDatePicker value={dates} onChange={setDates} />
+            <MultiDatePicker value={dates} onChange={handleDatesChange} />
           </div>
         </div>
 
-        {/* 가능 시각 (복수 선택) */}
+        {/* 시각 선택 (가용형=복수 / 확정형=1개) */}
         <div>
-          <span className="label-machined text-[var(--text-muted)]">가능 시각 선택 (복수)</span>
+          <span className="label-machined text-[var(--text-muted)]">
+            {isConfirm ? "확정 시각 (1개 선택)" : "가능 시각 선택 (복수)"}
+          </span>
           <div className="mt-2 flex flex-wrap gap-2">
             {HOUR_OPTIONS.map((hour) => {
               const active = hours.includes(hour);
@@ -595,6 +713,39 @@ function SchedulePollEditor({
         {status ? <p className="text-sm text-[var(--warning)]">{status}</p> : null}
       </div>
     </section>
+  );
+}
+
+function TypeCard({
+  active,
+  title,
+  desc,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  desc: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`focus-ring border p-4 text-left transition-colors ${
+        active
+          ? "border-white bg-white text-black"
+          : "border-[var(--hairline)] text-[var(--text-body)] hover:border-white hover:text-white"
+      }`}
+    >
+      <span className="block text-base font-bold">
+        {active ? "✓ " : ""}
+        {title}
+      </span>
+      <span className={`mt-1 block text-xs leading-5 ${active ? "text-black/70" : "text-[var(--text-muted)]"}`}>
+        {desc}
+      </span>
+    </button>
   );
 }
 

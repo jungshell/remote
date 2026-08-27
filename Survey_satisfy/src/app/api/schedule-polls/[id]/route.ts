@@ -17,6 +17,7 @@ interface PatchBody {
   status?: string;
   title?: string;
   description?: string | null;
+  pollType?: string;
   dates?: unknown;
   timeSlots?: unknown;
   includeLunch?: boolean;
@@ -62,12 +63,20 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     update.description = body.description?.trim() || null;
   }
 
+  const nextPollType = body.pollType === "confirm" ? "confirm" : body.pollType === "availability" ? "availability" : null;
+  if (nextPollType) {
+    update.poll_type = nextPollType;
+  }
+
+  let nextDatesLen: number | null = null;
+  let nextSlotsLen: number | null = null;
   if (body.dates !== undefined) {
     const dates = parseDates(body.dates);
     if (dates.length === 0) {
       return NextResponse.json({ ok: false, error: "후보 날짜를 1개 이상 선택해 주세요." }, { status: 400 });
     }
     update.dates = dates as unknown as Json;
+    nextDatesLen = dates.length;
   }
 
   if (body.timeSlots !== undefined) {
@@ -76,6 +85,15 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ ok: false, error: "가능 시각을 1개 이상 선택해 주세요." }, { status: 400 });
     }
     update.time_slots = timeSlots as unknown as Json;
+    nextSlotsLen = timeSlots.length;
+  }
+
+  // 확정 일정으로 수정할 때는 날짜·시각이 각각 하나여야 함
+  if (nextPollType === "confirm" && ((nextDatesLen !== null && nextDatesLen !== 1) || (nextSlotsLen !== null && nextSlotsLen !== 1))) {
+    return NextResponse.json(
+      { ok: false, error: "확정 일정은 날짜·시각을 각각 하나만 지정해 주세요." },
+      { status: 400 },
+    );
   }
 
   if (body.includeLunch !== undefined) {

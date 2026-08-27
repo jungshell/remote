@@ -299,6 +299,7 @@ export interface Database {
           id: string;
           title: string;
           description: string | null;
+          poll_type: string;
           created_by: string | null;
           dates: Json;
           time_slots: Json;
@@ -312,6 +313,7 @@ export interface Database {
           id: string;
           title: string;
           description?: string | null;
+          poll_type?: string;
           created_by?: string | null;
           dates?: Json;
           time_slots?: Json;
@@ -325,6 +327,7 @@ export interface Database {
           id?: string;
           title?: string;
           description?: string | null;
+          poll_type?: string;
           created_by?: string | null;
           dates?: Json;
           time_slots?: Json;

@@ -13,6 +13,7 @@ function formatDate(date: string) {
 }
 
 export function ScheduleResults({ poll }: { poll: SchedulePoll }) {
+  const isConfirm = poll.pollType === "confirm";
   const [responses, setResponses] = useState<ScheduleResponseRecord[]>([]);
   const [status, setStatus] = useState("불러오는 중...");
   const [reloadKey, setReloadKey] = useState(0);
@@ -70,13 +71,40 @@ export function ScheduleResults({ poll }: { poll: SchedulePoll }) {
     return best;
   }, [availability]);
 
+  // 참석확인 유형: 참석/불참/미정 집계 + 식사(참석자 중)
+  const confirmSummary = useMemo(() => {
+    const attend: string[] = [];
+    const absent: string[] = [];
+    const tentative: string[] = [];
+    const lunch: string[] = [];
+    const dinner: string[] = [];
+    for (const response of responses) {
+      const sel = response.selections[0];
+      const name = response.respondentName;
+      if (sel?.status === "attend") {
+        attend.push(name);
+        if (sel.lunch) lunch.push(name);
+        if (sel.dinner) dinner.push(name);
+      } else if (sel?.status === "absent") {
+        absent.push(name);
+      } else if (sel?.status === "tentative") {
+        tentative.push(name);
+      }
+    }
+    return { attend, absent, tentative, lunch, dinner };
+  }, [responses]);
+
   return (
     <section className="panel overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--hairline)] p-4 sm:p-6">
         <div>
-          <p className="label-machined text-[var(--text-muted)]">Availability</p>
+          <p className="label-machined text-[var(--text-muted)]">{isConfirm ? "Attendance" : "Availability"}</p>
           <h3 className="mt-1 text-lg font-black text-white">{poll.title} · 결과</h3>
-          <p className="mt-1 text-sm text-[var(--text-body)]">응답 {responses.length}명 · 초록 배경 = 최다 가능 시간</p>
+          <p className="mt-1 text-sm text-[var(--text-body)]">
+            {isConfirm
+              ? `응답 ${responses.length}명 · 참석 ${confirmSummary.attend.length} / 불참 ${confirmSummary.absent.length} / 미정 ${confirmSummary.tentative.length}`
+              : `응답 ${responses.length}명 · 초록 배경 = 최다 가능 시간`}
+          </p>
         </div>
         <button
           type="button"
@@ -89,6 +117,18 @@ export function ScheduleResults({ poll }: { poll: SchedulePoll }) {
 
       {responses.length === 0 ? (
         <p className="p-6 text-sm text-[var(--text-muted)]">{status}</p>
+      ) : isConfirm ? (
+        <div className="grid gap-3 p-4 sm:p-6">
+          <AttendGroup title="참석" tone="success" names={confirmSummary.attend} />
+          <AttendGroup title="불참" tone="danger" names={confirmSummary.absent} />
+          <AttendGroup title="미정" tone="muted" names={confirmSummary.tentative} />
+          {poll.includeLunch || poll.includeDinner ? (
+            <div className="mt-1 grid gap-2 sm:grid-cols-2">
+              {poll.includeLunch ? <AttendGroup title="오찬 참석" tone="muted" names={confirmSummary.lunch} /> : null}
+              {poll.includeDinner ? <AttendGroup title="석식 참석" tone="muted" names={confirmSummary.dinner} /> : null}
+            </div>
+          ) : null}
+        </div>
       ) : (
         <div className="overflow-x-auto p-2 sm:p-4">
           <table className="min-w-full border-collapse text-sm">
@@ -170,5 +210,29 @@ export function ScheduleResults({ poll }: { poll: SchedulePoll }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function AttendGroup({
+  title,
+  tone,
+  names,
+}: {
+  title: string;
+  tone: "success" | "danger" | "muted";
+  names: string[];
+}) {
+  const countColor =
+    tone === "success" ? "text-[var(--success)]" : tone === "danger" ? "text-[var(--danger)]" : "text-white";
+  return (
+    <div className="border border-[var(--hairline)] p-3">
+      <div className="flex items-baseline gap-2">
+        <span className="label-machined text-[var(--text-muted)]">{title}</span>
+        <span className={`text-lg font-black ${countColor}`}>{names.length}</span>
+      </div>
+      <p className="mt-1 text-sm leading-6 text-[var(--text-body)]">
+        {names.length > 0 ? names.join(", ") : "-"}
+      </p>
+    </div>
   );
 }

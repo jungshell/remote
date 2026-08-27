@@ -79,14 +79,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "이름이 너무 깁니다." }, { status: 400 });
   }
 
-  const selections = parseSelections(body?.selections).slice(0, 60);
-  if (selections.length === 0) {
-    return NextResponse.json({ ok: false, error: "가능한 시간을 1개 이상 선택해 주세요." }, { status: 400 });
-  }
-
   const { data: poll, error: pollError } = await supabase
     .from("schedule_polls")
-    .select("id, status, deadline")
+    .select("id, status, deadline, poll_type")
     .eq("id", pollId)
     .maybeSingle();
 
@@ -99,6 +94,17 @@ export async function POST(request: Request) {
   }
   if (poll.deadline && new Date(poll.deadline).getTime() < Date.now()) {
     return NextResponse.json({ ok: false, error: "응답이 마감되었습니다." }, { status: 410 });
+  }
+
+  const isConfirm = poll.poll_type === "confirm";
+  const selections = parseSelections(body?.selections).slice(0, 60);
+
+  if (isConfirm) {
+    if (selections.length === 0 || !selections[0]?.status) {
+      return NextResponse.json({ ok: false, error: "참석 여부를 선택해 주세요." }, { status: 400 });
+    }
+  } else if (selections.length === 0) {
+    return NextResponse.json({ ok: false, error: "가능한 시간을 1개 이상 선택해 주세요." }, { status: 400 });
   }
 
   const payload = {

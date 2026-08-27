@@ -1,9 +1,15 @@
-import type { SchedulePoll, ScheduleDateSelection, ScheduleTimeSlot } from "@/types/schedule";
+import type {
+  AttendanceStatus,
+  SchedulePoll,
+  ScheduleDateSelection,
+  ScheduleTimeSlot,
+} from "@/types/schedule";
 
 interface SchedulePollRow {
   id: string;
   title: string;
   description: string | null;
+  poll_type?: string | null;
   dates: unknown;
   time_slots: unknown;
   include_lunch: boolean;
@@ -12,6 +18,8 @@ interface SchedulePollRow {
   deadline: string | null;
   created_at?: string;
 }
+
+const ATTENDANCE_VALUES: AttendanceStatus[] = ["attend", "absent", "tentative"];
 
 export function generateSchedulePollId() {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -78,6 +86,7 @@ export function pollRowToRecord(row: SchedulePollRow): SchedulePoll {
     id: row.id,
     title: row.title,
     description: row.description,
+    pollType: row.poll_type === "confirm" ? "confirm" : "availability",
     dates: parseDates(row.dates),
     timeSlots: parseTimeSlots(row.time_slots),
     includeLunch: Boolean(row.include_lunch),
@@ -105,9 +114,14 @@ export function parseSelections(raw: unknown): ScheduleDateSelection[] {
     const slots = Array.isArray(record.slots)
       ? record.slots.filter((slot): slot is string => typeof slot === "string")
       : [];
+    const status =
+      typeof record.status === "string" && ATTENDANCE_VALUES.includes(record.status as AttendanceStatus)
+        ? (record.status as AttendanceStatus)
+        : undefined;
     result.push({
       date,
       slots,
+      ...(status ? { status } : {}),
       lunch: record.lunch === true,
       dinner: record.dinner === true,
     });

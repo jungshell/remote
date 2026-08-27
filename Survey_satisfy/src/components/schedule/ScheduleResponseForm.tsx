@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatScheduleDeadline } from "@/lib/schedule/utils";
-import type { ScheduleDateSelection, SchedulePoll } from "@/types/schedule";
+import type { AttendanceStatus, ScheduleDateSelection, SchedulePoll } from "@/types/schedule";
 
 interface ScheduleResponseFormProps {
   poll: SchedulePoll;
@@ -16,6 +16,12 @@ interface DatePick {
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
+const ATTEND_OPTIONS: { value: AttendanceStatus; label: string }[] = [
+  { value: "attend", label: "참석" },
+  { value: "absent", label: "불참" },
+  { value: "tentative", label: "미정" },
+];
+
 function formatDate(date: string) {
   const [y, m, d] = date.split("-").map(Number);
   const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()] ?? "";
@@ -23,12 +29,19 @@ function formatDate(date: string) {
 }
 
 export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
+  const isConfirm = poll.pollType === "confirm";
   const [name, setName] = useState("");
-  const [picks, setPicks] = useState<Record<string, DatePick>>({});
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+
+  // 가용시간 유형 상태
+  const [picks, setPicks] = useState<Record<string, DatePick>>({});
+  // 참석확인 유형 상태
+  const [attend, setAttend] = useState<AttendanceStatus | null>(null);
+  const [confirmLunch, setConfirmLunch] = useState(false);
+  const [confirmDinner, setConfirmDinner] = useState(false);
 
   const totalSelected = useMemo(
     () => Object.values(picks).reduce((sum, pick) => sum + pick.slots.length, 0),
@@ -55,32 +68,9 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
     });
   }
 
-  async function handleSubmit() {
-    if (!name.trim()) {
-      setMessage("이름을 입력해 주세요.");
-      return;
-    }
-
-    const selections: ScheduleDateSelection[] = poll.dates
-      .filter((date) => pickFor(date).slots.length > 0)
-      .map((date) => {
-        const pick = pickFor(date);
-        return {
-          date,
-          slots: pick.slots,
-          ...(poll.includeLunch ? { lunch: pick.lunch } : {}),
-          ...(poll.includeDinner ? { dinner: pick.dinner } : {}),
-        };
-      });
-
-    if (selections.length === 0) {
-      setMessage("가능한 시간을 1개 이상 선택해 주세요.");
-      return;
-    }
-
+  async function submit(selections: ScheduleDateSelection[]) {
     setIsSubmitting(true);
     setMessage("");
-
     try {
       const response = await fetch("/api/schedule-responses", {
         method: "POST",
@@ -100,6 +90,48 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
     }
   }
 
+  async function handleSubmit() {
+    if (!name.trim()) {
+      setMessage("이름을 입력해 주세요.");
+      return;
+    }
+
+    if (isConfirm) {
+      if (!attend) {
+        setMessage("참석 여부를 선택해 주세요.");
+        return;
+      }
+      const attending = attend === "attend";
+      const selection: ScheduleDateSelection = {
+        date: poll.dates[0] ?? "",
+        slots: [],
+        status: attend,
+        ...(poll.includeLunch ? { lunch: attending && confirmLunch } : {}),
+        ...(poll.includeDinner ? { dinner: attending && confirmDinner } : {}),
+      };
+      await submit([selection]);
+      return;
+    }
+
+    const selections: ScheduleDateSelection[] = poll.dates
+      .filter((date) => pickFor(date).slots.length > 0)
+      .map((date) => {
+        const pick = pickFor(date);
+        return {
+          date,
+          slots: pick.slots,
+          ...(poll.includeLunch ? { lunch: pick.lunch } : {}),
+          ...(poll.includeDinner ? { dinner: pick.dinner } : {}),
+        };
+      });
+
+    if (selections.length === 0) {
+      setMessage("가능한 시간을 1개 이상 선택해 주세요.");
+      return;
+    }
+    await submit(selections);
+  }
+
   if (done) {
     return (
       <section className="mx-auto max-w-2xl">
@@ -114,6 +146,11 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
     );
   }
 
+  const confirmedDate = poll.dates[0] ?? "";
+  const confirmedTime = poll.timeSlots[0]?.label ?? "";
+  const attending = attend === "attend";
+  const submitLabel = isConfirm ? "제출" : `제출 (${totalSelected}개 선택)`;
+
   return (
     <section className="mx-auto max-w-2xl pb-[max(6rem,env(safe-area-inset-bottom))]">
       <div className="panel overflow-hidden">
@@ -124,7 +161,8 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--text-body)]">{poll.description}</p>
           ) : null}
           <p className="mt-3 text-xs text-[var(--text-muted)]">
-            가능한 시간을 모두 선택해 주세요. (복수 선택){poll.deadline ? ` · 마감 ${formatScheduleDeadline(poll.deadline)}` : ""}
+            {isConfirm ? "아래 확정 일정에 참석 여부를 선택해 주세요." : "가능한 시간을 모두 선택해 주세요. (복수 선택)"}
+            {poll.deadline ? ` · 마감 ${formatScheduleDeadline(poll.deadline)}` : ""}
           </p>
         </div>
 
@@ -139,48 +177,97 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
             />
           </label>
 
-          <div className="mt-6 space-y-4">
-            {poll.dates.map((date) => {
-              const pick = pickFor(date);
-              return (
-                <fieldset key={date} className="border border-[var(--hairline)] p-4">
-                  <legend className="px-1 text-base font-bold text-white">{formatDate(date)}</legend>
-                  <div className="mt-2 grid gap-2">
-                    {poll.timeSlots.map((slot) => {
-                      const active = pick.slots.includes(slot.id);
+          {isConfirm ? (
+            <div className="mt-6 space-y-4">
+              <fieldset className="border border-[var(--hairline)] p-4">
+                <legend className="px-1 text-base font-bold text-white">확정 일시</legend>
+                <p className="mt-1 text-lg font-black text-white">
+                  {confirmedDate ? formatDate(confirmedDate) : "-"} · {confirmedTime}
+                </p>
+                <div className="mt-4">
+                  <span className="label-machined text-[var(--text-muted)]">참석 여부</span>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {ATTEND_OPTIONS.map((option) => {
+                      const active = attend === option.value;
                       return (
                         <button
-                          key={slot.id}
+                          key={option.value}
                           type="button"
                           aria-pressed={active}
-                          onClick={() => toggleSlot(date, slot.id)}
-                          className={`focus-ring min-h-12 border px-4 py-3 text-left text-sm transition-colors ${
+                          onClick={() => setAttend(option.value)}
+                          className={`focus-ring min-h-12 border px-4 py-3 text-sm font-bold transition-colors ${
                             active
                               ? "border-white bg-white text-black"
                               : "border-[var(--hairline)] bg-[var(--surface-soft)] text-white hover:border-white"
                           }`}
                         >
                           {active ? "✓ " : ""}
-                          {slot.label}
+                          {option.label}
                         </button>
                       );
                     })}
                   </div>
+                </div>
 
-                  {poll.includeLunch || poll.includeDinner ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                {(poll.includeLunch || poll.includeDinner) && attending ? (
+                  <div className="mt-4">
+                    <span className="label-machined text-[var(--text-muted)]">식사 참석 (참석 시)</span>
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {poll.includeLunch ? (
-                        <MealToggle label="오찬 가능" active={pick.lunch} onClick={() => toggleMeal(date, "lunch")} />
+                        <MealToggle label="오찬 참석" active={confirmLunch} onClick={() => setConfirmLunch((v) => !v)} />
                       ) : null}
                       {poll.includeDinner ? (
-                        <MealToggle label="석식 가능" active={pick.dinner} onClick={() => toggleMeal(date, "dinner")} />
+                        <MealToggle label="석식 참석" active={confirmDinner} onClick={() => setConfirmDinner((v) => !v)} />
                       ) : null}
                     </div>
-                  ) : null}
-                </fieldset>
-              );
-            })}
-          </div>
+                  </div>
+                ) : null}
+              </fieldset>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-4">
+              {poll.dates.map((date) => {
+                const pick = pickFor(date);
+                return (
+                  <fieldset key={date} className="border border-[var(--hairline)] p-4">
+                    <legend className="px-1 text-base font-bold text-white">{formatDate(date)}</legend>
+                    <div className="mt-2 grid gap-2">
+                      {poll.timeSlots.map((slot) => {
+                        const active = pick.slots.includes(slot.id);
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => toggleSlot(date, slot.id)}
+                            className={`focus-ring min-h-12 border px-4 py-3 text-left text-sm transition-colors ${
+                              active
+                                ? "border-white bg-white text-black"
+                                : "border-[var(--hairline)] bg-[var(--surface-soft)] text-white hover:border-white"
+                            }`}
+                          >
+                            {active ? "✓ " : ""}
+                            {slot.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {poll.includeLunch || poll.includeDinner ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {poll.includeLunch ? (
+                          <MealToggle label="오찬 가능" active={pick.lunch} onClick={() => toggleMeal(date, "lunch")} />
+                        ) : null}
+                        {poll.includeDinner ? (
+                          <MealToggle label="석식 가능" active={pick.dinner} onClick={() => toggleMeal(date, "dinner")} />
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </fieldset>
+                );
+              })}
+            </div>
+          )}
 
           <label className="mt-6 block">
             <span className="label-machined text-[var(--text-muted)]">비고 (선택)</span>
@@ -201,7 +288,7 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
             onClick={() => void handleSubmit()}
             className="focus-ring label-machined mt-6 w-full border border-white px-6 py-4 transition-colors hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
           >
-            {isSubmitting ? "제출 중" : `제출 (${totalSelected}개 선택)`}
+            {isSubmitting ? "제출 중" : submitLabel}
           </button>
         </div>
       </div>
