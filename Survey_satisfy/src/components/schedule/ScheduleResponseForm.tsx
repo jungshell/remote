@@ -33,6 +33,9 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
+  const [loadNotice, setLoadNotice] = useState("");
+  const [loadedName, setLoadedName] = useState("");
+  const [isLoadingPrev, setIsLoadingPrev] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -66,6 +69,56 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
       const current = prev[date] ?? { slots: [], lunch: false, dinner: false };
       return { ...prev, [date]: { ...current, [meal]: !current[meal] } };
     });
+  }
+
+  // 이름 입력 후 포커스 이탈 시, 이전 응답이 있으면 자동으로 불러와 폼에 채운다
+  async function handleNameBlur() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === loadedName) {
+      return;
+    }
+    setLoadedName(trimmed);
+    setIsLoadingPrev(true);
+    try {
+      const response = await fetch("/api/schedule-responses/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pollId: poll.id, respondentName: trimmed }),
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        found?: boolean;
+        response?: { selections: ScheduleDateSelection[]; note: string };
+      };
+      if (!data.ok || !data.found || !data.response) {
+        return;
+      }
+
+      const prev = data.response;
+      if (isConfirm) {
+        const sel = prev.selections[0];
+        setAttend(sel?.status ?? null);
+        setConfirmLunch(Boolean(sel?.lunch));
+        setConfirmDinner(Boolean(sel?.dinner));
+      } else {
+        const nextPicks: Record<string, DatePick> = {};
+        for (const sel of prev.selections) {
+          nextPicks[sel.date] = {
+            slots: sel.slots,
+            lunch: Boolean(sel.lunch),
+            dinner: Boolean(sel.dinner),
+          };
+        }
+        setPicks(nextPicks);
+      }
+      setNote(prev.note);
+      setMessage("");
+      setLoadNotice("이전에 제출한 응답을 불러왔습니다. 수정 후 다시 제출해 주세요.");
+    } catch {
+      // 조회 실패는 조용히 무시 (새 응답 작성에 지장 없음)
+    } finally {
+      setIsLoadingPrev(false);
+    }
   }
 
   async function submit(selections: ScheduleDateSelection[]) {
@@ -172,9 +225,19 @@ export function ScheduleResponseForm({ poll }: ScheduleResponseFormProps) {
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
+              onBlur={() => void handleNameBlur()}
               placeholder="성함을 입력해 주세요"
               className="focus-ring mt-2 h-12 w-full border border-[var(--hairline)] bg-[var(--surface-soft)] px-4 text-white"
             />
+            {isLoadingPrev ? (
+              <span className="mt-2 block text-xs text-[var(--text-muted)]">이전 응답을 확인하는 중…</span>
+            ) : loadNotice ? (
+              <span className="mt-2 block text-xs text-[var(--success)]">{loadNotice}</span>
+            ) : (
+              <span className="mt-2 block text-xs text-[var(--text-muted)]">
+                이전에 제출한 적이 있으면, 같은 이름 입력 시 응답을 자동으로 불러옵니다.
+              </span>
+            )}
           </label>
 
           {isConfirm ? (
