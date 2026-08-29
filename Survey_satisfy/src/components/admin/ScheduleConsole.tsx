@@ -121,6 +121,7 @@ export function ScheduleConsole() {
   const [editorInitial, setEditorInitial] = useState<SchedulePoll | null>(null);
   const [status, setStatus] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [nowTs, setNowTs] = useState(0);
 
   function openEditor(mode: EditorMode, poll: SchedulePoll | null) {
     setEditorMode(mode);
@@ -136,6 +137,7 @@ export function ScheduleConsole() {
       .then((data: { ok: boolean; polls?: SchedulePoll[]; error?: string }) => {
         if (data.ok && data.polls) {
           setPolls(data.polls);
+          setNowTs(Date.now());
         } else {
           setStatus(data.error ?? "일정조사를 불러오지 못했습니다.");
         }
@@ -250,11 +252,18 @@ export function ScheduleConsole() {
         {polls.length === 0 ? (
           <p className="p-6 text-sm text-[var(--text-muted)]">아직 만든 일정조사가 없습니다. &quot;+ 새 일정조사&quot;로 시작하세요.</p>
         ) : (
-          polls.map((poll) => (
+          polls.map((poll) => {
+            const closedByDeadline =
+              poll.status === "진행중" &&
+              !!poll.deadline &&
+              nowTs > 0 &&
+              new Date(poll.deadline).getTime() < nowTs;
+            return (
             <article key={poll.id} className="grid gap-3 p-4 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-start">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={poll.status === "진행중" ? "success" : "default"}>{poll.status}</Badge>
+                  {closedByDeadline ? <Badge tone="warning">마감됨</Badge> : null}
                   <Badge tone={poll.pollType === "confirm" ? "info" : "default"}>
                     {poll.pollType === "confirm" ? "참석 확인" : "가용시간"}
                   </Badge>
@@ -289,7 +298,8 @@ export function ScheduleConsole() {
                 <ActionButton label="삭제" danger onClick={() => void handleDelete(poll)} />
               </div>
             </article>
-          ))
+            );
+          })
         )}
       </div>
 
