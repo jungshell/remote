@@ -1522,31 +1522,81 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
       scheduleUrl
     ].join('\n');
 
-    const html = `
-      <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,'Noto Sans KR','Malgun Gothic',sans-serif;color:#152238;">
-        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #dbe5f1;border-radius:16px;overflow:hidden;">
-          <div style="padding:24px 28px;background:linear-gradient(135deg,#06244a,#075fb8);color:#ffffff;">
-            <div style="font-size:12px;letter-spacing:2px;color:#74e7ff;">FC CHAL-GGYEO</div>
-            <h1 style="margin:10px 0 0;font-size:24px;">🗳️ 투표 참여 안내</h1>
-          </div>
-          <div style="padding:28px;">
-            <p style="margin:0 0 18px;font-size:16px;line-height:1.7;"><strong>${safeName}</strong>님, 아직 일정 투표가 확인되지 않았습니다.</p>
-            <div style="padding:18px;background:#f7faff;border:1px solid #dbeafe;border-radius:12px;line-height:1.8;">
-              <div><strong>대상 일정</strong> · ${escapeEmailHtml(targetPeriod)}</div>
-              <div><strong>투표 마감</strong> · ${escapeEmailHtml(deadline)}</div>
-              <div><strong>현재 참여</strong> · ${votedUserIds.size}/${activeMembers.length}명</div>
-            </div>
-            <a href="${escapeEmailHtml(scheduleUrl)}" style="display:block;margin-top:22px;padding:14px 18px;background:#0068c9;color:#ffffff;text-decoration:none;text-align:center;font-weight:700;border-radius:10px;">일정·투표 페이지 열기</a>
-            <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#6b7280;">이미 투표했다면 이 메일과 발송 시점이 엇갈린 경우입니다.</p>
-          </div>
-        </div>
-      </div>
-    `;
+    const html = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0A1118;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0A1118;padding:24px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#0F1923;border-radius:12px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+
+      <!-- HEADER -->
+      <tr><td style="padding:24px 32px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="font-size:13px;font-weight:800;letter-spacing:0.12em;color:#C8F135;">⚽ FC찰껴</td>
+            <td align="right" style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#3A4E60;">Vote Reminder</td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- HERO -->
+      <tr><td style="padding:22px 32px 18px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#C8F135;margin-bottom:8px;">투표 미참여 안내</div>
+        <div style="font-size:28px;font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1.15;margin-bottom:4px;">${safeName}님,<br>아직 투표를 안 하셨어요</div>
+      </td></tr>
+
+      <!-- DIVIDER -->
+      <tr><td style="padding:0 32px;"><div style="height:1px;background:#1F2D3A;"></div></td></tr>
+
+      <!-- INFO GRID -->
+      <tr><td style="padding:20px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding-bottom:14px;border-bottom:1px solid #1A2535;">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:4px;">대상 일정</div>
+              <div style="font-size:14px;font-weight:700;color:#E8ECF0;">${escapeEmailHtml(targetPeriod)}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 0;border-bottom:1px solid #1A2535;">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:4px;">투표 마감</div>
+              <div style="font-size:14px;font-weight:700;color:#C8F135;">${escapeEmailHtml(deadline)}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:14px;">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:4px;">현재 참여</div>
+              <div style="font-size:22px;font-weight:900;color:#C8F135;letter-spacing:-0.02em;">${votedUserIds.size}<span style="font-size:13px;font-weight:600;color:#4A6070;margin:0 2px;">/</span>${activeMembers.length}<span style="font-size:13px;font-weight:600;color:#4A6070;margin-left:3px;">명</span></div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- CTA -->
+      <tr><td style="padding:4px 32px 28px;">
+        <a href="${escapeEmailHtml(scheduleUrl)}" style="display:block;background:#C8F135;color:#0A1018;text-decoration:none;text-align:center;font-size:13px;font-weight:800;letter-spacing:0.08em;padding:14px 18px;border-radius:6px;">투표하러 가기 →</a>
+        <p style="margin:14px 0 0;font-size:11px;line-height:1.6;color:#2A3F52;text-align:center;">이미 투표했다면 이 메일과 발송 시점이 엇갈린 경우입니다.</p>
+      </td></tr>
+
+      <!-- FOOTER -->
+      <tr><td style="background:#080F17;padding:14px 32px;border-top:1px solid #111B26;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="font-size:11px;color:#2A3F52;">수신거부</td>
+            <td align="right" style="font-size:11px;color:#2A3F52;">FC찰껴 · 자동발송</td>
+          </tr>
+        </table>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
 
     try {
       const mailResult = await sendMail({
         to: recipient.email,
-        subject: '🗳️ FC CHAL-GGYEO 투표 참여 안내',
+        subject: '🗳️ FC찰껴 투표 참여 안내',
         text,
         html
       });
