@@ -4181,89 +4181,24 @@ async function sendGameConfirmationNotification(game) {
     const day = String(gameDate.getDate()).padStart(2, '0');
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     const weekday = weekdays[gameDate.getDay()];
-    
+
     const formattedDate = `${year}.${month}.${day}.(${weekday})`;
-    
+
     // 알림 메시지 생성
     const notificationMessage = `🏆 일정이 확정되었습니다!\n\n📅 날짜: ${formattedDate}\n⏰ 시간: ${game.time}\n📍 장소: ${game.location}\n⚽ 유형: ${game.eventType}\n\n참석 가능하신 분들은 확인해주세요!`;
-    
-    let notificationAttendances = Array.isArray(game.attendances) ? [...game.attendances] : [];
 
-    // 기존 참석자 relation이 있더라도 정지/비활성화 회원은 수신 대상에서 제외한다.
-    const attendanceUserIds = notificationAttendances
-      .map((attendance: any) => attendance?.user?.id)
-      .filter((id: unknown): id is number => typeof id === 'number');
+    // 전체 ACTIVE 멤버에게 발송 (이메일 있는 회원 전원)
+    const activeUsers = await prisma.user.findMany({
+      where: {
+        role: { in: ['MEMBER', 'ADMIN', 'SUPER_ADMIN'] },
+        status: 'ACTIVE',
+        email: { not: '' }
+      },
+      select: { id: true, name: true, email: true }
+    });
+    const notificationAttendances = activeUsers.map((user: any) => ({ user }));
 
-    if (attendanceUserIds.length > 0) {
-      const activeUsers = await prisma.user.findMany({
-        where: {
-          id: { in: attendanceUserIds },
-          status: 'ACTIVE',
-          email: { not: '' }
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true
-        }
-      });
-      notificationAttendances = activeUsers.map((user: any) => ({ user }));
-    }
-
-    // 참석자 relation이 비어있는 경우 selectedMembers/memberNames 기반으로 이메일 수신 대상을 보정
-    if (notificationAttendances.length === 0) {
-      const parsedSelectedMembers = (() => {
-        try {
-          const raw = game.selectedMembers;
-          if (!raw) return [];
-          if (Array.isArray(raw)) return raw.filter(Boolean);
-          const parsed = JSON.parse(raw);
-          return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-        } catch {
-          return [];
-        }
-      })();
-
-      const parsedManualMembers = (() => {
-        try {
-          const raw = game.memberNames;
-          if (!raw) return [];
-          if (Array.isArray(raw)) return raw.filter(Boolean);
-          const parsed = JSON.parse(raw);
-          return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-        } catch {
-          return [];
-        }
-      })();
-
-      const candidateNames = [...new Set([...parsedSelectedMembers, ...parsedManualMembers])]
-        .map((name: string) => (typeof name === 'string' ? name.trim() : ''))
-        .filter((name: string) => name.length > 0);
-
-      if (candidateNames.length > 0) {
-        const users = await prisma.user.findMany({
-          where: {
-            name: { in: candidateNames },
-            status: 'ACTIVE',
-            email: { not: '' }
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        });
-
-        notificationAttendances = users
-          .filter((user: any) => !!user.email)
-          .map((user: any) => ({ user }));
-
-        console.log('📧 참석자 relation 없음 - 이름 기반 수신자 보정:', {
-          candidateNamesCount: candidateNames.length,
-          resolvedUsers: notificationAttendances.length
-        });
-      }
-    }
+    console.log(`📧 수신 대상: ACTIVE 멤버 ${notificationAttendances.length}명`);
 
     // 이메일 알림 발송
     const result = await sendEmailNotification(notificationAttendances, notificationMessage, formattedDate, game);
