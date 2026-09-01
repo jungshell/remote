@@ -1403,7 +1403,7 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
   }
 
   const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-  const isScheduledWindow = kstNow.getDay() === 1 && kstNow.getHours() === 10;
+  const isScheduledWindow = [1, 2, 3, 4].includes(kstNow.getDay()) && kstNow.getHours() === 10;
   if (!isScheduledWindow && !options.force) {
     return { success: true, skipped: true, reason: 'outside-schedule-window' };
   }
@@ -1865,10 +1865,13 @@ cron.schedule('15 * * * *', async () => {
 });
 console.log('✅ 매시간 투표세션 검증 스케줄러 설정 완료 (매시 15분 KST)');
 
-// 경기 자동 알림 (한국시간 기준): 매일 오전 10시 1회 — 전날 경기만 (확정 시 즉시 발송은 auth_simple.ts 처리)
+// 경기 자동 알림 (한국시간 기준): 매일 오전 10시 — 당일·전날 경기 참가자에게 발송
 cron.schedule('0 10 * * *', async () => {
   try {
-    await sendAutoGameReminderEmails({ targetOffsetDays: 1 });
+    await Promise.all([
+      sendAutoGameReminderEmails({ targetOffsetDays: 0 }),
+      sendAutoGameReminderEmails({ targetOffsetDays: 1 })
+    ]);
   } catch (error) {
     console.error('❌ 자동 경기 알림 발송 오류:', error);
   }
@@ -1876,11 +1879,11 @@ cron.schedule('0 10 * * *', async () => {
   timezone: 'Asia/Seoul'
 });
 
-console.log('✅ 자동 경기 알림 스케줄러 설정 완료 (10:00 KST, 내일 경기 전날 알림)');
+console.log('✅ 자동 경기 알림 스케줄러 설정 완료 (10:00 KST, 당일·전날 경기 참가자 대상)');
 
-// 매주 월요일 10시 1회 — 투표하지 않은 회원에게만 발송
+// 월~목 10시 1회 — 투표하지 않은 회원에게만 발송
 // 수신자별 발송 기록을 DB에 저장하므로 서버 재시작/중복 실행에도 한 번만 전송된다.
-cron.schedule('0 10 * * 1', async () => {
+cron.schedule('0 10 * * 1-4', async () => {
   try {
     const result = await sendAutomaticVoteReminderEmails();
     if (!result.skipped) {
@@ -1893,7 +1896,7 @@ cron.schedule('0 10 * * 1', async () => {
   timezone: 'Asia/Seoul'
 });
 
-console.log('✅ 자동 투표 독려 메일 스케줄러 설정 완료 (매주 월요일 10:00 KST)');
+console.log('✅ 자동 투표 독려 메일 스케줄러 설정 완료 (월~목 10:00 KST, 미투표자 대상)');
 
 function isAuthorizedCronRequest(req: express.Request) {
   const expected = process.env.CRON_SECRET;
