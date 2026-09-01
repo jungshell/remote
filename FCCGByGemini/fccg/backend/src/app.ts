@@ -1274,7 +1274,8 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
     const date = new Date(game.date);
     const dayName = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
     const formattedDate = `${date.getMonth() + 1}월 ${date.getDate()}일(${dayName})`;
-    const subjectPrefix = targetOffsetDays === 1 ? '⚽ 내일 경기 알림' : '⚽ 오늘 경기 알림';
+    const isTomorrow = targetOffsetDays === 1;
+    const subjectPrefix = isTomorrow ? '⚽ FC찰껴 내일 경기 알림' : '⚽ FC찰껴 오늘 경기 알림';
     const subject = `${subjectPrefix} - ${formattedDate}`;
     const text = [
       `${subjectPrefix}`,
@@ -1284,6 +1285,72 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
       `장소: ${game.location || '미정'}`,
       `유형: ${game.eventType || '미정'}`
     ].join('\n');
+
+    const naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent((game as any).locationAddress || game.location || '')}`;
+    const scheduleUrl = 'https://fccg-inoi.vercel.app';
+    const participantChips = recipients.map((r: { id: number; name: string; email: string }) =>
+      `<span style="display:inline-block;background:#1A3A5C;color:#7BC8F6;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;margin:3px 4px 3px 0;">${r.name}</span>`
+    ).join('');
+    const gameHtml = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0A1118;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0A1118;padding:24px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#0F1923;border-radius:12px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+
+      <!-- HEADER -->
+      <tr><td style="padding:24px 32px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="font-size:13px;font-weight:800;letter-spacing:0.12em;color:#C8F135;">⚽ FC찰껴</td>
+          <td align="right" style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#3A4E60;">${isTomorrow ? 'Tomorrow Match' : 'Today Match'}</td>
+        </tr></table>
+      </td></tr>
+
+      <!-- HERO -->
+      <tr><td style="padding:22px 32px 18px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#C8F135;margin-bottom:8px;">${isTomorrow ? '내일 경기 알림' : '오늘 경기 알림'}</div>
+        <div style="font-size:28px;font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1.15;">${formattedDate}<br><span style="font-size:22px;color:#C8F135;">${game.time || '시간 미정'}</span></div>
+      </td></tr>
+
+      <!-- DIVIDER -->
+      <tr><td style="padding:0 32px;"><div style="height:1px;background:#1F2D3A;"></div></td></tr>
+
+      <!-- INFO GRID -->
+      <tr><td style="padding:20px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="padding-bottom:14px;border-bottom:1px solid #1A2535;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:4px;">장소</div>
+            <div style="font-size:14px;font-weight:700;color:#E8ECF0;">${escapeEmailHtml(game.location || '미정')}</div>
+            ${game.location ? `<a href="${naverMapUrl}" target="_blank" style="display:inline-block;margin-top:6px;font-size:11px;font-weight:700;color:#C8F135;text-decoration:none;border:1px solid #2A4A20;padding:3px 10px;border-radius:4px;">📍 네이버 지도 →</a>` : ''}
+          </td></tr>
+          <tr><td style="padding:14px 0;border-bottom:1px solid #1A2535;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:4px;">경기 유형</div>
+            <div style="font-size:14px;font-weight:700;color:#E8ECF0;">${escapeEmailHtml(game.eventType || '매치')}</div>
+          </td></tr>
+          <tr><td style="padding-top:14px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:8px;">참가자 <span style="color:#C8F135;">${recipients.length}명</span></div>
+            <div>${participantChips}</div>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- CTA -->
+      <tr><td style="padding:4px 32px 28px;">
+        <a href="${scheduleUrl}" style="display:block;background:#C8F135;color:#0A1018;text-decoration:none;text-align:center;font-size:13px;font-weight:800;letter-spacing:0.08em;padding:14px 18px;border-radius:6px;">일정 확인하러 가기 →</a>
+      </td></tr>
+
+      <!-- FOOTER -->
+      <tr><td style="background:#080F17;padding:14px 32px;border-top:1px solid #111B26;">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="font-size:11px;color:#2A3F52;">수신거부</td>
+          <td align="right" style="font-size:11px;color:#2A3F52;">FC찰껴 · 자동발송</td>
+        </tr></table>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
 
     for (const recipient of recipients) {
       const deliveryKey = `GAME_REMINDER:${reminderType}:GAME:${game.id}:USER:${recipient.id}`;
@@ -1318,7 +1385,8 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
         const mailResult = await sendMail({
           to: recipient.email,
           subject,
-          text
+          text,
+          html: gameHtml
         });
         lastTransport = mailResult.mode;
         await prisma.notificationDelivery.update({
