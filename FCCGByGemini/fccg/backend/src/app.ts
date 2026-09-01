@@ -1978,12 +1978,41 @@ app.get('/api/admin/mail-status', authenticateToken, (req: any, res) => {
     gameReminderEnabled: (process.env.AUTO_GAME_REMINDER_ENABLED ?? 'true') === 'true',
     voteReminderEnabled: (process.env.AUTO_VOTE_REMINDER_ENABLED ?? 'true') === 'true',
     schedules: {
-      gameReminder: 'GitHub Actions 매일 10:07 KST — 오늘·내일 경기 각 1회',
-      voteReminder: 'GitHub Actions 월~목 10:17 KST — 미투표 활성 회원에게 하루 1회'
+      gameReminder: '매일 10:00 KST — 당일·내일 경기 참가자에게 각 1회',
+      voteReminder: '월~목 10:00 KST — 미투표 활성 회원에게 하루 1회'
     },
     gameReminderRecipients: '확정 경기 날짜를 선택한 활성 투표자',
     recommendedTransport: 'Gmail API (HTTPS)'
   });
+});
+
+// 관리자 테스트 전용: 투표독려 + 경기알림 즉시 강제 발송
+app.post('/api/admin/test-emails', authenticateToken, async (req: any, res) => {
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
+  }
+
+  try {
+    const dryRun = req.body?.dryRun === true;
+    const [voteResult, gameToday, gameTomorrow] = await Promise.all([
+      sendAutomaticVoteReminderEmails({ force: true, dryRun }),
+      sendAutoGameReminderEmails({ targetOffsetDays: 0, force: true, dryRun }),
+      sendAutoGameReminderEmails({ targetOffsetDays: 1, force: true, dryRun })
+    ]);
+    return res.json({
+      success: true,
+      dryRun,
+      voteReminder: voteResult,
+      gameReminderToday: gameToday,
+      gameReminderTomorrow: gameTomorrow
+    });
+  } catch (error) {
+    console.error('❌ 테스트 이메일 발송 오류:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
 });
 
 app.post('/api/admin/run-vote-reminder', authenticateToken, async (req: any, res) => {
