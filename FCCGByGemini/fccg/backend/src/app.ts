@@ -1288,9 +1288,29 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
 
     const naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent((game as any).locationAddress || game.location || '')}`;
     const scheduleUrl = 'https://fccg-inoi.vercel.app';
-    const participantChips = recipients.map((r: { id: number; name: string; email: string }) =>
-      `<span style="display:inline-block;background:#1A3A5C;color:#7BC8F6;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;margin:3px 4px 3px 0;">${r.name}</span>`
-    ).join('');
+
+    // 전체 참가자: 등록 멤버 + 지인(수동 입력) + 용병
+    const parseGameArr = (val: unknown): string[] => {
+      if (!val) return [];
+      try { const a = typeof val === 'string' ? JSON.parse(val) : val; return Array.isArray(a) ? (a as unknown[]).filter(Boolean).map(String) : []; } catch { return []; }
+    };
+    const registeredNames = parseGameArr((game as any).selectedMembers);
+    const friendNames = parseGameArr((game as any).memberNames).filter((n: string) => !n.startsWith('용병'));
+    const mercCount = Number((game as any).mercenaryCount) || 0;
+    const allNames = [...new Set([...registeredNames, ...friendNames])];
+    const totalParticipantCount = allNames.length + mercCount;
+
+    const chipParts: string[] = [
+      ...allNames.map((n: string) =>
+        `<span style="background:#1A3A5C;color:#7BC8F6;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;">${escapeEmailHtml(n)}</span>`
+      ),
+      ...(mercCount > 0
+        ? [`<span style="background:#1E2030;color:#888;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;">용병 ${mercCount}명</span>`]
+        : [])
+    ];
+    const participantChips = chipParts.length > 0
+      ? chipParts.join(' &nbsp; ')
+      : '<span style="color:#3A4E60;">미정</span>';
     const gameHtml = `<!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#0A1118;">
@@ -1328,7 +1348,7 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
             <div style="font-size:14px;font-weight:700;color:#E8ECF0;">${escapeEmailHtml(game.eventType || '매치')}</div>
           </td></tr>
           <tr><td style="padding-top:14px;">
-            <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:8px;">참가자 <span style="color:#C8F135;">${recipients.length}명</span></div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:8px;">참가자 <span style="color:#C8F135;">${totalParticipantCount}명</span></div>
             <div>${participantChips}</div>
           </td></tr>
         </table>
