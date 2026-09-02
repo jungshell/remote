@@ -2062,6 +2062,21 @@ app.post('/api/admin/test-emails', authenticateToken, async (req: any, res) => {
 
   try {
     const dryRun = req.body?.dryRun === true;
+    const type = req.body?.type as string | undefined; // 'game-today' | 'game-tomorrow' | 'vote' | undefined(all)
+
+    if (type === 'game-today') {
+      const result = await sendAutoGameReminderEmails({ targetOffsetDays: 0, force: true, dryRun });
+      return res.json({ success: true, dryRun, gameReminderToday: result });
+    }
+    if (type === 'game-tomorrow') {
+      const result = await sendAutoGameReminderEmails({ targetOffsetDays: 1, force: true, dryRun });
+      return res.json({ success: true, dryRun, gameReminderTomorrow: result });
+    }
+    if (type === 'vote') {
+      const result = await sendAutomaticVoteReminderEmails({ force: true, dryRun });
+      return res.json({ success: true, dryRun, voteReminder: result });
+    }
+
     const [voteResult, gameToday, gameTomorrow] = await Promise.all([
       sendAutomaticVoteReminderEmails({ force: true, dryRun }),
       sendAutoGameReminderEmails({ targetOffsetDays: 0, force: true, dryRun }),
