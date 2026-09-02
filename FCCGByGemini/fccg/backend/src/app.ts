@@ -1316,7 +1316,7 @@ async function sendAutoGameReminderEmails(options: GameReminderRunOptions = {}) 
 <body style="margin:0;padding:0;background:#0A1118;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A1118;padding:24px 0;">
   <tr><td align="center">
-    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#0F1923;border-radius:12px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#0F1923;border-radius:12px;overflow:hidden;font-family:sans-serif;">
 
       <!-- HEADER -->
       <tr><td style="padding:24px 32px 0;">
@@ -1615,7 +1615,7 @@ async function sendAutomaticVoteReminderEmails(options: VoteReminderRunOptions =
 <body style="margin:0;padding:0;background:#0A1118;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A1118;padding:24px 0;">
   <tr><td align="center">
-    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#0F1923;border-radius:12px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#0F1923;border-radius:12px;overflow:hidden;font-family:sans-serif;">
 
       <!-- HEADER -->
       <tr><td style="padding:24px 32px 0;">
