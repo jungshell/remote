@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only --prefer-ts-exts --ignore-watch node_modules src/app.ts",
     "build": "node tooling/clean-dist.cjs && tsc",
-    "prestart": "prisma migrate deploy",
+    "prestart": "node tooling/migrate-with-retry.cjs",
     "start": "node dist/app.js",
     "start:ts": "node -r ts-node/register/transpile-only src/app.ts",
     "postinstall": "prisma generate",
