@@ -16,6 +16,7 @@ import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
 import { getApiBaseUrl } from '../config/api';
 import { ensureApiBaseUrl } from '../constants';
+import { Z_INDEX } from '../constants/designTokens';
 
 const getKstDateKey = (dateLike: string | Date) => {
   const date = new Date(dateLike);
@@ -2158,12 +2159,12 @@ export default function MainDashboard() {
         position="fixed"
         left={`${buttonPosition.x}px`}
         top={`${buttonPosition.y}px`}
-        zIndex={1000}
-        bg={isMusicEnabled ? "#004ea8" : "gray.400"}
+        zIndex={Z_INDEX.FLOATING_WIDGET}
+        bg={isMusicEnabled ? "brand.500" : "gray.400"}
         color="white"
         borderRadius="full"
         boxShadow="lg"
-        _hover={{ bg: isMusicEnabled ? "#00397a" : "gray.500", transform: 'scale(1.05)' }}
+        _hover={{ bg: isMusicEnabled ? "brand.600" : "gray.500", transform: 'scale(1.05)' }}
         transition={isDragging ? 'none' : 'all 0.2s'}
         size="sm"
         width="32px"

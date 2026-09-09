@@ -72,7 +72,7 @@ export default function PlayerPassportPanel({
   return (
     <VStack align="stretch" spacing={6} color="#0F172A">
       <Box
-        bg="linear-gradient(135deg, #052B57 0%, #0057B8 62%, #0B78D0 100%)"
+        bg="linear-gradient(135deg, #002c62 0%, #004ea8 62%, #1a8cff 100%)"
         borderRadius="2xl"
         px={5}
         py={6}
@@ -85,7 +85,7 @@ export default function PlayerPassportPanel({
             src={user.avatarUrl}
             size="lg"
             bg="white"
-            color="#0057B8"
+            color="brand.500"
             fontWeight="900"
             border="3px solid rgba(255,255,255,0.72)"
           />
@@ -118,9 +118,9 @@ export default function PlayerPassportPanel({
           {statItems.map((item) => (
             <Box
               key={item.label}
-              bg="#EFF6FF"
+              bg="brand.50"
               border="1px solid"
-              borderColor="#BFDBFE"
+              borderColor="brand.100"
               borderRadius="xl"
               px={4}
               py={4}
@@ -131,7 +131,7 @@ export default function PlayerPassportPanel({
               </Text>
               <Text
                 mt={2}
-                color="#064A96"
+                color="brand.600"
                 fontSize={item.value === '기록 없음' ? 'lg' : '3xl'}
                 fontWeight="900"
                 letterSpacing="-0.03em"
@@ -212,10 +212,10 @@ export default function PlayerPassportPanel({
       </Box>
 
       <Button
-        bg="#0057B8"
+        bg="brand.500"
         color="white"
-        _hover={{ bg: '#003F86' }}
-        _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,87,184,0.28)' }}
+        _hover={{ bg: 'brand.600' }}
+        _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,78,168,0.28)' }}
         onClick={onEditProfile}
       >
         내 정보 수정

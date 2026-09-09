@@ -9,6 +9,8 @@ import { API_ENDPOINTS } from '../constants';
 import ManualModal from './ManualModal';
 import { getApiBaseUrl } from '../config/api';
 import PlayerPassportPanel from './profile/PlayerPassportPanel';
+import { Button as AppButton } from './common';
+import { Z_INDEX } from '../constants/designTokens';
 
 const Signup = lazy(() => import('../pages/Signup'));
 const Login = lazy(() => import('../pages/Login'));
@@ -93,14 +95,14 @@ export default function Header() {
   // 사용자 데이터 새로고침 함수
   const refreshUserData = async () => {
     if (!token) return;
-    
+
     try {
       setIsLoading(true);
       console.log('🔄 헤더: 사용자 데이터 새로고침 시작');
-      
+
       // API BASE URL 가져오기 (환경별 자동 감지)
       const baseUrl = await getApiBaseUrl();
-      
+
       // 캐시를 무시하고 강제로 새로고침
       const response = await fetch(`${baseUrl}/profile`, {
         method: 'GET',
@@ -110,11 +112,11 @@ export default function Header() {
           'Pragma': 'no-cache'
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log('📊 헤더: 프로필 API 응답:', {
         voteDetails: data.voteDetails,
@@ -122,7 +124,7 @@ export default function Header() {
         participated: data.voteDetails?.participated,
         total: data.voteDetails?.total
       });
-      
+
       setUser(data);
       console.log('✅ 헤더: 사용자 데이터 새로고침 완료:', {
         voteAttendance: data.voteAttendance,
@@ -186,23 +188,23 @@ export default function Header() {
 
   const handlePasswordChange = async () => {
     if (!user || !token) return;
-    
+
     if (newPassword !== confirmPassword) {
       setPasswordError('비밀번호가 일치하지 않습니다.');
       return;
     }
-    
+
     if (newPassword.length < 6) {
       setPasswordError('비밀번호는 최소 6자 이상이어야 합니다.');
       return;
     }
-    
+
     setPasswordLoading(true);
     setPasswordError(null);
     try {
       // 비밀번호 변경 API 호출
       await changePassword(newPassword);
-      
+
       setIsPasswordModalOpen(false);
       setNewPassword('');
       setConfirmPassword('');
@@ -224,12 +226,12 @@ export default function Header() {
   useEffect(() => {
     // 실제 참여율 계산
     const gameDetails = user?.gameDetails;
-    const targetAttendance = gameDetails && gameDetails.total > 0 
+    const targetAttendance = gameDetails && gameDetails.total > 0
       ? Math.round((gameDetails.participated / gameDetails.total) * 100)
       : 0;
-    
+
     setAnimatedAttendance(0);
-    
+
     // 애니메이션: 0에서 targetAttendance까지 빠르게 증가
     const duration = 700; // ms
     const frameRate = 1000 / 60; // 60fps
@@ -254,10 +256,10 @@ export default function Header() {
   useEffect(() => {
     // 실제 투표율 계산
     const voteDetails = user?.voteDetails;
-    const targetVoteAttendance = voteDetails && voteDetails.total > 0 
+    const targetVoteAttendance = voteDetails && voteDetails.total > 0
       ? Math.round((voteDetails.participated / voteDetails.total) * 100)
       : 0;
-    
+
     // 애니메이션: 0에서 targetVoteAttendance까지 빠르게 증가
     const duration = 700; // ms
     const frameRate = 1000 / 60; // 60fps
@@ -333,7 +335,7 @@ export default function Header() {
     eventBus.on(EVENT_TYPES.DATA_REFRESH_NEEDED, ({ payload }: any) => {
       if (payload?.dataType === 'games') handleGamesChanged();
     });
-    
+
     return () => {
       window.removeEventListener('voteSubmitted', handleVoteSubmitted);
       window.removeEventListener('gamesChanged', handleGamesChanged);
@@ -346,22 +348,22 @@ export default function Header() {
 
   return (
     <>
-      <Flex as="nav" align="center" justify="space-between" px={{ base: 3, md: 4, lg: 6 }} py={2} bg="white" boxShadow="sm" w="100%" position="fixed" top={0} left={0} right={0} zIndex={100} maxW="100vw" overflow="hidden" boxSizing="border-box">
+      <Flex as="nav" align="center" justify="space-between" px={{ base: 3, md: 4, lg: 6 }} py={2} bg="white" boxShadow="sm" w="100%" position="fixed" top={0} left={0} right={0} zIndex={Z_INDEX.HEADER} maxW="100vw" overflow="hidden" boxSizing="border-box">
         <HStack spacing={3} flexShrink={1} minW={0} pl={{ base: 2, md: 4, lg: 6 }}>
-          <Text 
-            fontSize={{ base: 'lg', md: 'xl' }} 
-            fontWeight="bold" 
+          <Text
+            fontSize={{ base: 'lg', md: 'xl' }}
+            fontWeight="bold"
             cursor="pointer"
-            onClick={(e) => { 
+            onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               handleNavigate('/');
-            }} 
-            tabIndex={0} 
+            }}
+            tabIndex={0}
             aria-label="홈으로 이동"
-            color="#004ea8"
-            _hover={{ 
-              color: '#00397a'
+            color="brand.500"
+            _hover={{
+              color: 'brand.600'
             }}
             whiteSpace="nowrap"
           >
@@ -373,17 +375,17 @@ export default function Header() {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
-          <Button 
+          <Button
                 key={item.label}
-                variant={isActive ? "outline" : "ghost"} 
-            bg="transparent"
-            color="#004ea8" 
-            border="0.5px solid" 
-                borderColor={isActive ? "#004ea8" : "transparent"} 
-            _hover={{ 
-                  bg: isActive ? 'transparent' : 'gray.50',
-              borderColor: "#004ea8"
-            }} 
+                variant={isActive ? "outline" : "ghost"}
+            bg={isActive ? 'brand.50' : 'transparent'}
+            color="brand.500"
+            border="0.5px solid"
+                borderColor={isActive ? "brand.500" : "transparent"}
+            _hover={{
+                  bg: isActive ? 'brand.50' : 'gray.50',
+              borderColor: "brand.500"
+            }}
                 leftIcon={<Icon />}
                 onClick={() => handleNavigate(item.path)}
             flexShrink={1}
@@ -395,14 +397,14 @@ export default function Header() {
         </HStack>
         <HStack spacing={2} flexShrink={0} minW="fit-content" pr={{ base: 2, md: 6, lg: 8 }} display={{ base: 'none', md: 'flex' }}>
           {!user ? (
-            <Button size="sm" bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} variant="outline" onClick={onOpen} whiteSpace="nowrap">로그인</Button>
+            <AppButton size="sm" variant="primary" onClick={onOpen} whiteSpace="nowrap">로그인</AppButton>
           ) : (
             <>
               <HStack align="center" spacing={2} flexShrink={1} minW={0} display={{ base: 'none', md: 'flex' }}>
                 {/* 투표율과 참여율 표시 (user가 있으면 항상 표시) */}
                 {user && (
                   <>
-                    <Tooltip 
+                    <Tooltip
                       label={isLoading ? '로딩 중...' : `${user?.voteDetails?.participated || 0}/${user?.voteDetails?.total || 0} 투표참여`}
                       placement="bottom"
                       hasArrow
@@ -419,7 +421,7 @@ export default function Header() {
                         <Box w="60px" mt={0.5}>
                           <Box
                             h="6px"
-                            bg="#e2e8f0"
+                            bg="gray.200"
                             borderRadius={4}
                             overflow="hidden"
                             position="relative"
@@ -444,7 +446,7 @@ export default function Header() {
                         </Box>
                       </Box>
                     </Tooltip>
-                    <Tooltip 
+                    <Tooltip
                       label={`${user?.gameDetails?.participated || 0}/${user?.gameDetails?.total || 0} 경기 참여`}
                       placement="bottom"
                       hasArrow
@@ -457,13 +459,13 @@ export default function Header() {
                         <Box w="60px" mt={0.5}>
                           <Box
                             h="6px"
-                            bg="#e2e8f0"
+                            bg="gray.200"
                             borderRadius={4}
                             overflow="hidden"
                             position="relative"
                           >
                             <Box
-                              bg="#004ea8"
+                              bg="brand.500"
                               h="100%"
                               borderRadius={4}
                               position="absolute"
@@ -490,7 +492,7 @@ export default function Header() {
                     h="26px"
                     flexShrink={0}
                     borderRadius="full"
-                    bg="#004ea8"
+                    bg="brand.500"
                     color="white"
                     display="flex"
                     alignItems="center"
@@ -522,22 +524,22 @@ export default function Header() {
                       textOverflow="ellipsis"
                       maxW={{ base: '72px', md: '112px' }}
                       transition="color 0.18s ease"
-                      _hover={{ color: '#0B5CAD', textDecoration: 'underline', textUnderlineOffset: '3px' }}
-                      _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '3px' }}
+                      _hover={{ color: 'brand.500', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                      _focusVisible={{ outline: '2px solid', outlineColor: 'brand.300', outlineOffset: '3px' }}
                     >
                       {user.name} <Box as="span" color="#8AA0B8" fontSize="lg" lineHeight="1" aria-hidden="true">›</Box>
                     </Text>
                   </Tooltip>
                 </HStack>
               </HStack>
-              <Button size="sm" bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} onClick={() => { logout(); navigate('/'); }} whiteSpace="nowrap">로그아웃</Button>
+              <AppButton size="sm" variant="primary" onClick={() => { logout(); navigate('/'); }} whiteSpace="nowrap">로그아웃</AppButton>
               <IconButton
                 aria-label="메뉴얼"
                 icon={<InfoIcon />}
                 size="sm"
-                bg="#004ea8"
+                bg="brand.500"
                 color="white"
-                _hover={{ bg: '#00397a' }}
+                _hover={{ bg: 'brand.600' }}
                 onClick={memberManual.onOpen}
                 borderRadius="full"
               />
@@ -546,17 +548,17 @@ export default function Header() {
         </HStack>
         <HStack spacing={1} display={{ base: 'flex', md: 'none' }}>
           {!user ? (
-            <Button size="xs" bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} variant="solid" onClick={onOpen}>로그인</Button>
+            <AppButton size="xs" variant="primary" onClick={onOpen}>로그인</AppButton>
           ) : (
-            <Button size="xs" bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} onClick={() => { logout(); navigate('/'); }}>로그아웃</Button>
+            <AppButton size="xs" variant="primary" onClick={() => { logout(); navigate('/'); }}>로그아웃</AppButton>
           )}
           <IconButton
             aria-label="메뉴얼"
             icon={<InfoIcon />}
             size="sm"
-            bg="#004ea8"
+            bg="brand.500"
             color="white"
-            _hover={{ bg: '#00397a' }}
+            _hover={{ bg: 'brand.600' }}
             onClick={memberManual.onOpen}
             borderRadius="full"
           />
@@ -587,7 +589,7 @@ export default function Header() {
                       variant={isActive ? 'solid' : 'ghost'}
                       leftIcon={<Icon />}
                       justifyContent="flex-start"
-                      colorScheme={isActive ? 'blue' : undefined}
+                      colorScheme={isActive ? 'brand' : undefined}
                       onClick={() => handleNavigate(item.path)}
                     >
                       {item.label}
@@ -602,7 +604,7 @@ export default function Header() {
                       w="26px"
                       h="26px"
                       borderRadius="full"
-                      bg="#004ea8"
+                      bg="brand.500"
                       color="white"
                       display="flex"
                       alignItems="center"
@@ -626,8 +628,8 @@ export default function Header() {
                       p={0}
                       cursor="pointer"
                       transition="color 0.18s ease"
-                      _hover={{ color: '#0B5CAD', textDecoration: 'underline', textUnderlineOffset: '3px' }}
-                      _focusVisible={{ outline: '2px solid', outlineColor: 'blue.300', outlineOffset: '3px' }}
+                      _hover={{ color: 'brand.500', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                      _focusVisible={{ outline: '2px solid', outlineColor: 'brand.300', outlineOffset: '3px' }}
                       onClick={() => {
                         mobileNav.onClose();
                         playerPassport.onOpen();
@@ -644,12 +646,12 @@ export default function Header() {
                     <Text fontSize="sm" color="gray.500">참여율</Text>
                     <Text fontWeight="bold">{animatedAttendance}%</Text>
                   </Box>
-                  <Button colorScheme="blue" onClick={() => { logout(); navigate('/'); mobileNav.onClose(); }}>
+                  <Button colorScheme="brand" onClick={() => { logout(); navigate('/'); mobileNav.onClose(); }}>
                     로그아웃
                   </Button>
                 </VStack>
               ) : (
-                <Button colorScheme="blue" onClick={() => { onOpen(); mobileNav.onClose(); }}>
+                <Button colorScheme="brand" onClick={() => { onOpen(); mobileNav.onClose(); }}>
                   로그인
                 </Button>
               )}
@@ -667,7 +669,7 @@ export default function Header() {
         <DrawerContent bg="#F8FAFC">
           <DrawerCloseButton
             color="#0F172A"
-            _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,87,184,0.28)' }}
+            _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,78,168,0.28)' }}
           />
           <DrawerHeader color="#0F172A" borderBottomWidth="1px" borderColor="#E2E8F0">
             내 선수 정보
@@ -713,12 +715,12 @@ export default function Header() {
               <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="이름을 입력하세요" />
             </FormControl>
             {nameError && <Text color="red.500" mb={2}>{nameError}</Text>}
-            <Button bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} w="full" onClick={handleNameSave} isLoading={nameLoading} isDisabled={!editName.trim() || editName === user?.name} mb={3}>저장</Button>
+            <AppButton variant="primary" w="full" onClick={handleNameSave} isLoading={nameLoading} isDisabled={!editName.trim() || editName === user?.name} mb={3}>저장</AppButton>
             <Button variant="outline" colorScheme="orange" w="full" onClick={() => { setIsNameModalOpen(false); setIsPasswordModalOpen(true); }}>비밀번호 변경</Button>
           </ModalBody>
         </ModalContent>
       </Modal>
-      
+
       {/* 비밀번호 변경 모달 */}
       <Modal isOpen={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} isCentered size="sm">
         <ModalOverlay />
@@ -726,24 +728,24 @@ export default function Header() {
           <ModalBody p={6}>
             <FormControl mb={4}>
               <FormLabel>새 비밀번호</FormLabel>
-              <Input 
-                type="password" 
-                value={newPassword} 
-                onChange={e => setNewPassword(e.target.value)} 
-                placeholder="새 비밀번호를 입력하세요" 
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="새 비밀번호를 입력하세요"
               />
             </FormControl>
             <FormControl mb={4}>
               <FormLabel>비밀번호 확인</FormLabel>
-              <Input 
-                type="password" 
-                value={confirmPassword} 
-                onChange={e => setConfirmPassword(e.target.value)} 
-                placeholder="비밀번호를 다시 입력하세요" 
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="비밀번호를 다시 입력하세요"
               />
             </FormControl>
             {passwordError && <Text color="red.500" mb={2}>{passwordError}</Text>}
-            <Button bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} w="full" onClick={handlePasswordChange} isLoading={passwordLoading} isDisabled={!newPassword.trim() || !confirmPassword.trim()}>비밀번호 변경</Button>
+            <AppButton variant="primary" w="full" onClick={handlePasswordChange} isLoading={passwordLoading} isDisabled={!newPassword.trim() || !confirmPassword.trim()}>비밀번호 변경</AppButton>
           </ModalBody>
         </ModalContent>
       </Modal>

@@ -38,7 +38,7 @@ const CalendarContainer = styled.div`
   width: 100%;
   max-width: 800px;
   margin: 0 auto;
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 `;
 
 const CalendarHeader = styled.div`
@@ -52,7 +52,7 @@ const CalendarHeader = styled.div`
 const MonthYearText = styled.h2`
   font-size: 24px;
   font-weight: 500;
-  color: #1976d2;
+  color: #004ea8;
   margin: 0;
 `;
 

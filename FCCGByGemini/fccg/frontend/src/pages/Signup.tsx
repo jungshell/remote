@@ -107,7 +107,19 @@ const Signup: FC<SignupProps> = ({ onSwitch, onClose }) => {
   };
 
   return (
-    <Box bgGradient="linear(to-br, #004ea8, #1f2937)" borderRadius="xl" p={0} px={8} py={8} minHeight="320px" alignSelf="center" position="relative">
+    <Box
+      bgGradient="linear(to-br, #004ea8, #1f2937)"
+      borderRadius="xl"
+      p={0}
+      px={8}
+      py={8}
+      minHeight={onSwitch ? '320px' : '100vh'}
+      alignSelf="center"
+      position="relative"
+      display={onSwitch ? undefined : 'flex'}
+      alignItems={onSwitch ? undefined : 'center'}
+      justifyContent={onSwitch ? undefined : 'center'}
+    >
       {onSwitch && (
         <ModalCloseButton
           color="white"
@@ -126,7 +138,7 @@ const Signup: FC<SignupProps> = ({ onSwitch, onClose }) => {
         />
       )}
       <Box bg="white" borderRadius="xl" p={8} boxShadow="lg" w="full" maxW="sm" minW={320}>
-        <Heading mb={6} color="#004ea8" fontFamily="Pretendard, Inter, sans-serif" fontWeight="bold" textAlign="center">회원가입</Heading>
+        <Heading mb={6} color="brand.500" fontFamily="'Pretendard Variable', Pretendard, sans-serif" fontWeight="bold" textAlign="center">회원가입</Heading>
         <form onSubmit={handleSignup}>
           <VStack spacing={4}>
             <FormControl id="email" isRequired>
@@ -145,7 +157,7 @@ const Signup: FC<SignupProps> = ({ onSwitch, onClose }) => {
               <FormLabel>휴대폰 번호</FormLabel>
               <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="휴대폰 번호 (선택)" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
             </FormControl>
-            <Button type="submit" colorScheme="blue" bg="#004ea8" _hover={{ bg: '#00397a' }} w="full" rounded="lg" isLoading={loading} fontWeight="bold">회원가입</Button>
+            <Button type="submit" colorScheme="brand" bg="brand.500" _hover={{ bg: 'brand.600' }} w="full" rounded="lg" isLoading={loading} fontWeight="bold">회원가입</Button>
             {onSwitch && (
               <Button
                 variant="outline"

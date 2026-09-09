@@ -1,4 +1,4 @@
-import { Button as ChakraButton, ButtonProps } from '@chakra-ui/react';
+import { Button as ChakraButton, type ButtonProps } from '@chakra-ui/react';
 import { COLORS, BUTTON_SIZE } from '../../constants/designTokens';
 
 interface CustomButtonProps extends ButtonProps {

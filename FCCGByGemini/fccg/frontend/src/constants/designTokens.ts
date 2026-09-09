@@ -5,11 +5,15 @@
 
 // 색상
 export const COLORS = {
-  // 메인 브랜드 색상
-  BRAND_PRIMARY: '#004ea8',
-  BRAND_PRIMARY_HOVER: '#00397a',
-  BRAND_PRIMARY_DARK: '#003d85',
-  
+  // 메인 브랜드 색상 (Chakra theme의 brand.* 스케일과 동일한 값을 사용한다)
+  BRAND_PRIMARY: '#004ea8', // brand.500
+  BRAND_PRIMARY_HOVER: '#003d85', // brand.600
+  BRAND_PRIMARY_DARK: '#003d85', // brand.600
+  BRAND_PRIMARY_DARKER: '#002c62', // brand.700
+  BRAND_PRIMARY_LIGHT: '#1a8cff', // brand.400
+  BRAND_SOFT: '#e6f3ff', // brand.50 — 옅은 배경 tint
+  BRAND_SOFT_STRONG: '#b3d9ff', // brand.100 — 강조된 옅은 배경 tint
+
   // 상태 색상
   SUCCESS: '#22c55e',
   WARNING: '#f59e0b',
@@ -174,11 +178,15 @@ export const ICON_SIZE = {
   XL: '32px',
 } as const;
 
-// Z-Index
+// Z-Index — 플로팅 UI가 겹치지 않도록 화면에 뜨는 순서대로 정리한 단일 스케일
 export const Z_INDEX = {
   HEADER: 100,
+  FLOATING_WIDGET: 1000, // 대시보드 음악 버튼 등 페이지 내 드래그 가능한 위젯
+  CHATBOT: 1200,
+  HELP_BUTTON: 1210, // 챗봇 버튼보다 살짝 위, 서로 겹칠 때도 항상 클릭 가능하도록
   MODAL: 1400,
   TOOLTIP: 1800,
+  NOTIFICATION: 9999, // 전역 알림은 모달 위에서도 항상 보여야 한다
 } as const;
 
 // 반응형 브레이크포인트

@@ -1,4 +1,4 @@
-import { Box, BoxProps, VStack, VStackProps } from '@chakra-ui/react';
+import { Box, type BoxProps, VStack, type VStackProps } from '@chakra-ui/react';
 import { PADDING, VSTACK_SPACING, COLORS } from '../../constants/designTokens';
 
 interface SectionProps extends BoxProps {

@@ -10,6 +10,7 @@ import {
   Slide
 } from '@chakra-ui/react';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
+import { Z_INDEX } from '../constants/designTokens';
 
 interface Notification {
   id: string;
@@ -59,7 +60,7 @@ const GlobalNotification: React.FC = () => {
       position="fixed"
       top="20px"
       right="20px"
-      zIndex={9999}
+      zIndex={Z_INDEX.NOTIFICATION}
       maxW="400px"
       w="100%"
     >

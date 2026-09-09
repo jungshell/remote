@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IconButton } from '@chakra-ui/react';
 import { InfoIcon } from '@chakra-ui/icons';
+import { Z_INDEX } from '../constants/designTokens';
 
 type Props = {
   onClick: () => void;
@@ -159,13 +160,13 @@ export default function FloatingHelpButton({ onClick, storageKey, icon }: Props)
   return (
     <div
       ref={containerRef}
-      style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 1000, cursor: 'grab' }}
+      style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: Z_INDEX.HELP_BUTTON, cursor: 'grab' }}
       aria-label="floating-help"
     >
       <IconButton
         aria-label="도움말"
         icon={icon || <InfoIcon />}
-        colorScheme="blue"
+        colorScheme="brand"
         size="lg"
         borderRadius="full"
         boxShadow="lg"

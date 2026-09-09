@@ -183,7 +183,18 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
   };
 
   return (
-    <Box bgGradient="linear(to-br, #004ea8, #1f2937)" borderRadius="xl" p={0} px={8} py={8} position="relative">
+    <Box
+      bgGradient="linear(to-br, #004ea8, #1f2937)"
+      borderRadius="xl"
+      p={0}
+      px={8}
+      py={8}
+      position="relative"
+      minH={onSwitch ? undefined : '100vh'}
+      display={onSwitch ? undefined : 'flex'}
+      alignItems={onSwitch ? undefined : 'center'}
+      justifyContent={onSwitch ? undefined : 'center'}
+    >
       {onSwitch && (
         <ModalCloseButton
           color="white"
@@ -202,7 +213,7 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
         />
       )}
       <Box bg="white" borderRadius="xl" p={8} boxShadow="lg" w="full" maxW="sm" minW={320}>
-        <Heading mb={6} color="#004ea8" fontFamily="Pretendard, Inter, sans-serif" fontWeight="bold" textAlign="center">로그인</Heading>
+        <Heading mb={6} color="brand.500" fontFamily="'Pretendard Variable', Pretendard, sans-serif" fontWeight="bold" textAlign="center">로그인</Heading>
         <form onSubmit={handleLogin}>
           <VStack spacing={4}>
             <FormControl id="email" isRequired>
@@ -214,11 +225,11 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
               <InputGroup>
                 <Input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="비밀번호를 입력하세요" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
                 <InputRightElement>
-                  <IconButton aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} icon={showPw ? <ViewOffIcon /> : <ViewIcon />} variant="ghost" size="sm" bg="#004ea8" color="white" _hover={{ bg: '#00397a' }} onClick={() => setShowPw(v => !v)} />
+                  <IconButton aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} icon={showPw ? <ViewOffIcon /> : <ViewIcon />} variant="ghost" size="sm" bg="brand.500" color="white" _hover={{ bg: 'brand.600' }} onClick={() => setShowPw(v => !v)} />
                 </InputRightElement>
               </InputGroup>
             </FormControl>
-            <Button type="submit" colorScheme="blue" bg="#004ea8" _hover={{ bg: '#00397a' }} w="full" rounded="lg" isLoading={loading} fontWeight="bold">로그인</Button>
+            <Button type="submit" colorScheme="brand" bg="brand.500" _hover={{ bg: 'brand.600' }} w="full" rounded="lg" isLoading={loading} fontWeight="bold">로그인</Button>
             {onSwitch && (
               <Button
                 variant="outline"

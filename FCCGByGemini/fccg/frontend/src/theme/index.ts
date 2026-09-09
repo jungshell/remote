@@ -285,8 +285,44 @@ const theme = extendTheme({
   styles,
   animations,
   fonts: {
-    heading: 'Inter, system-ui, sans-serif',
-    body: 'Inter, system-ui, sans-serif',
+    heading: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    body: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  },
+  // Typography foundation: heading/body/caption/button 4개 역할, 모바일(base) → 데스크톱(md) 순으로 커짐
+  textStyles: {
+    heading1: {
+      fontSize: { base: '1.5rem', md: '1.875rem' }, // 24px / 30px
+      fontWeight: 700,
+      lineHeight: 1.25,
+      letterSpacing: '-0.02em',
+    },
+    heading2: {
+      fontSize: { base: '1.25rem', md: '1.5rem' }, // 20px / 24px
+      fontWeight: 700,
+      lineHeight: 1.3,
+      letterSpacing: '-0.01em',
+    },
+    heading3: {
+      fontSize: { base: '1.125rem', md: '1.25rem' }, // 18px / 20px
+      fontWeight: 600,
+      lineHeight: 1.35,
+    },
+    body: {
+      fontSize: { base: '0.9375rem', md: '1rem' }, // 15px / 16px
+      fontWeight: 400,
+      lineHeight: 1.6,
+    },
+    caption: {
+      fontSize: { base: '0.75rem', md: '0.8125rem' }, // 12px / 13px
+      fontWeight: 500,
+      lineHeight: 1.5,
+      letterSpacing: '0.02em',
+    },
+    button: {
+      fontSize: { base: '0.875rem', md: '0.9375rem' }, // 14px / 15px
+      fontWeight: 600,
+      lineHeight: 1,
+    },
   },
   fontSizes: {
     xs: '0.75rem',

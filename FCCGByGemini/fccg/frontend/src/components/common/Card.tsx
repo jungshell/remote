@@ -1,4 +1,4 @@
-import { Box, BoxProps } from '@chakra-ui/react';
+import { Box, type BoxProps } from '@chakra-ui/react';
 import { PADDING, BORDER_RADIUS, SHADOW, COLORS } from '../../constants/designTokens';
 
 interface CardProps extends BoxProps {
