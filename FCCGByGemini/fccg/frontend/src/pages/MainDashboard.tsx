@@ -18,7 +18,7 @@ import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
 import { getApiBaseUrl } from '../config/api';
 import { ensureApiBaseUrl } from '../constants';
-import { Z_INDEX, COLORS, GRADIENTS, EVENT_TYPE_COLORS } from '../constants/designTokens';
+import { Z_INDEX, COLORS, GRADIENTS, EVENT_TYPE_COLORS, MOTION } from '../constants/designTokens';
 
 const getKstDateKey = (dateLike: string | Date) => {
   const date = new Date(dateLike);
@@ -1404,7 +1404,7 @@ export default function MainDashboard() {
                       _hover={{ 
                         transform: 'translateY(-1px)', 
                         boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                        transition: 'all 0.2s ease'
+                        transition: `all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`
                       }}
                     >
                       {m.name}
@@ -1694,7 +1694,7 @@ export default function MainDashboard() {
                       px={3.5}
                       py={3}
                       cursor="help"
-                      transition="all 0.18s ease"
+                      transition={`all ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}`}
                       _hover={{
                         transform: 'translateY(-2px)',
                         borderColor: '#60A5FA',
@@ -2199,7 +2199,7 @@ export default function MainDashboard() {
         borderRadius="full"
         boxShadow="lg"
         _hover={{ bg: isMusicEnabled ? "brand.600" : "gray.500", transform: 'scale(1.05)' }}
-        transition={isDragging ? 'none' : 'all 0.2s'}
+        transition={isDragging ? 'none' : `all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`}
         size="sm"
         width="32px"
         height="32px"
@@ -2798,7 +2798,7 @@ export default function MainDashboard() {
                           _hover={{ 
                             transform: 'translateY(-1px)', 
                             boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                            transition: 'all 0.2s ease'
+                            transition: `all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`
                           }}
                         >
                           {m.name}

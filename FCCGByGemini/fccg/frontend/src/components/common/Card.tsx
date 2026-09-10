@@ -1,5 +1,5 @@
 import { Box, type BoxProps } from '@chakra-ui/react';
-import { PADDING, BORDER_RADIUS, SHADOW, COLORS } from '../../constants/designTokens';
+import { PADDING, BORDER_RADIUS, SHADOW, COLORS, MOTION } from '../../constants/designTokens';
 
 interface CardProps extends BoxProps {
   variant?: 'default' | 'compact' | 'tight';
@@ -34,7 +34,7 @@ export const Card = ({
       _hover={clickable ? {
         boxShadow: SHADOW.XL,
         transform: 'translateY(-2px)',
-        transition: 'all 0.15s'
+        transition: `all ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}`
       } : {}}
       {...props}
     >

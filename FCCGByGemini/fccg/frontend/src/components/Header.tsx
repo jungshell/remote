@@ -10,7 +10,7 @@ import ManualModal from './ManualModal';
 import { getApiBaseUrl } from '../config/api';
 import PlayerPassportPanel from './profile/PlayerPassportPanel';
 import { Button as AppButton } from './common';
-import { Z_INDEX, COLORS } from '../constants/designTokens';
+import { Z_INDEX, COLORS, MOTION } from '../constants/designTokens';
 
 const Signup = lazy(() => import('../pages/Signup'));
 const Login = lazy(() => import('../pages/Login'));
@@ -388,7 +388,7 @@ export default function Header() {
                   bg: 'gray.50',
                   color: 'brand.600',
             }}
-                transition="color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease"
+                transition={`color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}, border-color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}, background-color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}`}
                 leftIcon={<Icon />}
                 onClick={() => handleNavigate(item.path)}
             flexShrink={1}
@@ -528,7 +528,7 @@ export default function Header() {
                       overflow="hidden"
                       textOverflow="ellipsis"
                       maxW={{ base: '72px', md: '112px' }}
-                      transition="color 0.18s ease"
+                      transition={`color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}`}
                       _hover={{ color: 'brand.500', textDecoration: 'underline', textUnderlineOffset: '3px' }}
                       _focusVisible={{ outline: '2px solid', outlineColor: 'brand.300', outlineOffset: '3px' }}
                     >
@@ -642,7 +642,7 @@ export default function Header() {
                       fontFamily="inherit"
                       p={0}
                       cursor="pointer"
-                      transition="color 0.18s ease"
+                      transition={`color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}`}
                       _hover={{ color: 'brand.500', textDecoration: 'underline', textUnderlineOffset: '3px' }}
                       _focusVisible={{ outline: '2px solid', outlineColor: 'brand.300', outlineOffset: '3px' }}
                       onClick={() => {

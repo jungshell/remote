@@ -205,6 +205,22 @@ export const Z_INDEX = {
   NOTIFICATION: 9999, // 전역 알림은 모달 위에서도 항상 보여야 한다
 } as const;
 
+// Motion — 화면 곳곳에 흩어져 있던 hover/state transition 값(0.15~0.2s 사이)을
+// 하나의 작은 스케일로 정리한다. 새로운 애니메이션을 추가하는 게 아니라
+// 기존 움직임의 duration/easing 표기를 통일하기 위한 토큰이다.
+// NEXT MATCH 등 Brand Hero Zone의 고유 keyframe 애니메이션(float/pulse/gradient)은
+// 이 토큰으로 통일하지 않고 그대로 둔다.
+export const MOTION = {
+  DURATION: {
+    FAST: '0.15s', // 버튼/링크/아이콘 hover·focus 같은 micro interaction
+    NORMAL: '0.2s', // 카드 hover, 드래그 가능한 위젯 등 조금 더 무게감 있는 UI 전환
+    SLOW: '0.3s', // 캘린더 셀/정보 박스처럼 상대적으로 큰 표면이 반응하는 전환
+  },
+  EASING: {
+    STANDARD: 'ease',
+  },
+} as const;
+
 // 모바일에서 전역 ChatbotWidget(우하단 고정, ChatbotWidget.tsx)이 차지하는 가로 폭.
 // right 16px + 버튼 48px + 여유 8px. 스크롤 위치와 무관하게 항상 겹치면 안 되는
 // 우측 하단 액션 영역(예: 일정 페이지의 "투표하기" 버튼 열)에서 이 값만큼

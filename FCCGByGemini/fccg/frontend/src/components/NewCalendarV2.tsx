@@ -5,7 +5,7 @@ import { Flex, Badge, Tooltip } from '@chakra-ui/react';
 import { useAuthStore } from '../store/auth';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl } from '../config/api';
-import { COLORS, EVENT_TYPE_COLORS } from '../constants/designTokens';
+import { COLORS, EVENT_TYPE_COLORS, MOTION } from '../constants/designTokens';
 
 // 애니메이션 정의
 const fadeIn = keyframes`
@@ -88,7 +88,7 @@ const NavigationButton = styled.button`
   font-size: 12px;
   color: #64748b;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD};
   
   @media (max-width: 768px) {
     padding: 4px 8px;
@@ -176,7 +176,7 @@ const DayCell = styled.div.withConfig({
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  transition: all 0.2s ease;
+  transition: all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD};
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -326,7 +326,7 @@ const GameInfoBox = styled.div`
   padding: 5px 8px;
   margin-top: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all ${MOTION.DURATION.SLOW} ${MOTION.EASING.STANDARD};
   animation: ${fadeIn} 0.5s ease-out;
   box-shadow: 0 2px 8px rgba(0, 78, 168, 0.2);
 
@@ -415,7 +415,7 @@ const VoteGauge = styled.div<{ percentage: number; isMax: boolean }>`
   overflow: hidden;
   position: relative;
   border: 1px solid ${props => props.isMax ? '#7c3aed' : '#c4b5fd'};
-  transition: all 0.3s ease;
+  transition: all ${MOTION.DURATION.SLOW} ${MOTION.EASING.STANDARD};
   
   &::after {
     content: '';
@@ -427,7 +427,7 @@ const VoteGauge = styled.div<{ percentage: number; isMax: boolean }>`
     background: ${props => props.isMax ? '#7c3aed' : '#a78bfa'};
     border-radius: 7px;
     animation: ${props => props.percentage > 0 ? css`${gaugeFill} 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards` : 'none'};
-    transition: all 0.3s ease;
+    transition: all ${MOTION.DURATION.SLOW} ${MOTION.EASING.STANDARD};
   }
   
   &:hover {
