@@ -3289,16 +3289,17 @@ export default function SchedulePageV2() {
                       {/* 상태 뱃지 - 제목 바로 옆에 배치 */}
                       {unifiedVoteData?.activeSession && (
                       <Badge
-                        colorScheme={isVoteClosed ? "red" : "purple"}
-                        variant="solid"
+                        variant="outline"
                         fontSize={{ base: "2xs", md: "xs" }}
                         px={{ base: 1, md: 1.5 }}
                         py={0.5}
                         borderRadius="full"
                         minW={{ base: "40px", md: "50px" }}
                         textAlign="center"
-                        bg={isVoteClosed ? "red.500" : "purple.500"}
-                        color="white"
+                        bg={isVoteClosed ? "red.50" : "purple.50"}
+                        color={isVoteClosed ? "red.600" : "purple.600"}
+                        border="1px solid"
+                        borderColor={isVoteClosed ? "red.300" : "purple.300"}
                       >
                         {isVoteClosed ? "투표종료" : "투표 중"}
                       </Badge>
@@ -3841,13 +3842,18 @@ export default function SchedulePageV2() {
                     >
                       <Button
                         size={{ base: "xs", md: "sm" }}
-                        colorScheme="purple"
+                        variant="outline"
+                        border="1px solid"
+                        borderColor="purple.300"
+                        color="purple.600"
+                        bg="white"
                         onClick={handleShowVoteStatus}
                         fontSize={{ base: "2xs", md: "xs" }}
                         px={{ base: 1, md: 2 }}
                         h={{ base: "20px", md: "22px" }}
                         w="100%"
                         _hover={{
+                          bg: "purple.50",
                           transform: "translateY(-1px)",
                           boxShadow: "md"
                         }}
