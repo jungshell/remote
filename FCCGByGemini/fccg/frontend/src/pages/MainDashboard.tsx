@@ -1,5 +1,6 @@
-import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag } from '@chakra-ui/react';
+import { Box, Flex, Text, SimpleGrid, Stack, HStack, IconButton, Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, useDisclosure, Spinner, Alert, AlertIcon, VStack, Button, Badge, Tooltip, Wrap, WrapItem, Tag, Icon } from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
+import { MdOutlineGroup, MdOutlineSportsSoccer, MdOutlineCalendarMonth, MdOutlineHowToReg } from 'react-icons/md';
 import { MdMusicNote, MdMusicOff } from 'react-icons/md';
 import {
   NextMatchStatusCard,
@@ -660,28 +661,28 @@ export default function MainDashboard() {
   const bottomInfoData = useMemo(
     () => [
       {
-        icon: '👥',
+        icon: MdOutlineGroup,
         title: '총 멤버',
         eyebrow: '활동 회원 기준',
         value: `${realTimeMemberCount}명`,
         action: 'members',
       },
       {
-        icon: '🏆',
+        icon: MdOutlineSportsSoccer,
         title: '총 경기수',
         eyebrow: homeGameSummary.sinceLabel,
         value: `${homeGameSummary.completedCount}경기`,
         action: 'games',
       },
       {
-        icon: '📅',
+        icon: MdOutlineCalendarMonth,
         title: '이번 달 경기',
         eyebrow: `완료 ${homeGameSummary.thisMonthCompleted} · 예정 ${homeGameSummary.thisMonthUpcoming}`,
         value: `${homeGameSummary.thisMonthCount}경기`,
         action: 'month',
       },
       {
-        icon: '⚽',
+        icon: MdOutlineHowToReg,
         title: '평균 참석 인원',
         eyebrow: `완료 경기 ${homeGameSummary.completedCount}회 기준`,
         value: `${homeGameSummary.averageAttendance}명`,
@@ -2555,21 +2556,21 @@ export default function MainDashboard() {
             {bottomInfoData.map((info, idx) => (
               <Card
                 key={idx}
-                px={4}
-                py={3}
+                p={4}
                 minH="119px"
-                borderRadius="xl"
+                borderRadius="lg"
+                boxShadow="sm"
                 textAlign="center"
                 display="flex"
                 flexDirection="column"
                 alignItems="center"
                 justifyContent="center"
               >
-                <Stack direction="row" align="center" justify="center" spacing={1.5} mb={0}>
-                  <Text m={0} fontSize="2xl" lineHeight={1}>{info.icon}</Text>
-                  <Text m={0} fontWeight="bold" fontSize="lg" lineHeight={1.2}>{info.title}</Text>
+                <Stack direction="row" align="center" justify="center" spacing={1.5} mb={0} color="gray.600">
+                  <Icon as={info.icon} boxSize={5} />
+                  <Text m={0} fontWeight="600" fontSize="sm" lineHeight={1.2}>{info.title}</Text>
                 </Stack>
-                <Flex align="center" justify="center">
+                <Flex align="center" justify="center" mt={2}>
                   <Spinner size="md" color="blue.500" mr={2} />
                   <Text m={0} color="gray.500" lineHeight={1.2}>로딩 중...</Text>
                 </Flex>
@@ -2585,10 +2586,10 @@ export default function MainDashboard() {
                 clickable
                 key={idx}
                 aria-label={`${info.title} 상세 보기`}
-                px={4}
-                py={3}
+                p={4}
                 minH="119px"
-                borderRadius="xl"
+                borderRadius="lg"
+                boxShadow="sm"
                 textAlign="center"
                 display="flex"
                 flexDirection="column"
@@ -2709,29 +2710,33 @@ export default function MainDashboard() {
                   </Box>
                 )}
                 <VStack spacing={0} align="center" justify="center">
-                  <HStack align="center" justify="center" spacing={1.5}>
-                    <Text m={0} fontSize="2xl" lineHeight={1}>{info.icon}</Text>
-                    <Text m={0} fontWeight="bold" fontSize="lg" lineHeight={1.2}>{info.title}</Text>
+                  {/* eyebrow / category: 아이콘+제목은 뉴트럴 톤의 작은 라벨로,
+                      숫자(value)보다 절대 무겁게 보이지 않도록 한다 */}
+                  <HStack align="center" justify="center" spacing={1.5} color="gray.600">
+                    <Icon as={info.icon} boxSize={5} />
+                    <Text m={0} fontWeight="600" fontSize="sm" lineHeight={1.2}>{info.title}</Text>
                   </HStack>
+                  {/* main value: 카드의 핵심 정보, neutral strong color 유지(Phase 2B-1) */}
+                  <Text
+                    m={0}
+                    color={COLORS.TEXT_PRIMARY}
+                    fontSize="2xl"
+                    fontWeight="800"
+                    mt={2}
+                    lineHeight={1.1}
+                  >
+                    {info.value}
+                  </Text>
+                  {/* supporting information: 값보다 아래, 가장 약한 톤 */}
                   <Text
                     m={0}
                     color="#64748B"
                     fontSize="xs"
-                    fontWeight="600"
+                    fontWeight="500"
                     lineHeight={1.15}
-                    mt={2}
+                    mt={1}
                   >
                     {info.eyebrow}
-                  </Text>
-                  <Text
-                    m={0}
-                    color={COLORS.TEXT_PRIMARY}
-                    fontSize="xl"
-                    fontWeight="800"
-                    mt={4}
-                    lineHeight={1.1}
-                  >
-                    {info.value}
                   </Text>
                 </VStack>
               </Card>
@@ -2752,15 +2757,16 @@ export default function MainDashboard() {
           <ModalCloseButton />
           <ModalBody px={modalIdx === 0 ? 7 : 6} pt={5} pb={6}>
             {typeof modalIdx === 'number' && [0, 2, 4].includes(modalIdx) && (
-              <Flex align="center" justify="center" gap={2} mb={4}>
-                <Text fontSize="2xl" lineHeight={1}>
-                  {modalIdx === 0
+              <Flex align="center" justify="center" gap={2} mb={4} color="gray.600">
+                <Icon
+                  as={modalIdx === 0
                     ? bottomInfoData[0].icon
                     : modalIdx === 2
                       ? bottomInfoData[1].icon
                       : bottomInfoData[2].icon}
-                </Text>
-                <Text fontSize="lg" fontWeight="bold" lineHeight={1.2}>
+                  boxSize={6}
+                />
+                <Text fontSize="lg" fontWeight="bold" lineHeight={1.2} color={COLORS.TEXT_PRIMARY}>
                   {modalIdx === 0
                     ? bottomInfoData[0].title
                     : modalIdx === 2
