@@ -2249,7 +2249,7 @@ export default function MainDashboard() {
         gap={{ base: 5, lg: 7 }}
         px={{ base: 4, md: 5, lg: 6 }}
         pt={{ base: 4, lg: 3 }}
-        pb={{ base: 5, lg: 4 }}
+        pb={8}
         w="full"
         maxW="1400px"
         mx="auto"

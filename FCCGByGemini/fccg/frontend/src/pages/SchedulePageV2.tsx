@@ -3177,7 +3177,7 @@ export default function SchedulePageV2() {
                 ? { base: '1fr', lg: `${lockedCalendarWidth}px 400px` }
                 : { base: '1fr', lg: 'minmax(0, 1fr) 400px' }
             }
-            columnGap={{ base: 0, lg: 1 }}
+            columnGap={{ base: 0, lg: 6 }}
             rowGap={{ base: 4, lg: 0 }}
             alignItems="stretch"
           >
@@ -3264,7 +3264,7 @@ export default function SchedulePageV2() {
             boxSizing="border-box"
             justifySelf={{ base: 'stretch', lg: 'end' }}
           >
-            <VStack spacing={{ base: 1, md: 1.5 }} align="stretch">
+            <VStack spacing={{ base: 4, md: 6 }} align="stretch">
               {/* 이번주 일정 */}
               {renderThisWeekSchedule()}
 
