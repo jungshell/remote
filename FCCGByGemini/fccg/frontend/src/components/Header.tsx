@@ -377,16 +377,18 @@ export default function Header() {
             return (
           <Button
                 key={item.label}
-                variant={isActive ? "outline" : "ghost"}
-            bg={isActive ? 'brand.50' : 'transparent'}
-            color="brand.500"
-            border="0.5px solid"
-                borderColor={isActive ? "brand.500" : "transparent"}
+                variant="ghost"
+                bg="transparent"
+                color={isActive ? 'brand.600' : 'gray.500'}
+                fontWeight={isActive ? '700' : '500'}
+                borderRadius="md"
+                borderBottom="2px solid"
+                borderBottomColor={isActive ? 'brand.500' : 'transparent'}
             _hover={{
-                  bg: isActive ? 'brand.50' : 'gray.50',
-              borderColor: "brand.500"
+                  bg: 'gray.50',
+                  color: 'brand.600',
             }}
-                transition="background-color 0.15s ease, border-color 0.15s ease"
+                transition="color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease"
                 leftIcon={<Icon />}
                 onClick={() => handleNavigate(item.path)}
             flexShrink={1}
@@ -415,7 +417,7 @@ export default function Header() {
                     >
                       <Box minW={{ base: '60px', md: '70px' }} textAlign="center" display="flex" flexDirection="column" alignItems="center" justifyContent="center" flexShrink={1}>
                         <Text fontSize="xs" color="gray.500" cursor="default" _hover={{ color: "blue.400" }} whiteSpace="nowrap">
-                          투표율 <span style={{ color: '#004ea8', fontWeight: 'bold' }}>
+                          투표율 <span style={{ color: COLORS.TEXT_PRIMARY, fontWeight: 'bold' }}>
                             {isLoading ? '...' : `${animatedVoteAttendance}%`}
                           </span>
                         </Text>
@@ -456,7 +458,7 @@ export default function Header() {
                       fontSize="sm"
                     >
                       <Box minW={{ base: '60px', md: '70px' }} textAlign="center" display="flex" flexDirection="column" alignItems="center" justifyContent="center" flexShrink={1}>
-                        <Text fontSize="xs" color="gray.500" cursor="default" _hover={{ color: "blue.400" }} whiteSpace="nowrap">참여율 <span style={{ color: '#004ea8', fontWeight: 'bold' }}>{animatedAttendance}%</span></Text>
+                        <Text fontSize="xs" color="gray.500" cursor="default" _hover={{ color: "blue.400" }} whiteSpace="nowrap">참여율 <span style={{ color: COLORS.TEXT_PRIMARY, fontWeight: 'bold' }}>{animatedAttendance}%</span></Text>
                         <Box w="60px" mt={0.5}>
                           <Box
                             h="6px"
@@ -540,9 +542,10 @@ export default function Header() {
                 aria-label="메뉴얼"
                 icon={<InfoIcon />}
                 size="sm"
-                bg="brand.500"
-                color="white"
-                _hover={{ bg: 'brand.600' }}
+                variant="outline"
+                color="gray.600"
+                borderColor="gray.300"
+                _hover={{ bg: 'gray.50', color: 'brand.600' }}
                 onClick={memberManual.onOpen}
                 borderRadius="full"
               />
@@ -559,9 +562,10 @@ export default function Header() {
             aria-label="메뉴얼"
             icon={<InfoIcon />}
             size="md"
-            bg="brand.500"
-            color="white"
-            _hover={{ bg: 'brand.600' }}
+            variant="outline"
+            color="gray.600"
+            borderColor="gray.300"
+            _hover={{ bg: 'gray.50', color: 'brand.600' }}
             onClick={memberManual.onOpen}
             borderRadius="full"
           />
@@ -570,6 +574,9 @@ export default function Header() {
             icon={<HamburgerIcon />}
             size="md"
             variant="outline"
+            color="gray.600"
+            borderColor="gray.300"
+            _hover={{ bg: 'gray.50', color: 'brand.600' }}
             onClick={mobileNav.onOpen}
           />
         </HStack>
@@ -589,10 +596,15 @@ export default function Header() {
                   return (
                     <Button
                       key={item.label}
-                      variant={isActive ? 'solid' : 'ghost'}
+                      variant="ghost"
                       leftIcon={<Icon />}
                       justifyContent="flex-start"
-                      colorScheme={isActive ? 'brand' : undefined}
+                      bg={isActive ? 'brand.50' : 'transparent'}
+                      color={isActive ? 'brand.600' : 'gray.700'}
+                      fontWeight={isActive ? '700' : '500'}
+                      borderLeft="3px solid"
+                      borderLeftColor={isActive ? 'brand.500' : 'transparent'}
+                      _hover={{ bg: isActive ? 'brand.50' : 'gray.50' }}
                       onClick={() => handleNavigate(item.path)}
                     >
                       {item.label}

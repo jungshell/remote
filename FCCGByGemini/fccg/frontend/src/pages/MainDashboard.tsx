@@ -2440,7 +2440,7 @@ export default function MainDashboard() {
           position="relative"
           overflow="hidden"
         >
-          <IconButton icon={<ChevronLeftIcon />} aria-label="이전" position="absolute" left={2} top="50%" transform="translateY(-50%)" onClick={handlePrev} zIndex={2} bg="white" color="#004ea8" boxShadow="md" _hover={{ bg: "gray.100" }}/>
+          <IconButton icon={<ChevronLeftIcon />} aria-label="이전" position="absolute" left={2} top="50%" transform="translateY(-50%)" onClick={handlePrev} zIndex={2} bg="white" color="gray.600" boxShadow="sm" _hover={{ bg: "gray.100", color: "gray.700" }}/>
           <Box
             key={currentVideo.id}
             w="100%"
@@ -2527,7 +2527,7 @@ export default function MainDashboard() {
               }}
             />
           </Box>
-          <IconButton icon={<ChevronRightIcon />} aria-label="다음" position="absolute" right={2} top="50%" transform="translateY(-50%)" onClick={handleNext} zIndex={2} bg="white" color="#004ea8" boxShadow="md" _hover={{ bg: "gray.100" }}/>
+          <IconButton icon={<ChevronRightIcon />} aria-label="다음" position="absolute" right={2} top="50%" transform="translateY(-50%)" onClick={handleNext} zIndex={2} bg="white" color="gray.600" boxShadow="sm" _hover={{ bg: "gray.100", color: "gray.700" }}/>
         </Box>
       </Flex>
 
@@ -2725,7 +2725,7 @@ export default function MainDashboard() {
                   </Text>
                   <Text
                     m={0}
-                    color={COLORS.BRAND_PRIMARY}
+                    color={COLORS.TEXT_PRIMARY}
                     fontSize="xl"
                     fontWeight="800"
                     mt={4}
