@@ -5,6 +5,7 @@ import { Flex, Badge, Tooltip } from '@chakra-ui/react';
 import { useAuthStore } from '../store/auth';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl } from '../config/api';
+import { COLORS, EVENT_TYPE_COLORS } from '../constants/designTokens';
 
 // 애니메이션 정의
 const fadeIn = keyframes`
@@ -182,11 +183,11 @@ const DayCell = styled.div.withConfig({
   box-sizing: border-box;
   
   @media (max-width: 768px) {
-    min-height: 80px;
-    height: 80px;
-    padding: 4px;
+    min-height: 88px;
+    height: 88px;
+    padding: 6px;
   }
-  
+
   // 투표일인 경우 다른 날짜와 같은 테두리 색상 적용
   ${props => props.hasVote && `
     border: 0.5px solid #e2e8f0;
@@ -210,11 +211,11 @@ const DayCell = styled.div.withConfig({
   height: 100px;
   min-height: 100px;
   max-height: 100px;
-  
+
   @media (max-width: 768px) {
-    height: 80px;
-    min-height: 80px;
-    max-height: 80px;
+    height: 88px;
+    min-height: 88px;
+    max-height: 88px;
   }
   
   // 마지막 열의 오른쪽 테두리 제거
@@ -270,7 +271,7 @@ const HolidayName = styled.span`
   white-space: nowrap;
   
   @media (max-width: 768px) {
-    font-size: 8px;
+    font-size: 10px;
     max-width: 50px;
   }
 `;
@@ -285,30 +286,31 @@ const GameTypeBadge = styled.span<{ eventType: string }>`
   text-overflow: ellipsis;
   white-space: nowrap;
   
-  // 유형별 다른 스타일 적용
+  // 유형별 다른 스타일 적용 (색상 값은 designTokens.EVENT_TYPE_COLORS와 공유해서
+  // 대시보드 통계 카드의 이벤트 유형 뱃지와 항상 같은 색을 쓰도록 한다)
   ${props => {
     switch (props.eventType) {
       case '매치':
         return `
-          color: #2563eb;
+          color: ${EVENT_TYPE_COLORS['매치']};
           background: rgba(37, 99, 235, 0.1);
           border: 1px solid rgba(37, 99, 235, 0.3);
         `;
       case '자체':
         return `
-          color: #059669;
+          color: ${EVENT_TYPE_COLORS['자체']};
           background: rgba(5, 150, 105, 0.1);
           border: 1px solid rgba(5, 150, 105, 0.3);
         `;
       case '회식':
         return `
-          color: #dc2626;
+          color: ${EVENT_TYPE_COLORS['회식']};
           background: rgba(220, 38, 38, 0.1);
           border: 1px solid rgba(220, 38, 38, 0.3);
         `;
       default:
         return `
-          color: #6b7280;
+          color: ${EVENT_TYPE_COLORS['기타']};
           background: rgba(107, 114, 128, 0.1);
           border: 1px solid rgba(107, 114, 128, 0.3);
         `;
@@ -319,45 +321,45 @@ const GameTypeBadge = styled.span<{ eventType: string }>`
 const GameInfoBox = styled.div`
   background: white;
   color: #2d3748;
-  border: 1px solid #3182ce;
+  border: 1px solid ${COLORS.BRAND_PRIMARY};
   border-radius: 8px;
   padding: 5px 8px;
   margin-top: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
   animation: ${fadeIn} 0.5s ease-out;
-  box-shadow: 0 2px 8px rgba(49, 130, 206, 0.2);
-  
+  box-shadow: 0 2px 8px rgba(0, 78, 168, 0.2);
+
   // 세로 길이 조정 (더 컴팩트하게)
   min-height: 46px;
-  
+
   // 가로세로 중앙정렬
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  
+
   &:hover {
     transform: scale(1.02);
-    box-shadow: 0 4px 16px rgba(49, 130, 206, 0.3);
-    border-color: #2b6cb0;
+    box-shadow: 0 4px 16px rgba(0, 78, 168, 0.3);
+    border-color: ${COLORS.BRAND_PRIMARY_DARK};
   }
-  
+
   // 내용을 최대한 축소
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.2;
-  
+
   // 텍스트가 넘치지 않도록 처리
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  
+
   @media (max-width: 768px) {
     padding: 3px 4px;
     margin-top: 4px;
     min-height: 36px;
-    font-size: 8px;
+    font-size: 10px;
     border-radius: 6px;
   }
 `;
@@ -375,7 +377,7 @@ const GameCountBadge = styled.div`
 `;
 
 const GameTimeText = styled.div`
-  font-size: 9px;
+  font-size: 10px;
   color: #4a5568;
   margin-bottom: 2px;
   text-align: center;
@@ -386,7 +388,7 @@ const GameTimeText = styled.div`
 `;
 
 const GameLocationText = styled.div`
-  font-size: 9px;
+  font-size: 10px;
   color: #4a5568;
   text-align: center;
   display: flex;

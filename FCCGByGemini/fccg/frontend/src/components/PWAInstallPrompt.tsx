@@ -12,6 +12,7 @@ import {
 } from '@chakra-ui/react';
 import { DownloadIcon, CloseIcon, BellIcon, RepeatIcon } from '@chakra-ui/icons';
 import { usePWA } from '../hooks/usePWA';
+import { Z_INDEX } from '../constants/designTokens';
 
 interface PWAInstallPromptProps {
   onClose?: () => void;
@@ -57,7 +58,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
         borderRadius="lg"
         boxShadow="lg"
         p={4}
-        zIndex={1000}
+        zIndex={Z_INDEX.FLOATING_WIDGET}
         maxW="400px"
         mx="auto"
       >
@@ -199,7 +200,7 @@ export const PWAStatus: React.FC = () => {
       borderColor={borderColor}
       borderRadius="md"
       p={2}
-      zIndex={999}
+      zIndex={Z_INDEX.FLOATING_WIDGET}
       boxShadow="sm"
     >
       <HStack spacing={2}>

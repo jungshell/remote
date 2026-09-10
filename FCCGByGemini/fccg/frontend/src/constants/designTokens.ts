@@ -39,6 +39,22 @@ export const COLORS = {
   BORDER_GRAY_300: '#d1d5db',
 } as const;
 
+// 대시보드 NEXT MATCH 카드 그라디언트 — brand.* 스케일에 연결하되
+// 기존 스포츠다운 다크 블루 그라디언트 분위기와 MATCHDAY 상태 구분(청록 포인트)은 유지한다.
+export const GRADIENTS = {
+  NEXT_MATCH_DEFAULT: `linear-gradient(145deg, ${COLORS.BRAND_PRIMARY_DARKER} 0%, ${COLORS.BRAND_PRIMARY_DARK} 58%, ${COLORS.BRAND_PRIMARY_LIGHT} 100%)`,
+  NEXT_MATCH_MATCHDAY: `linear-gradient(145deg, ${COLORS.BRAND_PRIMARY_DARKER} 0%, ${COLORS.BRAND_PRIMARY} 52%, #0AA2C0 100%)`,
+} as const;
+
+// 경기 유형별 색상 — 대시보드 통계 카드(MainDashboard)와 일정 페이지 캘린더(NewCalendarV2)에서
+// 동일한 값을 각자 하드코딩하던 것을 하나로 합쳤다. 두 곳 모두 이 값을 참조한다.
+export const EVENT_TYPE_COLORS: Record<string, string> = {
+  '매치': '#2563eb',
+  '자체': '#059669',
+  '회식': '#dc2626',
+  '기타': '#6b7280',
+};
+
 // 간격 (Spacing)
 export const SPACING = {
   // 작은 간격
@@ -188,6 +204,12 @@ export const Z_INDEX = {
   TOOLTIP: 1800,
   NOTIFICATION: 9999, // 전역 알림은 모달 위에서도 항상 보여야 한다
 } as const;
+
+// 모바일에서 전역 ChatbotWidget(우하단 고정, ChatbotWidget.tsx)이 차지하는 가로 폭.
+// right 16px + 버튼 48px + 여유 8px. 스크롤 위치와 무관하게 항상 겹치면 안 되는
+// 우측 하단 액션 영역(예: 일정 페이지의 "투표하기" 버튼 열)에서 이 값만큼
+// 오른쪽 여백을 확보하면, 세로 스크롤 오프셋과 상관없이 챗봇과 절대 겹치지 않는다.
+export const MOBILE_CHATBOT_SAFE_RIGHT = '72px';
 
 // 반응형 브레이크포인트
 export const BREAKPOINTS = {

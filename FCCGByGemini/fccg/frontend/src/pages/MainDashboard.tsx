@@ -6,6 +6,7 @@ import {
   NextMatchPill,
   type NextMatchState,
 } from '../components/dashboard/NextMatchStatusCard';
+import { Card } from '../components/common';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
@@ -16,7 +17,7 @@ import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
 import { getApiBaseUrl } from '../config/api';
 import { ensureApiBaseUrl } from '../constants';
-import { Z_INDEX } from '../constants/designTokens';
+import { Z_INDEX, COLORS, GRADIENTS, EVENT_TYPE_COLORS } from '../constants/designTokens';
 
 const getKstDateKey = (dateLike: string | Date) => {
   const date = new Date(dateLike);
@@ -141,7 +142,11 @@ export default function MainDashboard() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   // 드래그 가능한 음악 버튼 위치 상태
-  const [buttonPosition, setButtonPosition] = useState({ x: 20, y: 200 }); // 유튜브 카드 상단 위치로 초기값 설정
+  // 기본(드래그 전) 위치는 CSS bottom/left 앵커로 처리해서 데스크톱/모바일 어떤 화면
+  // 크기에서도 NEXT MATCH 카드 텍스트와 겹치지 않도록 한다. 사용자가 실제로 버튼을
+  // 드래그하기 시작한 뒤에만 픽셀 좌표(buttonPosition)로 전환해 위치를 추적한다.
+  const [buttonPosition, setButtonPosition] = useState({ x: 20, y: 200 });
+  const [hasCustomButtonPosition, setHasCustomButtonPosition] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -236,7 +241,11 @@ export default function MainDashboard() {
   // 드래그 관련 상태
   const dragStartPos = useRef({ x: 0, y: 0 });
   const hasMoved = useRef(false);
-  
+  // 마우스를 누른 시점의 실제 렌더링 위치(getBoundingClientRect 기준).
+  // CSS bottom/left 앵커로 떠 있는 기본 상태에서도 드래그 여부(임계값) 판정을
+  // 정확히 할 수 있도록 buttonPosition 상태 대신 이 값을 기준으로 삼는다.
+  const pressRectRef = useRef({ x: 0, y: 0 });
+
   // 드래그 핸들러
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -244,6 +253,7 @@ export default function MainDashboard() {
     hasMoved.current = false;
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      pressRectRef.current = { x: rect.left, y: rect.top };
       dragStartPos.current = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
@@ -266,14 +276,19 @@ export default function MainDashboard() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging && buttonRef.current) {
-        // 움직임 감지
+        // 움직임 감지 (마우스를 누른 시점의 실제 위치 기준)
         const moveThreshold = 5; // 5px 이상 움직이면 드래그로 간주
-        const deltaX = Math.abs(e.clientX - (buttonPosition.x + dragStart.x));
-        const deltaY = Math.abs(e.clientY - (buttonPosition.y + dragStart.y));
+        const deltaX = Math.abs(e.clientX - (pressRectRef.current.x + dragStart.x));
+        const deltaY = Math.abs(e.clientY - (pressRectRef.current.y + dragStart.y));
         if (deltaX > moveThreshold || deltaY > moveThreshold) {
           hasMoved.current = true;
+          // 실제로 드래그가 시작된 뒤에만 픽셀 좌표 모드로 전환한다.
+          // 단순 클릭(음악 on/off)은 기본 반응형 위치를 그대로 유지한다.
+          setHasCustomButtonPosition(true);
         }
-        
+
+        if (!hasMoved.current) return;
+
         const newX = e.clientX - dragStart.x;
         const newY = e.clientY - dragStart.y;
         // 화면 경계 내로 제한
@@ -308,8 +323,25 @@ export default function MainDashboard() {
       document.removeEventListener('touchmove', handleMouseMove as any);
       document.removeEventListener('touchend', handleMouseUp);
     };
-  }, [isDragging, dragStart, buttonPosition]);
-  
+  }, [isDragging, dragStart]);
+
+  // 사용자가 버튼을 직접 옮긴 뒤 화면 크기가 바뀌어도(회전 등) 화면 밖으로
+  // 나가지 않도록 보정한다.
+  useEffect(() => {
+    if (!hasCustomButtonPosition) return;
+    const handleResize = () => {
+      setButtonPosition((prev) => {
+        const maxX = window.innerWidth - 32;
+        const maxY = window.innerHeight - 32;
+        const x = Math.max(0, Math.min(prev.x, maxX));
+        const y = Math.max(0, Math.min(prev.y, maxY));
+        return x === prev.x && y === prev.y ? prev : { x, y };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [hasCustomButtonPosition]);
+
   // 통계 상태 - 기본값으로 초기화
   const [stats, setStats] = useState<StatsSummary>({
     totalMembers: 0,
@@ -2140,7 +2172,7 @@ export default function MainDashboard() {
       minH="100vh"
       bg="#f7f9fb"
       w="100%"
-      pt="21mm"
+      pt={20}
       overflowX="hidden"
       sx={{
         '@media (min-width: 1280px) and (min-height: 820px) and (max-resolution: 1.25dppx)': {
@@ -2157,8 +2189,9 @@ export default function MainDashboard() {
         onClick={handleClick}
         onMouseDown={handleMouseDown}
         position="fixed"
-        left={`${buttonPosition.x}px`}
-        top={`${buttonPosition.y}px`}
+        {...(hasCustomButtonPosition
+          ? { left: `${buttonPosition.x}px`, top: `${buttonPosition.y}px` }
+          : { left: { base: '16px', md: '20px' }, bottom: { base: '20px', md: '24px' } })}
         zIndex={Z_INDEX.FLOATING_WIDGET}
         bg={isMusicEnabled ? "brand.500" : "gray.400"}
         color="white"
@@ -2229,15 +2262,17 @@ export default function MainDashboard() {
           overflow="hidden"
           p={{ base: 5, md: 5, lg: 6 }}
           borderRadius="2xl"
-          boxShadow={nextMatchDisplay?.isGameDay ? '0 18px 34px rgba(3, 27, 56, 0.18)' : 'none'}
+          boxShadow={nextMatchDisplay?.isGameDay
+            ? '0 18px 34px rgba(3, 27, 56, 0.18)'
+            : '0 10px 26px rgba(3, 27, 56, 0.14)'}
           h={{ base: 'auto', md: '520px' }}
           minH={{ base: '330px', md: '520px' }}
           alignSelf={{ base: 'auto', md: 'flex-start' }}
           maxW={{ base: '100%', md: '430px' }}
           color="white"
           bg={nextMatchDisplay?.isGameDay
-            ? 'linear-gradient(145deg, #071B35 0%, #0B4F8C 52%, #0AA2C0 100%)'
-            : 'linear-gradient(145deg, #031B38 0%, #064A96 58%, #0B78D0 100%)'}
+            ? GRADIENTS.NEXT_MATCH_MATCHDAY
+            : GRADIENTS.NEXT_MATCH_DEFAULT}
           display="flex"
           flexDirection="column"
           justifyContent="flex-start"
@@ -2287,7 +2322,7 @@ export default function MainDashboard() {
                 >
                   {nextMatchDisplay.eventType}
                 </Badge>
-                <Badge bg="#FEE500" color="#172033" borderRadius="full" px={3} py={1} fontWeight="900">
+                <Badge bg={COLORS.WARNING} color={COLORS.TEXT_PRIMARY} borderRadius="full" px={3} py={1} fontWeight="900">
                   {nextMatchDisplay.isGameDay ? nextMatchDisplay.gameDayCountdown : nextMatchDisplay.badge}
                 </Badge>
                 </HStack>
@@ -2506,7 +2541,7 @@ export default function MainDashboard() {
 
       {/* 하단 통계 카드 */}
       <SimpleGrid
-        columns={{ base: 1, sm: 2, lg: 4 }}
+        columns={{ base: 2, lg: 4 }}
         spacing={4}
         mb={{ base: 6, lg: 4 }}
         px={{ base: 4, md: 5, lg: 6 }}
@@ -2518,14 +2553,12 @@ export default function MainDashboard() {
         {loading ? (
           <>
             {bottomInfoData.map((info, idx) => (
-              <Box
+              <Card
                 key={idx}
-                bg="white"
                 px={4}
                 py={3}
                 minH="119px"
                 borderRadius="xl"
-                boxShadow="md"
                 textAlign="center"
                 display="flex"
                 flexDirection="column"
@@ -2540,30 +2573,27 @@ export default function MainDashboard() {
                   <Spinner size="md" color="blue.500" mr={2} />
                   <Text m={0} color="gray.500" lineHeight={1.2}>로딩 중...</Text>
                 </Flex>
-              </Box>
+              </Card>
             ))}
           </>
         ) : stats && (
           <>
             {bottomInfoData.map((info, idx) => (
-              <Box
+              <Card
                 as="button"
                 type="button"
+                clickable
                 key={idx}
                 aria-label={`${info.title} 상세 보기`}
-                bg="white"
                 px={4}
                 py={3}
                 minH="119px"
                 borderRadius="xl"
-                boxShadow="md"
                 textAlign="center"
                 display="flex"
                 flexDirection="column"
                 alignItems="center"
                 justifyContent="center"
-                cursor="pointer"
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)', transition: 'all 0.15s' }}
                 _focusVisible={{ outline: '3px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
                 onClick={() => {
                   if (info.action === 'members') {
@@ -2656,30 +2686,11 @@ export default function MainDashboard() {
                   <Box position="absolute" top={2} right={2}>
                     {(() => {
                       const eventType = (info as any).eventType;
-                      let bgColor = 'gray.500';
-                      let textColor = 'white';
-                      
-                      // 일정 페이지 달력 색상과 일치 (NewCalendarV2.tsx의 GameTypeBadge 색상)
-                      switch (eventType) {
-                        case '매치':
-                          bgColor = '#2563eb'; // 일정 페이지 달력과 동일
-                          textColor = 'white';
-                          break;
-                        case '자체':
-                          bgColor = '#059669'; // 일정 페이지 달력과 동일
-                          textColor = 'white';
-                          break;
-                        case '회식':
-                          bgColor = '#dc2626'; // 일정 페이지 달력과 동일
-                          textColor = 'white';
-                          break;
-                        case '기타':
-                        default:
-                          bgColor = '#6b7280'; // 일정 페이지 달력과 동일
-                          textColor = 'white';
-                          break;
-                      }
-                      
+                      // designTokens.EVENT_TYPE_COLORS를 일정 페이지 달력(NewCalendarV2.tsx)과
+                      // 공유해서 두 화면의 이벤트 유형 색이 어긋나지 않도록 한다.
+                      const bgColor = EVENT_TYPE_COLORS[eventType] ?? EVENT_TYPE_COLORS['기타'];
+                      const textColor = 'white';
+
                       return (
                         <Badge
                           bg={bgColor}
@@ -2708,13 +2719,13 @@ export default function MainDashboard() {
                     fontSize="xs"
                     fontWeight="600"
                     lineHeight={1.15}
-                    mt="2mm"
+                    mt={2}
                   >
                     {info.eyebrow}
                   </Text>
                   <Text
                     m={0}
-                    color="#004ea8"
+                    color={COLORS.BRAND_PRIMARY}
                     fontSize="xl"
                     fontWeight="800"
                     mt={4}
@@ -2723,7 +2734,7 @@ export default function MainDashboard() {
                     {info.value}
                   </Text>
                 </VStack>
-              </Box>
+              </Card>
             ))}
           </>
         )}

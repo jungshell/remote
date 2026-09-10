@@ -10,7 +10,7 @@ import ManualModal from './ManualModal';
 import { getApiBaseUrl } from '../config/api';
 import PlayerPassportPanel from './profile/PlayerPassportPanel';
 import { Button as AppButton } from './common';
-import { Z_INDEX } from '../constants/designTokens';
+import { Z_INDEX, COLORS } from '../constants/designTokens';
 
 const Signup = lazy(() => import('../pages/Signup'));
 const Login = lazy(() => import('../pages/Login'));
@@ -386,6 +386,7 @@ export default function Header() {
                   bg: isActive ? 'brand.50' : 'gray.50',
               borderColor: "brand.500"
             }}
+                transition="background-color 0.15s ease, border-color 0.15s ease"
                 leftIcon={<Icon />}
                 onClick={() => handleNavigate(item.path)}
             flexShrink={1}
@@ -427,7 +428,7 @@ export default function Header() {
                             position="relative"
                           >
                             <Box
-                              bg="#e53e3e"
+                              bg={COLORS.WARNING}
                               h="100%"
                               borderRadius={4}
                               position="absolute"
@@ -484,6 +485,8 @@ export default function Header() {
                         </Box>
                       </Box>
                     </Tooltip>
+                    {/* 투표율/참여율(정보)과 아바타/이름(계정) 영역을 시각적으로 구분 */}
+                    <Box w="1px" h="28px" bg="gray.200" flexShrink={0} />
                   </>
                 )}
                 <HStack align="center" spacing={2} flexShrink={0}>
@@ -546,7 +549,7 @@ export default function Header() {
             </>
           )}
         </HStack>
-        <HStack spacing={1} display={{ base: 'flex', md: 'none' }}>
+        <HStack spacing={2} display={{ base: 'flex', md: 'none' }}>
           {!user ? (
             <AppButton size="xs" variant="primary" onClick={onOpen}>로그인</AppButton>
           ) : (
@@ -555,7 +558,7 @@ export default function Header() {
           <IconButton
             aria-label="메뉴얼"
             icon={<InfoIcon />}
-            size="sm"
+            size="md"
             bg="brand.500"
             color="white"
             _hover={{ bg: 'brand.600' }}
@@ -565,7 +568,7 @@ export default function Header() {
           <IconButton
             aria-label="모바일 메뉴"
             icon={<HamburgerIcon />}
-            size="sm"
+            size="md"
             variant="outline"
             onClick={mobileNav.onOpen}
           />
@@ -577,7 +580,7 @@ export default function Header() {
         <DrawerContent>
           <DrawerCloseButton />
           <DrawerHeader>메뉴</DrawerHeader>
-          <DrawerBody>
+          <DrawerBody display="flex" flexDirection="column">
             <VStack align="stretch" spacing={4} divider={<StackDivider borderColor="gray.100" />}>
               <VStack align="stretch" spacing={2}>
                 {availableNavItems.map((item) => {
@@ -656,6 +659,12 @@ export default function Header() {
                 </Button>
               )}
             </VStack>
+            {/* 메뉴 항목이 적어도 드로어 하단이 허전하지 않도록 여백을 의미 있게 채운다 */}
+            <Box mt="auto" pt={6} pb={2} textAlign="center">
+              <Text fontSize="xs" color="gray.400" fontWeight="700" letterSpacing="0.08em">
+                FC CHAL-GGYEO
+              </Text>
+            </Box>
           </DrawerBody>
         </DrawerContent>
       </Drawer>

@@ -11,6 +11,7 @@ import {
   Icon,
 } from '@chakra-ui/react';
 import { FiX, FiBell, FiMail, FiSmartphone } from 'react-icons/fi';
+import { Z_INDEX } from '../constants/designTokens';
 
 interface InAppNotificationProps {
   notification: {
@@ -93,7 +94,7 @@ const InAppNotification: React.FC<InAppNotificationProps> = ({ notification, onC
         position="fixed"
         top="20px"
         right="20px"
-        zIndex={9999}
+        zIndex={Z_INDEX.NOTIFICATION}
         w="400px"
         maxW="90vw"
         bg="white"

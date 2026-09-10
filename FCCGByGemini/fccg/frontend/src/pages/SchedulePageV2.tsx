@@ -38,6 +38,7 @@ import { getUnifiedVoteDataNew, deleteVote } from '../api/auth';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
+import { MOBILE_CHATBOT_SAFE_RIGHT } from '../constants/designTokens';
 import { EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { CalendarSkeleton, VoteSectionSkeleton } from '../components/common/SkeletonLoader';
 import {
@@ -3256,6 +3257,9 @@ export default function SchedulePageV2() {
             w={{ base: '100%', lg: '400px' }}
             p={{ base: 2, md: 4 }}
             pr={{ base: 2, md: 4, lg: 1 }}
+            // 모바일에서는 전역 챗봇 버튼(우하단 고정, ChatbotWidget)이 리스트 마지막
+            // 항목을 가리지 않도록 버튼 높이만큼 안전 여백을 확보한다.
+            pb={{ base: '96px', md: 4 }}
             overflowX="hidden"
             boxSizing="border-box"
             justifySelf={{ base: 'stretch', lg: 'end' }}
@@ -3264,7 +3268,8 @@ export default function SchedulePageV2() {
               {/* 이번주 일정 */}
               {renderThisWeekSchedule()}
 
-              {/* 다음주 일정투표 - 섹션은 항상 표시 */}
+              {/* 다음주 일정투표 - 섹션은 항상 표시. 지금 행동(투표)이 필요한 카드라는 것을
+                  "이번주 일정"(단순 열람) 대비 상단 브랜드 컬러 악센트로 구분한다. */}
                 <Box
                   bg="white"
                 px={{ base: 3, md: 4 }}
@@ -3274,6 +3279,8 @@ export default function SchedulePageV2() {
                   boxShadow="sm"
                   border="1px solid"
                   borderColor="gray.200"
+                  borderTopWidth="3px"
+                  borderTopColor="brand.500"
                 >
                 <Flex justify="space-between" align="center" mb={0} mt={0}>
                   <Flex align="center" gap={{ base: 0.6, md: 1 }}>
@@ -3392,7 +3399,7 @@ export default function SchedulePageV2() {
                               borderColor={selectedDays.includes(vote.date) ? 'purple.400' : 'transparent'}
                               bg={selectedDays.includes(vote.date) ? 'purple.50' : isHoliday ? 'red.50' : 'transparent'}
                               px={{ base: 4, md: 6 }}
-                              py={selectedDays.includes(vote.date) ? '-8px' : 0}
+                              py={0}
                               minH="auto"
                               h="auto"
                             onClick={() => {
@@ -3559,7 +3566,7 @@ export default function SchedulePageV2() {
                             borderColor={selectedDays.includes(dateString) ? 'purple.400' : 'transparent'}
                             bg={selectedDays.includes(dateString) ? 'purple.50' : isDisabled ? 'red.50' : 'transparent'}
                             px={{ base: 4, md: 6 }}
-                            py={selectedDays.includes(dateString) ? '-8px' : 0}
+                            py={0}
                             minH="auto"
                             h="auto"
                             onClick={() => {
@@ -3695,7 +3702,7 @@ export default function SchedulePageV2() {
                     borderColor={selectedDays.includes('불참') ? "purple.400" : "transparent"}
                     bg={selectedDays.includes('불참') ? "purple.50" : "transparent"}
                   px={{ base: 4, md: 6 }}
-                  py={selectedDays.includes('불참') ? '-8px' : 0}
+                  py={0}
                   minH="auto"
                   h="auto"
                     onClick={() => {
@@ -3821,6 +3828,10 @@ export default function SchedulePageV2() {
                     <Grid
                       gap={{ base: 1, md: 2 }}
                       w={{ base: "100%", sm: "auto" }}
+                      // 모바일에서는 전역 ChatbotWidget(우하단 고정)이 스크롤 위치와 무관하게
+                      // 이 버튼 열과 같은 우측 컬럼에 떠 있으므로, 챗봇 폭만큼 오른쪽 여백을
+                      // 미리 확보해 겹치지 않게 한다. desktop(md 이상)은 변경 없음.
+                      pr={{ base: MOBILE_CHATBOT_SAFE_RIGHT, md: 0 }}
                       templateColumns={
                         isAdmin
                           ? { base: "minmax(0,1fr) minmax(0,1fr) 24px", md: "minmax(0,1fr) minmax(0,1fr) 28px" }
