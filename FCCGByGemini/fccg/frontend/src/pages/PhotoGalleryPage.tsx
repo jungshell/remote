@@ -10,6 +10,7 @@ import {
   Badge,
   IconButton,
   Image,
+  Icon,
   SimpleGrid,
   Modal,
   ModalOverlay,
@@ -29,11 +30,25 @@ import {
 } from '@chakra-ui/react';
 import { AiFillHeart } from 'react-icons/ai';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import {
+  MdOutlinePhotoCamera,
+  MdOutlinePhotoLibrary,
+  MdOutlineCalendarMonth,
+  MdOutlineSportsSoccer,
+  MdOutlineChatBubbleOutline,
+  MdOutlineLabel,
+  MdOutlineBolt,
+  MdOutlineFavorite,
+  MdOutlineFavoriteBorder,
+  MdOutlineDownload,
+  MdOutlineEdit,
+} from 'react-icons/md';
 import { AddIcon, AttachmentIcon, ArrowUpIcon, DeleteIcon, CheckIcon, CloseIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
 import { useDesktopPagedLayout } from '../hooks/useDesktopPagedLayout';
+import { MOTION } from '../constants/designTokens';
 
 // 타입 정의
 interface InstagramPost {
@@ -76,42 +91,6 @@ interface Comment {
 const viewCountFormatter = new Intl.NumberFormat('ko-KR');
 const formatViewCountDisplay = (value: number = 0) =>
   viewCountFormatter.format(Math.max(0, value));
-
-const CLICK_BADGE_PRESETS = [
-  {
-    threshold: 500,
-    emoji: '👑',
-    gradient: 'linear-gradient(120deg, rgba(255,111,145,0.95), rgba(255,215,0,0.92))',
-    shadow: '0 10px 25px rgba(255,170,51,0.35)'
-  },
-  {
-    threshold: 120,
-    emoji: '🔥',
-    gradient: 'linear-gradient(120deg, rgba(255,94,98,0.95), rgba(255,149,0,0.9))',
-    shadow: '0 8px 20px rgba(255,94,98,0.35)'
-  },
-  {
-    threshold: 30,
-    emoji: '⚡',
-    gradient: 'linear-gradient(120deg, rgba(76,81,191,0.92), rgba(115,103,240,0.9))',
-    shadow: '0 6px 18px rgba(76,81,191,0.3)'
-  },
-  {
-    threshold: 0,
-    emoji: '✨',
-    gradient: 'linear-gradient(120deg, rgba(15,23,42,0.85), rgba(30,41,59,0.78))',
-    shadow: '0 4px 12px rgba(15,23,42,0.35)'
-  }
-] as const;
-
-const getClickBadgeStyle = (count: number) => {
-  for (const preset of CLICK_BADGE_PRESETS) {
-    if (count >= preset.threshold) {
-      return preset;
-    }
-  }
-  return CLICK_BADGE_PRESETS[CLICK_BADGE_PRESETS.length - 1];
-};
 
 // 하드코딩된 더미 데이터 제거 - 실제 API에서만 데이터를 가져옵니다
 
@@ -1522,9 +1501,9 @@ export default function PhotoGalleryPage() {
             <IconButton
               aria-label="사진 업로드"
               icon={<AddIcon />}
-              colorScheme="blue"
-              bg="#004ea8"
-              _hover={{ bg: "#003d7a" }}
+              bg="brand.500"
+              color="white"
+              _hover={{ bg: "brand.600" }}
               onClick={() => setIsUploadModalOpen(true)}
               size="sm"
             />
@@ -1536,19 +1515,23 @@ export default function PhotoGalleryPage() {
       {/* 포스트 그리드 */}
       {isInitialLoad ? (
         <Center py={20}>
-          <VStack spacing={4}>
-            <Text fontSize="lg" color="gray.500">사진을 불러오는 중...</Text>
+          <VStack spacing={3}>
+            <Icon as={MdOutlinePhotoLibrary} boxSize="32px" color="gray.400" />
+            <Text fontSize="md" color="gray.500">사진을 불러오는 중...</Text>
           </VStack>
         </Center>
       ) : sortedPosts.length === 0 ? (
         <Center py={20}>
-          <VStack spacing={4}>
-            <Text fontSize="lg" color="gray.500">아직 업로드된 사진이 없습니다</Text>
+          <VStack spacing={3}>
+            <Icon as={MdOutlinePhotoLibrary} boxSize="32px" color="gray.400" />
+            <Text fontSize="md" fontWeight="semibold" color="gray.700">아직 업로드된 사진이 없습니다</Text>
+            <Text fontSize="sm" color="gray.500">팀 사진과 매치 순간을 공유해 보세요.</Text>
             {user && (
               <Button
-                colorScheme="blue"
-                bg="#004ea8"
-                _hover={{ bg: "#003d7a" }}
+                mt={1}
+                bg="brand.500"
+                color="white"
+                _hover={{ bg: "brand.600" }}
                 onClick={() => setIsUploadModalOpen(true)}
               >
                 첫 번째 사진 업로드하기
@@ -1570,11 +1553,13 @@ export default function PhotoGalleryPage() {
                 overflow="hidden"
                 borderRadius="lg"
                 bg="white"
-                shadow="md"
+                border="1px solid"
+                borderColor="gray.200"
+                shadow="sm"
                 cursor="pointer"
                 role="group"
-                transition="all 0.2s ease"
-                _hover={{ shadow: 'xl', transform: 'translateY(-4px)' }}
+                transition={`all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`}
+                _hover={{ shadow: 'md', transform: 'translateY(-2px)' }}
                 onClick={() => handleOpenPost(post)}
               >
                 <CardBody p={0}>
@@ -1690,7 +1675,7 @@ export default function PhotoGalleryPage() {
                               py={1}
                             >
                               <HStack spacing={1} cursor="default">
-                                <Text fontSize="sm">💬</Text>
+                                <Icon as={MdOutlineChatBubbleOutline} boxSize="14px" color="gray.500" />
                                 <Text fontSize="sm" color="gray.600">{post.comments.length}</Text>
                               </HStack>
                             </Tooltip>
@@ -1705,7 +1690,7 @@ export default function PhotoGalleryPage() {
                               py={1}
                             >
                               <HStack spacing={1} cursor="default">
-                                <Text fontSize="sm">⚡</Text>
+                                <Icon as={MdOutlineBolt} boxSize="14px" color="gray.500" />
                                 <Text fontSize="sm" color="gray.600">
                                   {formatViewCountDisplay(post.clicks || 0)}
                                 </Text>
@@ -1749,11 +1734,11 @@ export default function PhotoGalleryPage() {
                   key={page}
                   size="sm"
                   minW="36px"
-                  bg={currentPage === page ? '#0057B8' : 'white'}
-                  color={currentPage === page ? 'white' : '#334155'}
+                  bg={currentPage === page ? 'brand.500' : 'white'}
+                  color={currentPage === page ? 'white' : 'gray.700'}
                   border="1px solid"
-                  borderColor={currentPage === page ? '#0057B8' : '#CBD5E1'}
-                  _hover={{ bg: currentPage === page ? '#003F86' : '#EFF6FF' }}
+                  borderColor={currentPage === page ? 'brand.500' : 'gray.300'}
+                  _hover={{ bg: currentPage === page ? 'brand.600' : 'brand.50' }}
                   onClick={() => setCurrentPage(page)}
                   aria-current={currentPage === page ? 'page' : undefined}
                 >
@@ -1768,7 +1753,7 @@ export default function PhotoGalleryPage() {
                 isDisabled={currentPage === totalPages}
                 onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
               />
-              <Text ml={2} color="#64748B" fontSize="xs">
+              <Text ml={2} color="gray.500" fontSize="xs">
                 {currentPage}/{totalPages} · 총 {sortedPosts.length}개
               </Text>
             </HStack>
@@ -1780,13 +1765,21 @@ export default function PhotoGalleryPage() {
       <Modal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} size="xl">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>📸 사진 업로드</ModalHeader>
+          <ModalHeader borderBottom="1px solid" borderColor="gray.100" py={3}>
+            <HStack spacing={2}>
+              <Icon as={MdOutlinePhotoCamera} boxSize="18px" color="brand.600" />
+              <Text fontSize="md" fontWeight="bold">사진 업로드</Text>
+            </HStack>
+          </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             <VStack spacing={4}>
               {/* 파일 선택 영역 */}
               <FormControl>
-                <FormLabel>📷 사진 업로드</FormLabel>
+                <FormLabel display="flex" alignItems="center" gap={1.5}>
+                  <Icon as={MdOutlinePhotoCamera} boxSize="14px" color="gray.500" />
+                  사진 업로드
+                </FormLabel>
                 <Box
                   border="2px dashed"
                   borderColor={dragActive ? "blue.400" : "gray.300"}
@@ -1825,7 +1818,10 @@ export default function PhotoGalleryPage() {
               {/* 이벤트 정보 */}
               <HStack spacing={4} w="full">
                 <FormControl>
-                  <FormLabel mb={0}>📅 행사 날짜</FormLabel>
+                  <FormLabel mb={0} display="flex" alignItems="center" gap={1.5}>
+                    <Icon as={MdOutlineCalendarMonth} boxSize="14px" color="gray.500" />
+                    행사 날짜
+                  </FormLabel>
                   <Input
                     type="date"
                     value={formData.eventDate}
@@ -1833,7 +1829,10 @@ export default function PhotoGalleryPage() {
                   />
                 </FormControl>
                 <FormControl>
-                  <FormLabel mb={0}>⚽ 행사 유형</FormLabel>
+                  <FormLabel mb={0} display="flex" alignItems="center" gap={1.5}>
+                    <Icon as={MdOutlineSportsSoccer} boxSize="14px" color="gray.500" />
+                    행사 유형
+                  </FormLabel>
                   <Select
                     value={formData.eventType}
                     onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
@@ -1848,7 +1847,10 @@ export default function PhotoGalleryPage() {
 
               {/* 캡션 */}
               <FormControl>
-                <FormLabel>💬 캡션</FormLabel>
+                <FormLabel display="flex" alignItems="center" gap={1.5}>
+                  <Icon as={MdOutlineChatBubbleOutline} boxSize="14px" color="gray.500" />
+                  캡션
+                </FormLabel>
                 <Textarea
                   value={formData.caption}
                   onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
@@ -1859,7 +1861,10 @@ export default function PhotoGalleryPage() {
 
               {/* 태그 */}
               <FormControl>
-                <FormLabel>🏷️ 태그</FormLabel>
+                <FormLabel display="flex" alignItems="center" gap={1.5}>
+                  <Icon as={MdOutlineLabel} boxSize="14px" color="gray.500" />
+                  태그
+                </FormLabel>
                 <Input
                   value={formData.tags}
                   onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
@@ -1870,7 +1875,9 @@ export default function PhotoGalleryPage() {
               {/* 버튼 */}
               <HStack spacing={3} w="full">
                 <Button
-                  colorScheme="blue"
+                  bg="brand.500"
+                  color="white"
+                  _hover={{ bg: "brand.600" }}
                   onClick={handleUpload}
                   isLoading={isUploading}
                   flex={1}
@@ -1878,6 +1885,7 @@ export default function PhotoGalleryPage() {
                   업로드
                 </Button>
                 <Button
+                  variant="outline"
                   onClick={() => setIsUploadModalOpen(false)}
                   flex={1}
                 >
@@ -1893,12 +1901,20 @@ export default function PhotoGalleryPage() {
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>✏️ 포스트 편집</ModalHeader>
+          <ModalHeader borderBottom="1px solid" borderColor="gray.100" py={3}>
+            <HStack spacing={2}>
+              <Icon as={MdOutlineEdit} boxSize="18px" color="brand.600" />
+              <Text fontSize="md" fontWeight="bold">포스트 편집</Text>
+            </HStack>
+          </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             <VStack spacing={4}>
               <FormControl>
-                <FormLabel>💬 캡션</FormLabel>
+                <FormLabel display="flex" alignItems="center" gap={1.5}>
+                  <Icon as={MdOutlineChatBubbleOutline} boxSize="14px" color="gray.500" />
+                  캡션
+                </FormLabel>
                 <Textarea
                   value={editFormData.caption}
                   onChange={(e) => setEditFormData({ ...editFormData, caption: e.target.value })}
@@ -1908,7 +1924,10 @@ export default function PhotoGalleryPage() {
 
               <HStack spacing={4} w="full">
                 <FormControl>
-                  <FormLabel>📅 행사 날짜</FormLabel>
+                  <FormLabel display="flex" alignItems="center" gap={1.5}>
+                    <Icon as={MdOutlineCalendarMonth} boxSize="14px" color="gray.500" />
+                    행사 날짜
+                  </FormLabel>
                   <Input
                     type="date"
                     value={editFormData.eventDate}
@@ -1916,7 +1935,10 @@ export default function PhotoGalleryPage() {
                   />
                 </FormControl>
                 <FormControl>
-                  <FormLabel>⚽ 행사 유형</FormLabel>
+                  <FormLabel display="flex" alignItems="center" gap={1.5}>
+                    <Icon as={MdOutlineSportsSoccer} boxSize="14px" color="gray.500" />
+                    행사 유형
+                  </FormLabel>
                   <Select
                     value={editFormData.eventType}
                     onChange={(e) => setEditFormData({ ...editFormData, eventType: e.target.value })}
@@ -1930,7 +1952,10 @@ export default function PhotoGalleryPage() {
               </HStack>
 
               <FormControl>
-                <FormLabel>🏷️ 태그</FormLabel>
+                <FormLabel display="flex" alignItems="center" gap={1.5}>
+                  <Icon as={MdOutlineLabel} boxSize="14px" color="gray.500" />
+                  태그
+                </FormLabel>
                 <Input
                   value={editFormData.tags}
                   onChange={(e) => setEditFormData({ ...editFormData, tags: e.target.value })}
@@ -1939,10 +1964,10 @@ export default function PhotoGalleryPage() {
               </FormControl>
 
               <HStack spacing={3} w="full">
-                <Button colorScheme="blue" onClick={handleEditSave} flex={1}>
+                <Button bg="brand.500" color="white" _hover={{ bg: "brand.600" }} onClick={handleEditSave} flex={1}>
                   저장
                 </Button>
-                <Button onClick={() => setIsEditModalOpen(false)} flex={1}>
+                <Button variant="outline" onClick={() => setIsEditModalOpen(false)} flex={1}>
                   취소
                 </Button>
               </HStack>
@@ -2148,27 +2173,31 @@ export default function PhotoGalleryPage() {
                     <Flex w="full" justify="flex-end" align="center" mt="-1">
                       <HStack spacing={1.5}>
                         <Tooltip label="좋아요" placement="top">
-                          <IconButton 
-                            aria-label="좋아요" 
-                            icon={selectedPost.isLiked ? <Text fontSize="xs" color="white" fontWeight="bold">♥</Text> : <Text fontSize="xs" color="white">♡</Text>} 
-                            size="xs" 
-                            bg={selectedPost.isLiked ? "#e53e3e" : "#004ea8"}
-                            color="white"
-                            _hover={{ bg: selectedPost.isLiked ? "#c53030" : "#00397a" }}
-                            onClick={() => toggleLike(selectedPost.id)} 
+                          <IconButton
+                            aria-label="좋아요"
+                            icon={<Icon as={selectedPost.isLiked ? MdOutlineFavorite : MdOutlineFavoriteBorder} boxSize="14px" />}
+                            size="xs"
+                            bg={selectedPost.isLiked ? "red.500" : "white"}
+                            color={selectedPost.isLiked ? "white" : "gray.600"}
+                            border="1px solid"
+                            borderColor={selectedPost.isLiked ? "red.500" : "gray.300"}
+                            _hover={{ bg: selectedPost.isLiked ? "red.600" : "gray.50" }}
+                            onClick={() => toggleLike(selectedPost.id)}
                             h="24px"
                             minW="24px"
                           />
                         </Tooltip>
                         <Tooltip label="다운로드" placement="top">
-                          <IconButton 
-                            aria-label="다운로드" 
-                            icon={<Text fontSize="xs" color="white">↓</Text>} 
-                            size="xs" 
-                            bg="#004ea8"
-                            color="white"
-                            _hover={{ bg: "#00397a" }}
-                            onClick={() => handleDownload(selectedPost)} 
+                          <IconButton
+                            aria-label="다운로드"
+                            icon={<Icon as={MdOutlineDownload} boxSize="14px" />}
+                            size="xs"
+                            bg="white"
+                            color="gray.600"
+                            border="1px solid"
+                            borderColor="gray.300"
+                            _hover={{ bg: "gray.50" }}
+                            onClick={() => handleDownload(selectedPost)}
                             h="24px"
                             minW="24px"
                           />
@@ -2176,27 +2205,30 @@ export default function PhotoGalleryPage() {
                         {((user?.id && user?.id === selectedPost.author.id) || user?.role === 'SUPER_ADMIN') && (
                           <>
                             <Tooltip label="수정" placement="top">
-                              <IconButton 
-                                aria-label="수정" 
-                                icon={<Text fontSize="xs" color="white">✎</Text>} 
-                                size="xs" 
-                                bg="#004ea8"
-                                color="white"
-                                _hover={{ bg: "#00397a" }}
-                                onClick={() => openEditModal(selectedPost)} 
+                              <IconButton
+                                aria-label="수정"
+                                icon={<Icon as={MdOutlineEdit} boxSize="14px" />}
+                                size="xs"
+                                bg="white"
+                                color="gray.600"
+                                border="1px solid"
+                                borderColor="gray.300"
+                                _hover={{ bg: "gray.50" }}
+                                onClick={() => openEditModal(selectedPost)}
                                 h="24px"
                                 minW="24px"
                               />
                             </Tooltip>
                             <Tooltip label="삭제" placement="top">
-                              <IconButton 
-                                aria-label="삭제" 
-                                icon={<DeleteIcon color="white" boxSize="10px" />} 
-                                size="xs" 
-                                bg="#004ea8"
-                                color="white"
-                                _hover={{ bg: "#00397a" }}
-                                onClick={() => deletePost(selectedPost.id)} 
+                              <IconButton
+                                aria-label="삭제"
+                                icon={<DeleteIcon color="red.600" boxSize="10px" />}
+                                size="xs"
+                                bg="white"
+                                border="1px solid"
+                                borderColor="red.300"
+                                _hover={{ bg: "red.50" }}
+                                onClick={() => deletePost(selectedPost.id)}
                                 h="24px"
                                 minW="24px"
                               />
@@ -2273,30 +2305,30 @@ export default function PhotoGalleryPage() {
                                 <Text fontSize="xs" color="gray.600" fontWeight="bold">{comment.author.name}</Text>
                                 {((user?.id && user?.id === comment.author.id) || user?.role === 'SUPER_ADMIN') && (
                                   <HStack spacing={0.5}>
-                                    <IconButton 
-                                      aria-label="댓글 수정" 
-                                      icon={<Text fontSize="10px" color="#004ea8">✎</Text>} 
-                                      size="xs" 
+                                    <IconButton
+                                      aria-label="댓글 수정"
+                                      icon={<Icon as={MdOutlineEdit} boxSize="12px" />}
+                                      size="xs"
                                       bg="white"
-                                      borderColor="#004ea8"
+                                      borderColor="gray.300"
                                       borderWidth="1px"
-                                      color="#004ea8"
-                                      _hover={{ bg: "blue.50" }}
-                                      onClick={() => startEditComment(comment.id, comment.content)} 
+                                      color="gray.600"
+                                      _hover={{ bg: "gray.50" }}
+                                      onClick={() => startEditComment(comment.id, comment.content)}
                                       h="20px"
                                       minW="20px"
                                       p={0}
                                     />
-                                    <IconButton 
-                                      aria-label="댓글 삭제" 
-                                      icon={<DeleteIcon color="#004ea8" boxSize="10px" />} 
-                                      size="xs" 
+                                    <IconButton
+                                      aria-label="댓글 삭제"
+                                      icon={<DeleteIcon color="red.600" boxSize="10px" />}
+                                      size="xs"
                                       bg="white"
-                                      borderColor="#004ea8"
+                                      borderColor="red.300"
                                       borderWidth="1px"
-                                      color="#004ea8"
-                                      _hover={{ bg: "blue.50" }}
-                                      onClick={() => deleteComment(selectedPost.id, comment.id)} 
+                                      color="red.600"
+                                      _hover={{ bg: "red.50" }}
+                                      onClick={() => deleteComment(selectedPost.id, comment.id)}
                                       h="20px"
                                       minW="20px"
                                       p={0}
@@ -2332,12 +2364,12 @@ export default function PhotoGalleryPage() {
                           }
                         }} 
                       />
-                      <IconButton 
-                        size="sm" 
-                        bg="#004ea8"
+                      <IconButton
+                        size="sm"
+                        bg="brand.500"
                         color="white"
-                        _hover={{ bg: "#00397a" }}
-                        aria-label="등록" 
+                        _hover={{ bg: "brand.600" }}
+                        aria-label="등록"
                         icon={<ArrowUpIcon />} 
                         h="28px"
                         minW="28px"

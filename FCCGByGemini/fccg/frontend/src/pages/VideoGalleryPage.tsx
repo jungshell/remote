@@ -1,14 +1,15 @@
-import { 
-  Box, 
-  Flex, 
-  Text, 
-  HStack, 
-  VStack, 
-  Button, 
-  Input, 
-  Badge, 
-  IconButton, 
-  Image, 
+import {
+  Box,
+  Flex,
+  Text,
+  HStack,
+  VStack,
+  Button,
+  Input,
+  Badge,
+  IconButton,
+  Image,
+  Icon,
   SimpleGrid,
   Modal,
   ModalOverlay,
@@ -22,14 +23,14 @@ import {
   Select,
   Tooltip
 } from '@chakra-ui/react';
-import { 
-  useState, 
+import {
+  useState,
   useEffect,
   useMemo,
   useCallback,
   useRef
 } from 'react';
-import { 
+import {
   EditIcon,
   DeleteIcon,
   ArrowUpIcon,
@@ -39,9 +40,16 @@ import {
   ChevronRightIcon,
 } from '@chakra-ui/icons';
 import { AiFillHeart } from 'react-icons/ai';
+import {
+  MdOutlineVideoLibrary,
+  MdOutlineChatBubbleOutline,
+  MdOutlineBolt,
+  MdOutlineEdit,
+} from 'react-icons/md';
 import { useAuthStore } from '../store/auth';
 import { getApiUrl } from '../config/api';
 import { useDesktopPagedLayout } from '../hooks/useDesktopPagedLayout';
+import { MOTION } from '../constants/designTokens';
 
 // YouTube API 설정
 const YT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
@@ -50,40 +58,6 @@ const PLAYLIST_ID = 'PLQ5o2f7efzlZ-RDG64h4Oj_5pXt0g6q3b';
 const videoViewFormatter = new Intl.NumberFormat('ko-KR');
 const formatVideoViewCount = (value: number = 0) =>
   videoViewFormatter.format(Math.max(0, value));
-
-const VIDEO_BADGE_PRESETS = [
-  {
-    threshold: 400,
-    emoji: '🎬',
-    gradient: 'linear-gradient(120deg, rgba(0,210,255,0.95), rgba(146,141,255,0.92))',
-    shadow: '0 10px 24px rgba(0,210,255,0.35)'
-  },
-  {
-    threshold: 120,
-    emoji: '🔥',
-    gradient: 'linear-gradient(120deg, rgba(255,94,98,0.95), rgba(255,149,0,0.9))',
-    shadow: '0 8px 20px rgba(255,94,98,0.35)'
-  },
-  {
-    threshold: 40,
-    emoji: '⚡',
-    gradient: 'linear-gradient(120deg, rgba(76,81,191,0.92), rgba(115,103,240,0.9))',
-    shadow: '0 6px 18px rgba(76,81,191,0.3)'
-  },
-  {
-    threshold: 0,
-    emoji: '✨',
-    gradient: 'linear-gradient(120deg, rgba(15,23,42,0.85), rgba(30,41,59,0.78))',
-    shadow: '0 4px 12px rgba(15,23,42,0.35)'
-  }
-] as const;
-
-const getVideoClickBadgeStyle = (count: number) => {
-  for (const preset of VIDEO_BADGE_PRESETS) {
-    if (count >= preset.threshold) return preset;
-  }
-  return VIDEO_BADGE_PRESETS[VIDEO_BADGE_PRESETS.length - 1];
-};
 
 const getVideoKey = (item: any) => item?.videoId || item?.id;
 
@@ -532,7 +506,8 @@ export default function VideoGalleryPage() {
       <Box px={{ base: 2, md: 4, lg: 6 }} pb={10} w="100%" maxW="1400px" mx="auto">
         {sortedItems.length === 0 && (
           <Box bg="white" borderRadius="lg" border="1px solid" borderColor="gray.200" p={8} textAlign="center">
-            <Text color="gray.600" fontWeight="medium" mb={2}>
+            <Icon as={MdOutlineVideoLibrary} boxSize="32px" color="gray.400" mb={2} />
+            <Text color="gray.700" fontWeight="semibold" mb={2}>
               표시할 동영상이 없습니다
             </Text>
             <Text color="gray.500" fontSize="sm">
@@ -544,15 +519,17 @@ export default function VideoGalleryPage() {
         )}
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
           {visibleItems.map((item) => (
-            <Box 
-              key={item.id} 
-              bg="white" 
-              borderRadius="2xl" 
-              boxShadow="md" 
-              overflow="hidden" 
-              position="relative" 
-              _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }} 
-              transition="all 0.2s"
+            <Box
+              key={item.id}
+              bg="white"
+              borderRadius="lg"
+              border="1px solid"
+              borderColor="gray.200"
+              boxShadow="sm"
+              overflow="hidden"
+              position="relative"
+              _hover={{ boxShadow: 'md', transform: 'translateY(-2px)' }}
+              transition={`all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`}
               cursor="pointer"
               onClick={() => handleItemClick(item)}
             >
@@ -586,13 +563,13 @@ export default function VideoGalleryPage() {
                         </Tooltip>
                         <Tooltip label={`유튜브 댓글 ${item.youtubeCommentCount ?? item.comments}개`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
                           <HStack spacing={1} cursor="default">
-                            <Text fontSize="sm">💬</Text>
+                            <Icon as={MdOutlineChatBubbleOutline} boxSize="14px" color="gray.500" />
                             <Text fontSize="sm" color="gray.600">{item.youtubeCommentCount ?? item.comments}</Text>
                           </HStack>
                         </Tooltip>
                         <Tooltip label={`유튜브 조회수 ${formatVideoViewCount(item.viewCount || 0)}회`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
                           <HStack spacing={1} cursor="default">
-                            <Text fontSize="sm">⚡</Text>
+                            <Icon as={MdOutlineBolt} boxSize="14px" color="gray.500" />
                             <Text fontSize="sm" color="gray.600">
                               {formatVideoViewCount(item.viewCount || 0)}
                             </Text>
@@ -631,11 +608,11 @@ export default function VideoGalleryPage() {
                 key={page}
                 size="sm"
                 minW="36px"
-                bg={currentPage === page ? '#0057B8' : 'white'}
-                color={currentPage === page ? 'white' : '#334155'}
+                bg={currentPage === page ? 'brand.500' : 'white'}
+                color={currentPage === page ? 'white' : 'gray.700'}
                 border="1px solid"
-                borderColor={currentPage === page ? '#0057B8' : '#CBD5E1'}
-                _hover={{ bg: currentPage === page ? '#003F86' : '#EFF6FF' }}
+                borderColor={currentPage === page ? 'brand.500' : 'gray.300'}
+                _hover={{ bg: currentPage === page ? 'brand.600' : 'brand.50' }}
                 onClick={() => setCurrentPage(page)}
                 aria-current={currentPage === page ? 'page' : undefined}
               >
@@ -650,7 +627,7 @@ export default function VideoGalleryPage() {
               isDisabled={currentPage === totalPages}
               onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
             />
-            <Text ml={2} color="#64748B" fontSize="xs">
+            <Text ml={2} color="gray.500" fontSize="xs">
               {currentPage}/{totalPages} · 총 {sortedItems.length}개
             </Text>
           </HStack>
@@ -661,7 +638,12 @@ export default function VideoGalleryPage() {
       <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} size="3xl">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>동영상 상세보기</ModalHeader>
+          <ModalHeader borderBottom="1px solid" borderColor="gray.100" py={3}>
+            <HStack spacing={2}>
+              <Icon as={MdOutlineVideoLibrary} boxSize="18px" color="brand.600" />
+              <Text fontSize="md" fontWeight="bold">동영상 상세보기</Text>
+            </HStack>
+          </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             {selectedItem && (
@@ -697,12 +679,12 @@ export default function VideoGalleryPage() {
                       </HStack>
                       <Text fontSize="sm" color="gray.400">·</Text>
                       <HStack spacing={1} title="유튜브 댓글수">
-                        <Text fontSize="sm">💬</Text>
+                        <Icon as={MdOutlineChatBubbleOutline} boxSize="14px" color="gray.500" />
                         <Text fontSize="sm">{selectedItem.youtubeCommentCount ?? selectedItem.comments}</Text>
                       </HStack>
                       <Text fontSize="sm" color="gray.400">·</Text>
                       <HStack spacing={1} title="유튜브 조회수">
-                        <Text fontSize="sm">⚡</Text>
+                        <Icon as={MdOutlineBolt} boxSize="14px" color="gray.500" />
                         <Text fontSize="sm">
                           {formatVideoViewCount(selectedItem.viewCount || 0)}
                         </Text>
@@ -782,30 +764,30 @@ export default function VideoGalleryPage() {
                               <Text fontSize="xs" color="gray.600" fontWeight="bold">{comment.author}</Text>
                               {(user?.name === comment.author || user?.role === 'SUPER_ADMIN') && (
                                 <HStack spacing={0.5}>
-                                  <IconButton 
-                                    aria-label="댓글 수정" 
-                                    icon={<Text fontSize="10px" color="#004ea8">✎</Text>} 
-                                    size="xs" 
+                                  <IconButton
+                                    aria-label="댓글 수정"
+                                    icon={<Icon as={MdOutlineEdit} boxSize="12px" />}
+                                    size="xs"
                                     bg="white"
-                                    borderColor="#004ea8"
+                                    borderColor="gray.300"
                                     borderWidth="1px"
-                                    color="#004ea8"
-                                    _hover={{ bg: "blue.50" }}
-                                    onClick={() => { setEditingCommentIndex(index); setEditCommentText(comment.text); }} 
+                                    color="gray.600"
+                                    _hover={{ bg: "gray.50" }}
+                                    onClick={() => { setEditingCommentIndex(index); setEditCommentText(comment.text); }}
                                     h="20px"
                                     minW="20px"
                                     p={0}
                                   />
-                                  <IconButton 
-                                    aria-label="댓글 삭제" 
-                                    icon={<DeleteIcon color="#004ea8" boxSize="10px" />} 
-                                    size="xs" 
+                                  <IconButton
+                                    aria-label="댓글 삭제"
+                                    icon={<DeleteIcon color="red.600" boxSize="10px" />}
+                                    size="xs"
                                     bg="white"
-                                    borderColor="#004ea8"
+                                    borderColor="red.300"
                                     borderWidth="1px"
-                                    color="#004ea8"
-                                    _hover={{ bg: "blue.50" }}
-                                    onClick={() => handleDeleteComment(index)} 
+                                    color="red.600"
+                                    _hover={{ bg: "red.50" }}
+                                    onClick={() => handleDeleteComment(index)}
                                     h="20px"
                                     minW="20px"
                                     p={0}
@@ -836,14 +818,14 @@ export default function VideoGalleryPage() {
                         px={2}
                         py={1}
                       />
-                      <IconButton 
-                        aria-label="등록" 
-                        icon={<ArrowUpIcon />} 
+                      <IconButton
+                        aria-label="등록"
+                        icon={<ArrowUpIcon />}
                         size="xs"
-                        bg="#004ea8"
+                        bg="brand.500"
                         color="white"
-                        _hover={{ bg: "#00397a" }}
-                        onClick={() => { handleAddComment(newComment); setNewComment(''); }} 
+                        _hover={{ bg: "brand.600" }}
+                        onClick={() => { handleAddComment(newComment); setNewComment(''); }}
                         h="28px"
                         minW="28px"
                       />
