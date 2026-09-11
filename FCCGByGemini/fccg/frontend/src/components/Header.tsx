@@ -400,7 +400,20 @@ export default function Header() {
         </HStack>
         <HStack spacing={2} flexShrink={0} minW="fit-content" pr={{ base: 2, md: 6, lg: 8 }} display={{ base: 'none', md: 'flex' }}>
           {!user ? (
-            <AppButton size="sm" variant="primary" onClick={onOpen} whiteSpace="nowrap">로그인</AppButton>
+            <>
+              <AppButton size="sm" variant="primary" onClick={onOpen} whiteSpace="nowrap">로그인</AppButton>
+              <IconButton
+                aria-label="메뉴얼"
+                icon={<InfoIcon />}
+                size="sm"
+                variant="outline"
+                color="gray.600"
+                borderColor="gray.300"
+                _hover={{ bg: 'gray.50', color: 'brand.600' }}
+                onClick={memberManual.onOpen}
+                borderRadius="full"
+              />
+            </>
           ) : (
             <>
               <HStack align="center" spacing={2} flexShrink={1} minW={0} display={{ base: 'none', md: 'flex' }}>
