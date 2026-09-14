@@ -5,11 +5,19 @@ import {
   Button,
   Divider,
   HStack,
+  Icon,
   SimpleGrid,
   Text,
   VStack,
 } from '@chakra-ui/react';
+import {
+  MdOutlineBarChart,
+  MdOutlineInsights,
+  MdOutlinePerson,
+  MdOutlineEdit,
+} from 'react-icons/md';
 import type { User } from '../../store/auth';
+import { GRADIENTS } from '../../constants/designTokens';
 
 type PlayerPassportPanelProps = {
   user: User;
@@ -70,14 +78,14 @@ export default function PlayerPassportPanel({
   ];
 
   return (
-    <VStack align="stretch" spacing={6} color="#0F172A">
+    <VStack align="stretch" spacing={6} color="gray.900">
       <Box
-        bg="linear-gradient(135deg, #002c62 0%, #004ea8 62%, #1a8cff 100%)"
-        borderRadius="2xl"
+        background={GRADIENTS.NEXT_MATCH_DEFAULT}
+        borderRadius="lg"
         px={5}
         py={6}
         color="white"
-        boxShadow="0 18px 45px rgba(0, 78, 168, 0.22)"
+        boxShadow="md"
       >
         <HStack spacing={4} align="center">
           <Avatar
@@ -111,9 +119,12 @@ export default function PlayerPassportPanel({
       </Box>
 
       <Box>
-        <Text fontSize="sm" fontWeight="800" color="#334155" mb={3}>
-          MY RECORD
-        </Text>
+        <HStack spacing={1.5} mb={3}>
+          <Icon as={MdOutlineBarChart} boxSize="14px" color="gray.500" />
+          <Text fontSize="sm" fontWeight="800" color="gray.700">
+            MY RECORD
+          </Text>
+        </HStack>
         <SimpleGrid columns={2} spacing={3}>
           {statItems.map((item) => (
             <Box
@@ -121,12 +132,12 @@ export default function PlayerPassportPanel({
               bg="brand.50"
               border="1px solid"
               borderColor="brand.100"
-              borderRadius="xl"
+              borderRadius="lg"
               px={4}
               py={4}
               minH="132px"
             >
-              <Text color="#334155" fontSize="sm" fontWeight="700">
+              <Text color="gray.700" fontSize="sm" fontWeight="700">
                 {item.label}
               </Text>
               <Text
@@ -138,7 +149,7 @@ export default function PlayerPassportPanel({
               >
                 {item.value}
               </Text>
-              <Text mt={1} color="#475569" fontSize="xs" lineHeight="1.45">
+              <Text mt={1} color="gray.600" fontSize="xs" lineHeight="1.45">
                 {item.detail}
               </Text>
             </Box>
@@ -147,25 +158,28 @@ export default function PlayerPassportPanel({
       </Box>
 
       <Box>
-        <Text fontSize="sm" fontWeight="800" color="#334155" mb={3}>
-          ACTIVITY SNAPSHOT
-        </Text>
+        <HStack spacing={1.5} mb={3}>
+          <Icon as={MdOutlineInsights} boxSize="14px" color="gray.500" />
+          <Text fontSize="sm" fontWeight="800" color="gray.700">
+            ACTIVITY SNAPSHOT
+          </Text>
+        </HStack>
         <SimpleGrid columns={3} spacing={2}>
           {activityItems.map((item) => (
             <Box
               key={item.label}
               bg="white"
               border="1px solid"
-              borderColor="#CBD5E1"
-              borderRadius="xl"
+              borderColor="gray.300"
+              borderRadius="lg"
               py={3}
               px={2}
               textAlign="center"
             >
-              <Text color="#64748B" fontSize="xs" fontWeight="700">
+              <Text color="gray.500" fontSize="xs" fontWeight="700">
                 {item.label}
               </Text>
-              <Text mt={1} color="#0F172A" fontSize="lg" fontWeight="900">
+              <Text mt={1} color="gray.900" fontSize="lg" fontWeight="900">
                 {item.value}
               </Text>
             </Box>
@@ -173,19 +187,19 @@ export default function PlayerPassportPanel({
         </SimpleGrid>
         <HStack
           mt={3}
-          bg={latestVote?.userParticipated ? '#ECFDF5' : '#FFF7ED'}
+          bg={latestVote?.userParticipated ? 'green.50' : 'orange.50'}
           border="1px solid"
-          borderColor={latestVote?.userParticipated ? '#A7F3D0' : '#FED7AA'}
-          borderRadius="xl"
+          borderColor={latestVote?.userParticipated ? 'green.200' : 'orange.200'}
+          borderRadius="lg"
           px={4}
           py={3}
           justify="space-between"
         >
-          <Text color="#475569" fontSize="sm" fontWeight="700">
+          <Text color="gray.600" fontSize="sm" fontWeight="700">
             최근 투표
           </Text>
           <Badge
-            bg={latestVote?.userParticipated ? '#047857' : '#C2410C'}
+            bg={latestVote?.userParticipated ? 'green.600' : 'orange.600'}
             color="white"
             borderRadius="full"
             px={2.5}
@@ -200,13 +214,16 @@ export default function PlayerPassportPanel({
         </HStack>
       </Box>
 
-      <Divider borderColor="#CBD5E1" />
+      <Divider borderColor="gray.300" />
 
       <Box>
-        <Text fontSize="sm" fontWeight="800" color="#334155" mb={2}>
-          ACCOUNT
-        </Text>
-        <Text fontSize="sm" color="#475569" wordBreak="break-all">
+        <HStack spacing={1.5} mb={2}>
+          <Icon as={MdOutlinePerson} boxSize="14px" color="gray.500" />
+          <Text fontSize="sm" fontWeight="800" color="gray.700">
+            ACCOUNT
+          </Text>
+        </HStack>
+        <Text fontSize="sm" color="gray.600" wordBreak="break-all">
           {user.email}
         </Text>
       </Box>
@@ -216,6 +233,7 @@ export default function PlayerPassportPanel({
         color="white"
         _hover={{ bg: 'brand.600' }}
         _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,78,168,0.28)' }}
+        leftIcon={<Icon as={MdOutlineEdit} boxSize="16px" />}
         onClick={onEditProfile}
       >
         내 정보 수정
