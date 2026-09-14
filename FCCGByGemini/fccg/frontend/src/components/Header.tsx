@@ -1,8 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
-import { Flex, Text, Button, HStack, Modal, ModalOverlay, ModalContent, ModalBody, useDisclosure, Box, FormControl, FormLabel, Input, useToast, Tooltip, IconButton, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerCloseButton, VStack, StackDivider, useBreakpointValue } from '@chakra-ui/react';
+import { Flex, Text, Button, HStack, Modal, ModalOverlay, ModalContent, ModalBody, useDisclosure, Box, useToast, Tooltip, IconButton, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerCloseButton, VStack, StackDivider, useBreakpointValue } from '@chakra-ui/react';
 import { CalendarIcon, ViewIcon, SettingsIcon, AttachmentIcon, ExternalLinkIcon, InfoIcon, HamburgerIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
-import { changePassword, updateProfile } from '../api/auth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import eventBus, { EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
@@ -32,15 +31,6 @@ export default function Header() {
   const voteAttendance = user?.voteAttendance ?? null;
   const navigate = useNavigate();
   const location = useLocation();
-  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
-  const [editName, setEditName] = useState(user?.name || '');
-  const [nameLoading, setNameLoading] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const toast = useToast();
   const memberManual = useDisclosure();
@@ -164,56 +154,6 @@ export default function Header() {
   const handlePassportEdit = () => {
     playerPassport.onClose();
     navigate('/profile');
-  };
-  const handleNameSave = async () => {
-    if (!user || !token) return;
-    setNameLoading(true);
-    setNameError(null);
-    try {
-      const response = await updateProfile({ name: editName });
-      // 백엔드 응답 형식: { success: true, message: '...', user: {...} }
-      const updatedUser = response.user || response;
-      setUser(updatedUser);
-      setIsNameModalOpen(false);
-      toast({ title: '이름이 수정되었습니다.', status: 'success', duration: 2000 });
-    } catch (error: any) {
-      console.error('프로필 업데이트 오류:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || '이름 수정 실패';
-      setNameError(errorMessage);
-    } finally {
-      setNameLoading(false);
-    }
-  };
-
-  const handlePasswordChange = async () => {
-    if (!user || !token) return;
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError('비밀번호가 일치하지 않습니다.');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setPasswordError('비밀번호는 최소 6자 이상이어야 합니다.');
-      return;
-    }
-
-    setPasswordLoading(true);
-    setPasswordError(null);
-    try {
-      // 비밀번호 변경 API 호출
-      await changePassword(newPassword);
-
-      setIsPasswordModalOpen(false);
-      setNewPassword('');
-      setConfirmPassword('');
-      toast({ title: '비밀번호가 변경되었습니다.', status: 'success', duration: 2000 });
-    } catch (error) {
-      console.error('비밀번호 변경 오류:', error);
-      setPasswordError('비밀번호 변경에 실패했습니다.');
-    } finally {
-      setPasswordLoading(false);
-    }
   };
 
   // 애니메이션용 상태
@@ -735,50 +675,6 @@ export default function Header() {
                 <Login onSwitch={() => setShowSignup(true)} onClose={() => { setShowSignup(false); onClose(); }} />
               )}
             </Suspense>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-      {/* 이름 수정 모달 */}
-      <Modal isOpen={isNameModalOpen} onClose={() => setIsNameModalOpen(false)} isCentered size="sm">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalBody p={6}>
-            <FormControl mb={4}>
-              <FormLabel>새 이름</FormLabel>
-              <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="이름을 입력하세요" />
-            </FormControl>
-            {nameError && <Text color="red.500" mb={2}>{nameError}</Text>}
-            <AppButton variant="primary" w="full" onClick={handleNameSave} isLoading={nameLoading} isDisabled={!editName.trim() || editName === user?.name} mb={3}>저장</AppButton>
-            <Button variant="outline" colorScheme="orange" w="full" onClick={() => { setIsNameModalOpen(false); setIsPasswordModalOpen(true); }}>비밀번호 변경</Button>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-
-      {/* 비밀번호 변경 모달 */}
-      <Modal isOpen={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} isCentered size="sm">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalBody p={6}>
-            <FormControl mb={4}>
-              <FormLabel>새 비밀번호</FormLabel>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                placeholder="새 비밀번호를 입력하세요"
-              />
-            </FormControl>
-            <FormControl mb={4}>
-              <FormLabel>비밀번호 확인</FormLabel>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="비밀번호를 다시 입력하세요"
-              />
-            </FormControl>
-            {passwordError && <Text color="red.500" mb={2}>{passwordError}</Text>}
-            <AppButton variant="primary" w="full" onClick={handlePasswordChange} isLoading={passwordLoading} isDisabled={!newPassword.trim() || !confirmPassword.trim()}>비밀번호 변경</AppButton>
           </ModalBody>
         </ModalContent>
       </Modal>
