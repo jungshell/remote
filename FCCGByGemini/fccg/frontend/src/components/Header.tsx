@@ -162,9 +162,8 @@ export default function Header() {
     playerPassport.onOpen();
   };
   const handlePassportEdit = () => {
-    setEditName(user?.name || '');
     playerPassport.onClose();
-    setIsNameModalOpen(true);
+    navigate('/profile');
   };
   const handleNameSave = async () => {
     if (!user || !token) return;
