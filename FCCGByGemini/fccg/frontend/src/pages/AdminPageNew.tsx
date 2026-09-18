@@ -56,6 +56,17 @@ import {
   IconButton
 } from '@chakra-ui/react';
 import { ViewIcon, CalendarIcon, SettingsIcon, InfoIcon, HamburgerIcon } from '@chakra-ui/icons';
+import {
+  MdOutlineDashboard,
+  MdOutlineGroups,
+  MdOutlineHowToVote,
+  MdOutlineEventNote,
+  MdOutlineSportsSoccer,
+  MdOutlineNotifications,
+  MdOutlineInsights,
+  MdOutlineStadium,
+  MdOutlineMenuBook
+} from 'react-icons/md';
 import { GameCardSkeleton, MemberListSkeleton } from '../components/common/SkeletonLoader';
 import { getValidToken, getMemberStats, type Game } from '../api/auth';
 import MemberManagement from '../components/MemberManagement';
@@ -3310,17 +3321,21 @@ export default function AdminPageNew() {
 
   const commonMenuButtonProps = (menu: string) => ({
     w: '100%',
+    h: '40px',
+    px: 3,
     justifyContent: 'flex-start' as const,
     variant: 'ghost' as const,
-    bg: selectedMenu === menu ? 'white' : 'transparent',
+    fontSize: 'sm',
+    fontWeight: selectedMenu === menu ? 'semibold' : 'medium',
+    bg: selectedMenu === menu ? 'blue.50' : 'transparent',
     color: selectedMenu === menu ? '#004ea8' : 'gray.700',
     border: '1px solid',
     borderColor: selectedMenu === menu ? '#004ea8' : 'transparent',
-    borderRadius: 'md',
+    borderRadius: 'lg',
     transition: 'all 0.15s ease',
     _hover: {
-      bg: selectedMenu === menu ? 'white' : 'gray.50',
-      borderColor: selectedMenu === menu ? '#004ea8' : 'gray.300'
+      bg: selectedMenu === menu ? 'blue.50' : 'gray.50',
+      borderColor: selectedMenu === menu ? '#004ea8' : 'gray.200'
     }
   });
 
@@ -3365,66 +3380,65 @@ export default function AdminPageNew() {
     return (
       <VStack spacing={0} align="stretch">
         <Box p={6} borderBottom="1px" borderColor="gray.200">
-          <Text fontSize="3xl" fontWeight="black" color="#004ea8">
+          <Text fontSize="2xl" fontWeight="bold" color="#004ea8">
             관리자 페이지
           </Text>
         </Box>
-        <VStack spacing={0} p={4} flex={1} align="stretch">
-          <Button {...commonMenuButtonProps('dashboard')} onClick={() => handleClick('dashboard')}>
-            📊 대시보드
+        <VStack spacing={1} p={4} flex={1} align="stretch">
+          <Button {...commonMenuButtonProps('dashboard')} onClick={() => handleClick('dashboard')} leftIcon={<Icon as={MdOutlineDashboard} boxSize={4.5} />}>
+            대시보드
           </Button>
-          <Button mt={1} {...commonMenuButtonProps('users')} onClick={() => handleClick('users')}>
-            👥 회원 관리
+          <Button {...commonMenuButtonProps('users')} onClick={() => handleClick('users')} leftIcon={<Icon as={MdOutlineGroups} boxSize={4.5} />}>
+            회원 관리
           </Button>
-          <Button mt={1} {...commonMenuButtonProps('vote-results')} onClick={() => handleClick('vote-results')}>
-            🗳️ 투표 결과
+          <Button {...commonMenuButtonProps('vote-results')} onClick={() => handleClick('vote-results')} leftIcon={<Icon as={MdOutlineHowToVote} boxSize={4.5} />}>
+            투표 결과
           </Button>
-          <Button mt={1} {...commonMenuButtonProps('vote-sessions')} onClick={() => handleClick('vote-sessions')}>
-            📅 투표 세션 관리
+          <Button {...commonMenuButtonProps('vote-sessions')} onClick={() => handleClick('vote-sessions')} leftIcon={<Icon as={MdOutlineEventNote} boxSize={4.5} />}>
+            투표 세션 관리
           </Button>
-          <Button mt={1} {...commonMenuButtonProps('games')} onClick={() => handleClick('games')}>
-            ⚽ 경기 관리
+          <Button {...commonMenuButtonProps('games')} onClick={() => handleClick('games')} leftIcon={<Icon as={MdOutlineSportsSoccer} boxSize={4.5} />}>
+            경기 관리
           </Button>
-          <Button mt={1} {...commonMenuButtonProps('notifications')} onClick={() => handleClick('notifications')}>
-            🔔 알림 관리
+          <Button {...commonMenuButtonProps('notifications')} onClick={() => handleClick('notifications')} leftIcon={<Icon as={MdOutlineNotifications} boxSize={4.5} />}>
+            알림 관리
           </Button>
           {hasPermission('all') && (
-            <Button mt={1} {...commonMenuButtonProps('analytics')} onClick={() => handleClick('analytics')}>
-              📈 활동 분석
+            <Button {...commonMenuButtonProps('analytics')} onClick={() => handleClick('analytics')} leftIcon={<Icon as={MdOutlineInsights} boxSize={4.5} />}>
+              활동 분석
             </Button>
           )}
-          <Button mt={1} {...commonMenuButtonProps('football')} onClick={() => handleClick('football')}>
-            🏟️ 풋살 현황판
+          <Button {...commonMenuButtonProps('football')} onClick={() => handleClick('football')} leftIcon={<Icon as={MdOutlineStadium} boxSize={4.5} />}>
+            풋살 현황판
           </Button>
         </VStack>
-        <Box px={3} py={2} borderTop="1px" borderColor="gray.200" _dark={{ borderColor: 'gray.600' }}>
+        <Box px={3} py={3} borderTop="1px" borderColor="gray.200">
           <Box
-            bgGradient="linear(to-r, blue.50, purple.50)"
-            px={2}
-            py={1.5}
-            rounded="md"
-            border="1px"
-            borderColor="blue.200"
-            _dark={{ bgGradient: 'linear(to-r, blue.900, purple.900)', borderColor: 'blue.700' }}
+            bg="gray.50"
+            px={3}
+            py={2}
+            borderRadius="lg"
+            border="1px solid"
+            borderColor="gray.200"
             cursor="pointer"
             onClick={() => {
               onNavigate?.();
               adminManual.onOpen();
             }}
-            _hover={{ transform: 'translateY(-1px)', shadow: 'sm' }}
-            transition="all 0.2s"
+            _hover={{ bg: 'gray.100', borderColor: 'gray.300' }}
+            transition="all 0.15s ease"
           >
-            <HStack spacing={1.5} align="center">
-              <Text fontSize="sm">📚</Text>
+            <HStack spacing={2} align="center">
+              <Icon as={MdOutlineMenuBook} boxSize={4} color="#004ea8" />
               <VStack align="start" spacing={0} flex={1}>
-                <Text fontSize="xs" fontWeight="semibold" color="blue.600" _dark={{ color: 'blue.300' }} lineHeight="1.2">
+                <Text fontSize="xs" fontWeight="semibold" color="gray.700" lineHeight="1.2">
                   관리자 가이드
                 </Text>
-                <Text fontSize="10px" color="blue.500" _dark={{ color: 'blue.400' }} lineHeight="1.1" mt="1px">
+                <Text fontSize="10px" color="gray.500" lineHeight="1.1" mt="1px" noOfLines={1}>
                   {getMenuDescription(selectedMenu)}
                 </Text>
               </VStack>
-              <Text fontSize="10px" color="blue.500" _dark={{ color: 'blue.400' }}>
+              <Text fontSize="10px" color="gray.400">
                 →
               </Text>
             </HStack>
@@ -3442,29 +3456,34 @@ export default function AdminPageNew() {
             position="sticky"
             top="80px"
             zIndex={5}
-            bg="gray.50"
+            bg="white"
             px={4}
             py={3}
             borderBottom="1px solid"
             borderColor="gray.200"
+            boxShadow="sm"
             align="center"
             justify="space-between"
           >
-            <Text fontSize="xl" fontWeight="bold" color="#004ea8">
+            <Text fontSize="lg" fontWeight="bold" color="#004ea8">
               관리자 페이지
             </Text>
             <IconButton
               aria-label="관리자 메뉴 열기"
               icon={<HamburgerIcon />}
               variant="outline"
+              borderColor="gray.200"
+              borderRadius="lg"
               onClick={mobileSidebar.onOpen}
             />
           </Flex>
           <Drawer placement="left" onClose={mobileSidebar.onClose} isOpen={mobileSidebar.isOpen} size="xs">
             <DrawerOverlay />
-            <DrawerContent>
+            <DrawerContent bg="white">
               <DrawerCloseButton />
-              <DrawerHeader>관리자 메뉴</DrawerHeader>
+              <DrawerHeader fontSize="md" fontWeight="bold" color="#004ea8" borderBottom="1px solid" borderColor="gray.200">
+                관리자 메뉴
+              </DrawerHeader>
               <DrawerBody p={0}>{renderSidebarContent(mobileSidebar.onClose)}</DrawerBody>
             </DrawerContent>
           </Drawer>
@@ -3499,36 +3518,36 @@ export default function AdminPageNew() {
           maxW={isMobile ? '100%' : 'calc(100vw - 280px)'}
         >
           {loading ? (
-            <VStack spacing={2} align="stretch" w="100%" p={4}>
+            <VStack spacing={4} align="stretch" w="100%">
               {/* 대시보드 스켈레톤 */}
               <Box>
-                <Skeleton height="40px" mb={4} />
-                <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={2}>
+                <Skeleton height="32px" width="220px" mb={4} borderRadius="md" />
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={3}>
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <Card key={i}>
+                    <Card key={i} borderRadius="lg" border="1px solid" borderColor="gray.200" boxShadow="sm">
                       <CardBody>
-                        <Skeleton height="20px" mb={2} />
-                        <Skeleton height="32px" mb={2} />
-                        <Skeleton height="16px" width="60%" />
+                        <Skeleton height="16px" width="60%" mb={3} borderRadius="md" />
+                        <Skeleton height="28px" mb={3} borderRadius="md" />
+                        <Skeleton height="12px" width="40%" borderRadius="md" />
                       </CardBody>
                     </Card>
                   ))}
                 </SimpleGrid>
               </Box>
-              
+
               {/* 메뉴별 스켈레톤 */}
               {selectedMenu === 'members' && <MemberListSkeleton />}
               {selectedMenu === 'games' && (
-                <VStack spacing={2} align="stretch">
+                <VStack spacing={3} align="stretch">
                   {Array.from({ length: 3 }).map((_, i) => (
                     <GameCardSkeleton key={i} />
                   ))}
                 </VStack>
               )}
               {selectedMenu === 'schedule' && (
-                <VStack spacing={2} align="stretch">
-                  <Skeleton height="40px" />
-                  <Skeleton height="200px" />
+                <VStack spacing={3} align="stretch">
+                  <Skeleton height="40px" borderRadius="lg" />
+                  <Skeleton height="200px" borderRadius="lg" />
                 </VStack>
               )}
             </VStack>
