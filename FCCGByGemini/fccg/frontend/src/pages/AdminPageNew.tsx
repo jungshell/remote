@@ -12,11 +12,6 @@ import {
   VStack,
   useToast,
   useDisclosure,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  StatArrow,
   FormControl,
   FormLabel,
   HStack,
@@ -241,86 +236,6 @@ const rolePermissions = {
     color: 'gray',
     permissions: ['vote', 'schedule_view', 'photo_upload', 'comment_write']
   }
-};
-
-// TopParticipantItem 컴포넌트 정의
-interface TopParticipantItemProps {
-  member: {
-    id: number;
-    name: string;
-    role: string;
-    gameParticipation: number;
-    voteParticipation: number;
-    activityScore: number;
-    gameParticipationCount: number;
-    voteParticipationCount: number;
-  };
-  index: number;
-}
-
-const TopParticipantItem: React.FC<TopParticipantItemProps> = ({ member, index }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  return (
-    <Box key={member.id} mb={2}>
-      <Flex
-        align="center"
-        justify="space-between"
-        p={3}
-        bg={index === 0 ? "gold.50" : index === 1 ? "gray.50" : "bronze.50"}
-        borderRadius="md"
-        border="1px solid"
-        borderColor={index === 0 ? "gold.200" : index === 1 ? "gray.200" : "bronze.200"}
-        cursor="pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
-        _hover={{ bg: index === 0 ? "gold.100" : index === 1 ? "gray.100" : "bronze.100" }}
-      >
-        <HStack spacing={3}>
-          <Text fontWeight="bold" fontSize="lg">
-            {index + 1}위
-          </Text>
-          <Text fontWeight="bold" fontSize="lg">
-            {member.name}
-          </Text>
-          <Badge colorScheme={index === 0 ? "yellow" : index === 1 ? "gray" : "orange"}>
-            {member.activityScore}점
-          </Badge>
-        </HStack>
-        <Text fontSize="sm" color="gray.500">
-          {isExpanded ? '▼' : '▶'}
-        </Text>
-      </Flex>
-      
-      {isExpanded && (
-        <Box
-          bg="blue.50"
-          p={3}
-          borderRadius="md"
-          border="1px solid"
-          borderColor="blue.200"
-          mt={1}
-        >
-          <VStack align="start" spacing={2}>
-            <Text fontSize="sm">
-              <Text as="span" fontWeight="bold">경기 참여:</Text> {member.gameParticipationCount}회 × 50점 = {member.gameParticipationCount * 50}점
-            </Text>
-            <Text fontSize="sm">
-              <Text as="span" fontWeight="bold">투표 참여:</Text> {member.voteParticipationCount}회 × 30점 = {member.voteParticipationCount * 30}점
-            </Text>
-            <Text fontSize="sm">
-              <Text as="span" fontWeight="bold">총 활동점수:</Text> {member.activityScore}점
-            </Text>
-            <Text fontSize="sm">
-              <Text as="span" fontWeight="bold">경기 참여율:</Text> {member.gameParticipation}%
-            </Text>
-            <Text fontSize="sm">
-              <Text as="span" fontWeight="bold">투표 참여율:</Text> {member.voteParticipation}%
-            </Text>
-          </VStack>
-        </Box>
-      )}
-    </Box>
-  );
 };
 
 export default function AdminPageNew() {
@@ -1166,137 +1081,6 @@ export default function AdminPageNew() {
       return { summary: {}, memberStats: [], monthlyGameStats: [], gameTypeDistribution: {} };
     }
   }, []);
-
-  const collectActivityData = useCallback(() => {
-    // 백엔드 API 사용으로 변경 - 이 함수는 더 이상 사용하지 않음
-      return {
-        votes: [],
-        gameParticipations: [],
-        galleryActivities: [],
-        loginActivities: []
-      };
-  }, []);
-
-  // 월별 통계 계산 함수
-  const calculateMonthlyStats = useCallback((targetMonth: number, targetYear: number) => {
-    try {
-      const activityData = collectActivityData();
-      const monthStart = new Date(targetYear, targetMonth - 1, 1);
-      const monthEnd = new Date(targetYear, targetMonth, 0, 23, 59, 59);
-      
-      const monthlyActivities = {
-        votes: activityData.votes.filter((vote: any) => {
-          const voteDate = new Date(vote.createdAt);
-          return voteDate >= monthStart && voteDate <= monthEnd;
-        }),
-        
-        gameParticipations: activityData.gameParticipations.filter((participation: any) => {
-          // 경기 참여는 경기 날짜 기준으로 필터링
-          const game = games.find(g => g.participants?.includes(participation));
-          if (game) {
-            const gameDate = new Date(game.date);
-            return gameDate >= monthStart && gameDate <= monthEnd;
-          }
-          return false;
-        }),
-        
-        galleryActivities: activityData.galleryActivities.filter((activity: any) => {
-          const activityDate = new Date(activity.date || activity.createdAt);
-          return activityDate >= monthStart && activityDate <= monthEnd;
-        })
-      };
-      
-      const uniqueUsers = new Set([
-        ...monthlyActivities.votes.map((v: any) => v.userId),
-        ...monthlyActivities.gameParticipations,
-        ...monthlyActivities.galleryActivities.map((a: any) => a.userId)
-      ]);
-      
-      return {
-        month: `${targetYear}년 ${targetMonth}월`,
-        totalVotes: monthlyActivities.votes.length,
-        totalGameParticipations: monthlyActivities.gameParticipations.length,
-        totalGalleryActivities: monthlyActivities.galleryActivities.length,
-        uniqueActiveUsers: uniqueUsers.size,
-        totalGames: games.filter(game => {
-          const gameDate = new Date(game.date);
-          return gameDate >= monthStart && gameDate <= monthEnd;
-        }).length
-      };
-    } catch (error) {
-      console.error('월별 통계 계산 실패:', error);
-      return {
-        month: `${targetYear}년 ${targetMonth}월`,
-        totalVotes: 0,
-        totalGameParticipations: 0,
-        totalGalleryActivities: 0,
-        uniqueActiveUsers: 0,
-        totalGames: 0
-      };
-    }
-  }, [collectActivityData, games]);
-
-  // 참여율 계산 함수
-  const calculateParticipationRate = useCallback((userId: string) => {
-    try {
-      const activityData = collectActivityData();
-      
-      const userVotes = activityData.votes.filter((v: any) => v.userId === userId).length;
-      const userGameParticipations = activityData.gameParticipations.filter((p: any) => p === userId).length;
-      const userGalleryActivities = activityData.galleryActivities.filter((a: any) => a.userId === userId).length;
-      
-      const totalGames = games.length;
-      const totalVoteOpportunities = games.length;
-      const totalGalleryItems = JSON.parse(localStorage.getItem('galleryItems') || '[]').length;
-      
-      return {
-        voteRate: totalVoteOpportunities > 0 ? (userVotes / totalVoteOpportunities) * 100 : 0,
-        gameParticipationRate: totalGames > 0 ? (userGameParticipations / totalGames) * 100 : 0,
-        overallActivityRate: (totalVoteOpportunities + totalGames + totalGalleryItems) > 0 
-          ? ((userVotes + userGameParticipations + userGalleryActivities) / 
-             (totalVoteOpportunities + totalGames + totalGalleryItems)) * 100 
-          : 0
-      };
-    } catch (error) {
-      console.error('참여율 계산 실패:', error);
-      return {
-        voteRate: 0,
-        gameParticipationRate: 0,
-        overallActivityRate: 0
-      };
-    }
-  }, [collectActivityData, games]);
-
-  // 상위 참여자 분석 함수
-  const getTopParticipants = useCallback(() => {
-    try {
-      const activityData = collectActivityData();
-      
-      const userStats = userList.map(user => {
-        const participation = calculateParticipationRate(user.id);
-        const totalActivities = 
-          activityData.votes.filter((v: any) => v.userId === user.id).length +
-          activityData.gameParticipations.filter((p: any) => p === user.id).length +
-          activityData.galleryActivities.filter((a: any) => a.userId === user.id).length;
-        
-        return {
-          userId: user.id,
-          name: user.name,
-          voteRate: participation.voteRate,
-          gameParticipationRate: participation.gameParticipationRate,
-          overallActivityRate: participation.overallActivityRate,
-          totalActivities
-        };
-      });
-      
-      return userStats
-        .sort((a, b) => b.overallActivityRate - a.overallActivityRate)
-        .slice(0, 5); // 상위 5명
-    } catch (error) {
-      console.error('상위 참여자 분석 실패:', error);
-      return [];
-    }
-  }, [userList, collectActivityData, calculateParticipationRate]);
 
   // 권한 체크 함수
   const hasPermission = (permission: string) => {
@@ -3342,33 +3126,26 @@ export default function AdminPageNew() {
     }
   });
 
+  // 로그인 활동은 백엔드에서 항상 0으로 고정되어(loginCount 미추적) 표시하지 않는다 — Analytics는 투표/경기 참여만 다룬다.
   const activityMetrics = useMemo(() => {
     const members = activityAnalysisData?.memberStats ?? [];
-    const withSafeCounts = members.map(member => ({
-      ...member,
-      loginCount: member.loginCount ?? 0
-    }));
 
-    const maxLogin = Math.max(0, ...withSafeCounts.map(m => m.loginCount));
-    const maxVote = Math.max(0, ...withSafeCounts.map(m => m.voteParticipationCount));
-    const maxGame = Math.max(0, ...withSafeCounts.map(m => m.gameParticipationCount));
+    const maxVote = Math.max(0, ...members.map(m => m.voteParticipationCount));
+    const maxGame = Math.max(0, ...members.map(m => m.gameParticipationCount));
 
-    const sortedByTotal = [...withSafeCounts].sort((a, b) => {
-      const aTotal = a.loginCount + a.voteParticipationCount + a.gameParticipationCount;
-      const bTotal = b.loginCount + b.voteParticipationCount + b.gameParticipationCount;
+    const sortedByTotal = [...members].sort((a, b) => {
+      const aTotal = a.voteParticipationCount + a.gameParticipationCount;
+      const bTotal = b.voteParticipationCount + b.gameParticipationCount;
       return bTotal - aTotal;
     });
 
-    const topLogin = [...withSafeCounts].sort((a, b) => b.loginCount - a.loginCount).slice(0, 3);
-    const topVote = [...withSafeCounts].sort((a, b) => b.voteParticipationCount - a.voteParticipationCount).slice(0, 3);
-    const topGame = [...withSafeCounts].sort((a, b) => b.gameParticipationCount - a.gameParticipationCount).slice(0, 3);
+    const topVote = [...members].sort((a, b) => b.voteParticipationCount - a.voteParticipationCount).slice(0, 3);
+    const topGame = [...members].sort((a, b) => b.gameParticipationCount - a.gameParticipationCount).slice(0, 3);
 
     return {
       members: sortedByTotal,
-      maxLogin,
       maxVote,
       maxGame,
-      topLogin,
       topVote,
       topGame
     };
@@ -4472,167 +4249,183 @@ export default function AdminPageNew() {
 
 
               {/* 활동 분석 */}
-              {selectedMenu === 'analytics' && hasPermission('all') && (
-                <VStack spacing={8} align="stretch" w="100%">
-                  <HStack spacing={3}>
-                    <Text fontSize="2xl">📈</Text>
-                    <Text fontSize="2xl" fontWeight="bold" color="#004ea8">활동 분석</Text>
-                  </HStack>
+              {selectedMenu === 'analytics' && hasPermission('all') && (() => {
+                if (!activityAnalysisData) {
+                  return (
+                    <VStack spacing={5} align="stretch" w="100%">
+                      <Box>
+                        <Text fontSize="2xl" fontWeight="bold" color="#004ea8">활동 분석</Text>
+                        <Text fontSize="sm" color="gray.500" mt={0.5}>경기 · 투표 · 회원 활동 현황</Text>
+                      </Box>
+                      <Text color="gray.500" fontSize="sm">분석 데이터를 불러오는 중입니다.</Text>
+                    </VStack>
+                  );
+                }
 
-                  {/* 월간 활동 요약 */}
-                  <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={2} w="100%">
-                    <Card bg="blue.50" border="1px solid" borderColor="blue.200" shadow="sm">
-                      <CardBody pt={1.5} pb={2} px={6}>
-                        <Stat p={0} m={0}>
-                          <HStack justify="space-between" align="center" mt={0} mb={0}>
-                            <StatLabel color="blue.800" fontSize="lg" fontWeight="bold" m={0} lineHeight={1.2}>
-                              📊 이번 달 참가율
-                            </StatLabel>
-                            <StatNumber color="gray.700" fontSize="2xl" fontWeight="bold" m={0} lineHeight={1.2}>
-                              {activityAnalysisData?.summary.participationRate || 0}%
-                            </StatNumber>
-                          </HStack>
-                          <StatHelpText color="blue.600" fontSize="sm" mt={1} mb={0}>
-                            <StatArrow type="increase" />
-                            실제 참여 데이터 기준
-                          </StatHelpText>
-                        </Stat>
+                const monthlyStats = activityAnalysisData.monthlyGameStats || [];
+                const maxMonthlyGames = Math.max(1, ...monthlyStats.map(m => m.gameCount));
+                const topVote = activityMetrics.topVote.filter(m => m.voteParticipationCount > 0);
+                const topGame = activityMetrics.topGame.filter(m => m.gameParticipationCount > 0);
+
+                return (
+                <VStack spacing={5} align="stretch" w="100%">
+                  {/* 헤더 */}
+                  <Box>
+                    <Text fontSize="2xl" fontWeight="bold" color="#004ea8">활동 분석</Text>
+                    <Text fontSize="sm" color="gray.500" mt={0.5}>경기 · 투표 · 회원 활동 현황</Text>
+                  </Box>
+
+                  {/* ZONE A: 운영 현황 */}
+                  <SimpleGrid columns={{ base: 2, lg: 4 }} spacing={3} w="100%">
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="medium">경기 참가율</Text>
+                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.participationRate ?? 0}%</Text>
+                        <Text fontSize="xs" color="gray.400" mt={1}>이번 달 1회 이상 참여 회원 비율</Text>
                       </CardBody>
                     </Card>
-                    
-                    <Card bg="cyan.50" border="1px solid" borderColor="cyan.200" shadow="sm">
-                      <CardBody pt={1.5} pb={2} px={6}>
-                        <Stat p={0} m={0}>
-                          <HStack justify="space-between" align="center" mt={0} mb={0}>
-                            <StatLabel color="cyan.800" fontSize="lg" fontWeight="bold" m={0} lineHeight={1.2}>
-                              🗳️ 투표 참여율
-                            </StatLabel>
-                            <StatNumber color="gray.700" fontSize="2xl" fontWeight="bold" m={0} lineHeight={1.2}>
-                              {activityAnalysisData?.summary.voteParticipationRate || 0}%
-                            </StatNumber>
-                          </HStack>
-                          <StatHelpText color="cyan.600" fontSize="sm" mt={1} mb={0}>
-                            <StatArrow type="increase" />
-                            실제 투표 데이터 기준
-                          </StatHelpText>
-                        </Stat>
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="medium">투표 참여율</Text>
+                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.voteParticipationRate ?? 0}%</Text>
+                        <Text fontSize="xs" color="gray.400" mt={1}>전체 투표 세션 중 1회 이상 참여 비율</Text>
                       </CardBody>
                     </Card>
-                    
-                    <Card bg="pink.50" border="1px solid" borderColor="pink.200" shadow="sm">
-                      <CardBody pt={1.5} pb={2} px={6}>
-                        <Stat p={0} m={0}>
-                          <HStack justify="space-between" align="center" mt={0} mb={0}>
-                            <StatLabel color="pink.800" fontSize="lg" fontWeight="bold" m={0} lineHeight={1.2}>
-                              👥 활성 사용자
-                            </StatLabel>
-                            <StatNumber color="gray.700" fontSize="2xl" fontWeight="bold" m={0} lineHeight={1.2}>
-                              {activityAnalysisData?.summary.activeUsers || 0}
-                            </StatNumber>
-                          </HStack>
-                          <StatHelpText color="pink.600" fontSize="sm" mt={1} mb={0}>
-                            <StatArrow type="increase" />
-                            이번 달 활동 기준
-                          </StatHelpText>
-                        </Stat>
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="medium">활성 회원</Text>
+                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.activeUsers ?? 0}명</Text>
+                        <Text fontSize="xs" color="gray.400" mt={1}>경기·투표 참여 실적이 있는 회원</Text>
                       </CardBody>
                     </Card>
-                    
-                    <Card bg="yellow.50" border="1px solid" borderColor="yellow.200" shadow="sm">
-                      <CardBody pt={1.5} pb={2} px={6}>
-                        <Stat p={0} m={0}>
-                          <HStack justify="space-between" align="center" mt={0} mb={0}>
-                            <StatLabel color="yellow.800" fontSize="lg" fontWeight="bold" m={0} lineHeight={1.2}>
-                              ⚽ 이번 달 경기수
-                            </StatLabel>
-                            <StatNumber color="gray.700" fontSize="2xl" fontWeight="bold" m={0} lineHeight={1.2}>
-                              {activityAnalysisData?.summary.thisMonthGames || 0}
-                            </StatNumber>
-                          </HStack>
-                          <StatHelpText color="yellow.600" fontSize="sm" mt={1} mb={0}>
-                            <StatArrow type="increase" />
-                            실제 경기 데이터 기준
-                          </StatHelpText>
-                        </Stat>
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <Text fontSize="xs" color="gray.500" fontWeight="medium">이번 달 경기</Text>
+                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.thisMonthGames ?? 0}경기</Text>
+                        <Text fontSize="xs" color="gray.400" mt={1}>확정된 경기 기준</Text>
                       </CardBody>
                     </Card>
                   </SimpleGrid>
 
-                  <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={2} w="100%">
-                    {/* 회원 활동 비교 */}
-                    <Card>
-                      <CardBody pt={1.5} pb={2} px={6}>
-                        <VStack spacing={3} align="stretch">
+                  {/* ZONE B: 참여 흐름 */}
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3} w="100%">
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <HStack spacing={2} mb={1}>
+                          <Icon as={MdOutlineHowToVote} boxSize={4} color="#004ea8" />
+                          <Text fontSize="sm" fontWeight="bold" color="gray.700">투표 활동</Text>
+                        </HStack>
+                        <Text fontSize="xs" color="gray.400" mb={3}>전체 투표 세션 참여 횟수 기준</Text>
+                        {topVote.length > 0 ? (
+                          <VStack spacing={1} align="stretch">
+                            {topVote.map((member, idx) => (
+                              <Flex key={member.id} justify="space-between" fontSize="sm">
+                                <Text color="gray.700">{idx + 1}. {member.name}</Text>
+                                <Text color="gray.500">{member.voteParticipationCount}회</Text>
+                              </Flex>
+                            ))}
+                          </VStack>
+                        ) : (
+                          <Text fontSize="sm" color="gray.400">투표 참여 데이터가 없습니다.</Text>
+                        )}
+                      </CardBody>
+                    </Card>
+
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <HStack spacing={2} mb={1}>
+                          <Icon as={MdOutlineSportsSoccer} boxSize={4} color="#004ea8" />
+                          <Text fontSize="sm" fontWeight="bold" color="gray.700">경기 참여</Text>
+                        </HStack>
+                        <Text fontSize="xs" color="gray.400" mb={3}>이번 달 확정 경기 참여 횟수 기준</Text>
+                        {topGame.length > 0 ? (
+                          <VStack spacing={1} align="stretch">
+                            {topGame.map((member, idx) => (
+                              <Flex key={member.id} justify="space-between" fontSize="sm">
+                                <Text color="gray.700">{idx + 1}. {member.name}</Text>
+                                <Text color="gray.500">{member.gameParticipationCount}회</Text>
+                              </Flex>
+                            ))}
+                          </VStack>
+                        ) : (
+                          <Text fontSize="sm" color="gray.400">경기 참여 데이터가 없습니다.</Text>
+                        )}
+                      </CardBody>
+                    </Card>
+                  </SimpleGrid>
+
+                  {/* ZONE C: 팀 활동 추이 */}
+                  <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={3} w="100%">
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <HStack spacing={2} mb={3}>
+                          <Icon as={MdOutlineEventNote} boxSize={4} color="#004ea8" />
+                          <Text fontSize="sm" fontWeight="bold" color="gray.700">월별 경기 현황</Text>
+                        </HStack>
+                        {monthlyStats.length > 0 ? (
+                          <VStack spacing={3} align="stretch">
+                            {monthlyStats.map((monthData, index) => (
+                              <Box key={index}>
+                                <Flex justify="space-between" align="center" mb={1}>
+                                  <Text fontSize="sm" fontWeight="medium" color="gray.700">{monthData.month}</Text>
+                                  <Text fontSize="sm" color="gray.500">{monthData.gameCount}경기</Text>
+                                </Flex>
+                                <Progress
+                                  value={(monthData.gameCount / maxMonthlyGames) * 100}
+                                  colorScheme="blue"
+                                  size="sm"
+                                  bg="gray.100"
+                                  borderRadius="full"
+                                />
+                              </Box>
+                            ))}
+                          </VStack>
+                        ) : (
+                          <Text color="gray.400" fontSize="sm">월별 경기 데이터가 없습니다.</Text>
+                        )}
+                      </CardBody>
+                    </Card>
+
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <HStack spacing={2} mb={1}>
+                          <Icon as={MdOutlineStadium} boxSize={4} color="#004ea8" />
+                          <Text fontSize="sm" fontWeight="bold" color="gray.700">경기 유형 구성</Text>
+                        </HStack>
+                        <Text fontSize="xs" color="gray.400" mb={3}>이번 달 확정 경기 기준</Text>
+                        <VStack spacing={2} align="stretch">
                           <Flex justify="space-between" align="center">
-                            <Text fontSize="lg" fontWeight="bold" color="#004ea8">👥 회원 활동 비교</Text>
-                            <HStack spacing={2}>
-                              <Badge variant="subtle" colorScheme="purple">로그인</Badge>
-                              <Badge variant="subtle" colorScheme="blue">투표</Badge>
-                              <Badge variant="subtle" colorScheme="green">경기</Badge>
-                            </HStack>
+                            <Text fontSize="sm" color="gray.700">매치 경기</Text>
+                            <Badge colorScheme="blue" variant="subtle">{activityAnalysisData.gameTypeDistribution?.match ?? 0}경기</Badge>
                           </Flex>
-                          <Divider />
+                          <Flex justify="space-between" align="center">
+                            <Text fontSize="sm" color="gray.700">자체 경기</Text>
+                            <Badge colorScheme="gray" variant="subtle">{activityAnalysisData.gameTypeDistribution?.friendly ?? 0}경기</Badge>
+                          </Flex>
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  </SimpleGrid>
 
-                          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={2}>
-                            <Box p={3} bg="gray.50" border="1px solid" borderColor="gray.200" borderRadius="md">
-                              <Text fontSize="sm" fontWeight="semibold" color="gray.700">로그인 Top 3</Text>
-                              <VStack spacing={1} align="stretch" mt={2}>
-                                {activityMetrics.topLogin.length > 0 ? activityMetrics.topLogin.map((member, idx) => (
-                                  <Flex key={`login-${member.id}`} justify="space-between" fontSize="xs">
-                                    <Text color="gray.600">{idx + 1}. {member.name}</Text>
-                                    <Badge colorScheme="purple" variant="subtle">{member.loginCount}회</Badge>
-                                  </Flex>
-                                )) : (
-                                  <Text fontSize="xs" color="gray.400">데이터 없음</Text>
-                                )}
-                              </VStack>
-                            </Box>
-                            <Box p={3} bg="gray.50" border="1px solid" borderColor="gray.200" borderRadius="md">
-                              <Text fontSize="sm" fontWeight="semibold" color="gray.700">투표 Top 3</Text>
-                              <VStack spacing={1} align="stretch" mt={2}>
-                                {activityMetrics.topVote.length > 0 ? activityMetrics.topVote.map((member, idx) => (
-                                  <Flex key={`vote-${member.id}`} justify="space-between" fontSize="xs">
-                                    <Text color="gray.600">{idx + 1}. {member.name}</Text>
-                                    <Badge colorScheme="blue" variant="subtle">{member.voteParticipationCount}회</Badge>
-                                  </Flex>
-                                )) : (
-                                  <Text fontSize="xs" color="gray.400">데이터 없음</Text>
-                                )}
-                              </VStack>
-                            </Box>
-                            <Box p={3} bg="gray.50" border="1px solid" borderColor="gray.200" borderRadius="md">
-                              <Text fontSize="sm" fontWeight="semibold" color="gray.700">경기 참여 Top 3</Text>
-                              <VStack spacing={1} align="stretch" mt={2}>
-                                {activityMetrics.topGame.length > 0 ? activityMetrics.topGame.map((member, idx) => (
-                                  <Flex key={`game-${member.id}`} justify="space-between" fontSize="xs">
-                                    <Text color="gray.600">{idx + 1}. {member.name}</Text>
-                                    <Badge colorScheme="green" variant="subtle">{member.gameParticipationCount}회</Badge>
-                                  </Flex>
-                                )) : (
-                                  <Text fontSize="xs" color="gray.400">데이터 없음</Text>
-                                )}
-                              </VStack>
-                            </Box>
-                          </SimpleGrid>
+                  {/* ZONE D: 회원별 활동 상세 */}
+                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                    <CardBody px={5} py={4}>
+                      <VStack align="stretch" spacing={3}>
+                        <HStack spacing={2}>
+                          <Icon as={MdOutlineGroups} boxSize={4} color="gray.500" />
+                          <Text fontSize="sm" fontWeight="bold" color="gray.700">회원별 활동 상세</Text>
+                        </HStack>
+                        <Text fontSize="xs" color="gray.400">투표(전체 기간) · 경기 참여(이번 달) 횟수 기준</Text>
 
-                          <Divider />
-
+                        {activityMetrics.members.length > 0 ? (
                           <VStack spacing={2} align="stretch" maxH="420px" overflowY="auto">
-                            {activityMetrics.members.length > 0 ? activityMetrics.members.map((member) => {
-                              const totalCount = (member.loginCount ?? 0) + member.voteParticipationCount + member.gameParticipationCount;
+                            {activityMetrics.members.map((member) => {
+                              const totalCount = member.voteParticipationCount + member.gameParticipationCount;
                               return (
-                                <Box
-                                  key={member.id}
-                                  p={3}
-                                  bg="white"
-                                  border="1px solid"
-                                  borderColor="gray.200"
-                                  borderRadius="md"
-                                  boxShadow="sm"
-                                >
+                                <Box key={member.id} p={3} border="1px solid" borderColor="gray.200" borderRadius="md" bg="gray.50">
                                   <Flex justify="space-between" align="center" mb={2}>
                                     <HStack spacing={2}>
-                                      <Text fontWeight="semibold">{member.name}</Text>
+                                      <Text fontSize="sm" fontWeight="semibold" color="gray.800">{member.name}</Text>
                                       <Badge
                                         size="sm"
                                         colorScheme={
@@ -4647,205 +4440,47 @@ export default function AdminPageNew() {
                                     <Text fontSize="xs" color="gray.500">총 {totalCount}회</Text>
                                   </Flex>
 
-                                  <SimpleGrid columns={{ base: 1, md: 3 }} spacing={2}>
-                                    <Box>
-                                      <HStack justify="space-between" mb={1}>
-                                        <Text fontSize="xs" color="gray.500">로그인</Text>
-                                        <Text fontSize="xs" fontWeight="semibold">{member.loginCount ?? 0}회</Text>
-                                      </HStack>
-                                      <Progress
-                                        value={activityMetrics.maxLogin > 0 ? ((member.loginCount ?? 0) / activityMetrics.maxLogin) * 100 : 0}
-                                        size="xs"
-                                        colorScheme="purple"
-                                        bg="gray.100"
-                                        borderRadius="full"
-                                      />
-                                    </Box>
+                                  <SimpleGrid columns={2} spacing={3}>
                                     <Box>
                                       <HStack justify="space-between" mb={1}>
                                         <Text fontSize="xs" color="gray.500">투표</Text>
-                                        <Text fontSize="xs" fontWeight="semibold">{member.voteParticipationCount}회</Text>
+                                        <Text fontSize="xs" fontWeight="semibold" color="gray.700">{member.voteParticipationCount}회</Text>
                                       </HStack>
                                       <Progress
                                         value={activityMetrics.maxVote > 0 ? (member.voteParticipationCount / activityMetrics.maxVote) * 100 : 0}
                                         size="xs"
                                         colorScheme="blue"
-                                        bg="gray.100"
+                                        bg="gray.200"
                                         borderRadius="full"
                                       />
                                     </Box>
                                     <Box>
                                       <HStack justify="space-between" mb={1}>
                                         <Text fontSize="xs" color="gray.500">경기 참여</Text>
-                                        <Text fontSize="xs" fontWeight="semibold">{member.gameParticipationCount}회</Text>
+                                        <Text fontSize="xs" fontWeight="semibold" color="gray.700">{member.gameParticipationCount}회</Text>
                                       </HStack>
                                       <Progress
                                         value={activityMetrics.maxGame > 0 ? (member.gameParticipationCount / activityMetrics.maxGame) * 100 : 0}
                                         size="xs"
                                         colorScheme="green"
-                                        bg="gray.100"
+                                        bg="gray.200"
                                         borderRadius="full"
                                       />
                                     </Box>
                                   </SimpleGrid>
                                 </Box>
                               );
-                            }) : (
-                              <Flex justify="center" py={8}>
-                                <Text color="gray.500">회원 데이터가 없습니다.</Text>
-                              </Flex>
-                            )}
+                            })}
                           </VStack>
-                        </VStack>
-                      </CardBody>
-                    </Card>
-
-                    {/* 월별 경기 현황 */}
-                    <Card>
-                      <CardBody pt={1.5} pb={2} px={6}>
-                        <VStack spacing={2} align="stretch">
-                          <Text fontSize="lg" fontWeight="bold" color="#004ea8">📅 월별 경기 현황</Text>
-                          <Divider />
-                          
-                          <VStack spacing={3} align="stretch">
-                            {activityAnalysisData?.monthlyGameStats && activityAnalysisData.monthlyGameStats.length > 0 ? (
-                              activityAnalysisData.monthlyGameStats.map((monthData, index) => {
-                                const gameCount = monthData.gameCount;
-                                const maxGames = 8; // 월 최대 경기수 가정
-                                
-                                return (
-                                  <Box key={index}>
-                                    <Flex justify="space-between" align="center" mb={1}>
-                                      <Text fontSize="sm" fontWeight="bold">
-                                        {monthData.month}
-                                      </Text>
-                                      <Text fontSize="sm" color="gray.600">
-                                        {gameCount}경기
-                                      </Text>
-                                    </Flex>
-                                    <Progress 
-                                      value={gameCount > 0 ? (gameCount / maxGames) * 100 : 0}
-                                      colorScheme="blue"
-                                      size="sm"
-                                      bg="gray.100"
-                                    />
-                                  </Box>
-                                );
-                              })
-                            ) : (
-                              <Text color="gray.500" textAlign="center" py={4}>월별 경기 데이터가 없습니다.</Text>
-                            )}
-                          </VStack>
-                          
-                          <Divider />
-                          <Box>
-                            <Text fontSize="sm" color="gray.600" mb={2}>경기 유형별 분포</Text>
-                            <VStack spacing={1} align="stretch">
-                              <Flex justify="space-between">
-                                <Text fontSize="sm">매치 경기</Text>
-                                <Badge colorScheme="red" variant="subtle">
-                                  {activityAnalysisData?.gameTypeDistribution.match || 0}회
-                                </Badge>
-                              </Flex>
-                              <Flex justify="space-between">
-                                <Text fontSize="sm">자체 경기</Text>
-                                <Badge colorScheme="blue" variant="subtle">
-                                  {activityAnalysisData?.gameTypeDistribution.friendly || 0}회
-                                </Badge>
-                              </Flex>
-                            </VStack>
-                          </Box>
-                        </VStack>
-                      </CardBody>
-                    </Card>
-                  </SimpleGrid>
-
-                  {/* 상세 분석 리포트 */}
-                  <Card w="100%">
-                    <CardBody py={2} px={4}>
-                      <VStack spacing={6} align="stretch">
-                        <Text fontSize="lg" fontWeight="bold" color="#004ea8">📊 상세 분석 리포트</Text>
-                        <Divider />
-                        
-                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={2}>
-                          <Box>
-                            <Text fontSize="md" fontWeight="bold" mb={3}>👑 최고 참여자</Text>
-                            <VStack spacing={1} align="stretch">
-                              {activityAnalysisData?.memberStats && activityAnalysisData.memberStats.length > 0 ? (
-                                activityAnalysisData.memberStats.slice(0, 3).map((member, index) => (
-                                  <TopParticipantItem key={member.id} member={member} index={index} />
-                                ))
-                              ) : (
-                                <Text fontSize="sm" color="gray.500">데이터가 없습니다.</Text>
-                              )}
-                            </VStack>
-                          </Box>
-                          
-                          <Box>
-                            <Text fontSize="md" fontWeight="bold" mb={3}>⚽ 이번 달 하이라이트</Text>
-                            <VStack spacing={1} align="stretch">
-                              <Text fontSize="sm">• 총 {games.filter(g => {
-                                const gameDate = new Date(g.date);
-                                const now = new Date();
-                                return gameDate.getMonth() === now.getMonth();
-                              }).length}경기 진행</Text>
-                              <Text fontSize="sm">• 평균 참가인원: {Math.floor(Math.random() * 5) + 15}명</Text>
-                              <Text fontSize="sm">• 신규 가입자: {userList.filter(u => {
-                                if (!u.createdAt) return false;
-                                const created = new Date(u.createdAt);
-                                const now = new Date();
-                                return created.getMonth() === now.getMonth();
-                              }).length}명</Text>
-                              <Text fontSize="sm">• 팀 활동성: 
-                                <Badge colorScheme="green" ml={2}>매우 높음</Badge>
-                              </Text>
-                            </VStack>
-                          </Box>
-                          
-                          <Box>
-                            <Text fontSize="md" fontWeight="bold" mb={3}>🏆 상위 참여자</Text>
-                            <VStack spacing={1} align="stretch">
-                              {activityAnalysisData?.memberStats && activityAnalysisData.memberStats.length > 0 ? (
-                                activityAnalysisData.memberStats.slice(0, 3).map((member, index) => (
-                                  <Flex key={member.id} justify="space-between" align="center">
-                                    <HStack>
-                                      <Badge 
-                                        colorScheme={
-                                          index === 0 ? 'yellow' : 
-                                          index === 1 ? 'gray' : 'orange'
-                                        }
-                                        size="sm"
-                                      >
-                                        {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                                      </Badge>
-                                      <Text fontSize="sm" fontWeight="bold">{member.name}</Text>
-                                    </HStack>
-                                    <Text fontSize="sm" color="gray.600">
-                                      {Math.round((member.gameParticipation + member.voteParticipation) / 2)}%
-                                    </Text>
-                                  </Flex>
-                                ))
-                              ) : (
-                                <Text fontSize="sm" color="gray.500">데이터가 없습니다.</Text>
-                              )}
-                            </VStack>
-                          </Box>
-                          
-                          <Box>
-                            <Text fontSize="md" fontWeight="bold" mb={3}>📈 개선 포인트</Text>
-                            <VStack spacing={1} align="stretch">
-                              <Text fontSize="sm">• 투표 참여율 향상 필요</Text>
-                              <Text fontSize="sm">• 신규 회원 온보딩 강화</Text>
-                              <Text fontSize="sm">• 경기 후 피드백 수집</Text>
-                              <Text fontSize="sm">• 팀 내 소통 활성화</Text>
-                            </VStack>
-                          </Box>
-                        </SimpleGrid>
+                        ) : (
+                          <Text color="gray.500" fontSize="sm">회원 활동 데이터가 없습니다.</Text>
+                        )}
                       </VStack>
                     </CardBody>
-                                    </Card>
+                  </Card>
                 </VStack>
-              )}
+                );
+              })()}
 
               {/* 풋살 경기 현황판 */}
               {selectedMenu === 'football' && hasPermission('all') && (
