@@ -55,7 +55,7 @@ import {
   useBreakpointValue,
   IconButton
 } from '@chakra-ui/react';
-import { ViewIcon, CalendarIcon, SettingsIcon, InfoIcon, HamburgerIcon } from '@chakra-ui/icons';
+import { ViewIcon, SettingsIcon, HamburgerIcon } from '@chakra-ui/icons';
 import {
   MdOutlineDashboard,
   MdOutlineGroups,
@@ -67,7 +67,8 @@ import {
   MdOutlineStadium,
   MdOutlineMenuBook,
   MdOutlinePendingActions,
-  MdOutlineHistory
+  MdOutlineHistory,
+  MdOutlineSend
 } from 'react-icons/md';
 import { GameCardSkeleton, MemberListSkeleton } from '../components/common/SkeletonLoader';
 import { getValidToken, getMemberStats, type Game } from '../api/auth';
@@ -3373,6 +3374,64 @@ export default function AdminPageNew() {
     };
   }, [activityAnalysisData]);
 
+  // 알림 발송 예상 수신 인원 (sendGameNotification / sendVoteReminder와 동일한 대상 규칙을 read-only로 재사용)
+  const gameNotificationTarget = notificationSettings.gameReminder.targets[0] || 'all';
+  const expectedGameRecipientCount = useMemo(() => {
+    // sendGameNotification은 대상(target)과 무관하게 미래 경기가 없으면 즉시 발송을 중단한다 — 동일 gate를 preview에도 적용
+    const now = new Date();
+    const futureGames = (games || []).filter((g: any) => new Date(g.date).getTime() >= now.getTime());
+    if (futureGames.length === 0) return 0;
+
+    if (gameNotificationTarget === 'admin') {
+      return userList.filter((u: any) => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN').length;
+    }
+    if (gameNotificationTarget === 'participating') {
+      const ids = new Set<number>();
+      futureGames.forEach((g: any) => {
+        if (g.attendances && Array.isArray(g.attendances)) {
+          g.attendances.forEach((a: any) => { if (a?.userId) ids.add(a.userId); });
+        }
+        if ((!g.attendances || g.attendances.length === 0) && userList.length > 0) {
+          const { names } = getGameParticipantSummary(g);
+          names.forEach((name) => {
+            const hit = userList.find((u: any) => u.name === name);
+            if (hit?.id) ids.add(hit.id);
+          });
+        }
+      });
+      return ids.size;
+    }
+    return userList.length;
+  }, [gameNotificationTarget, games, userList]);
+
+  const voteNotificationTarget = notificationSettings.voteReminder.targets[0] || 'nonVoters';
+  const expectedVoteRecipientCount = useMemo(() => {
+    if (voteNotificationTarget === 'all') return userList.length;
+    return getNonVoters().length;
+  }, [voteNotificationTarget, userList, unifiedVoteData]);
+
+  const gameTargetLabel = gameNotificationTarget === 'participating' ? '참가 예정 회원' : gameNotificationTarget === 'admin' ? '관리자' : '전체 회원';
+  const voteTargetLabel = voteNotificationTarget === 'all' ? '전체 회원' : '투표 미참여 회원';
+
+  // 발송 확인 모달 상태 (game/vote 공용)
+  const [sendConfirmTarget, setSendConfirmTarget] = useState<null | 'game' | 'vote'>(null);
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
+
+  const handleConfirmSend = async () => {
+    if (!sendConfirmTarget || isSendingNotification) return;
+    setIsSendingNotification(true);
+    try {
+      if (sendConfirmTarget === 'game') {
+        await sendGameNotification();
+      } else {
+        await sendVoteReminder();
+      }
+    } finally {
+      setIsSendingNotification(false);
+      setSendConfirmTarget(null);
+    }
+  };
+
   const renderSidebarContent = (onNavigate?: () => void) => {
     const handleClick = (menu: string) => {
       handleMenuSelect(menu);
@@ -4072,13 +4131,13 @@ export default function AdminPageNew() {
 
               {/* 알림 관리 */}
               {selectedMenu === 'notifications' && hasPermission('all') && (
-                <VStack spacing={8} align="stretch" w="100%">
-                  <MailDiagnosticsPanel />
-                  <Flex justify="space-between" align="center">
-                    <HStack spacing={3}>
-                    <Text fontSize="2xl">🔔</Text>
-                    <Text fontSize="2xl" fontWeight="bold" color="#004ea8">알림 관리</Text>
-                  </HStack>
+                <VStack spacing={5} align="stretch" w="100%">
+                  {/* 헤더 */}
+                  <Flex justify="space-between" align="flex-end" wrap="wrap" gap={2}>
+                    <Box>
+                      <Text fontSize="2xl" fontWeight="bold" color="#004ea8">알림 관리</Text>
+                      <Text fontSize="sm" color="gray.500" mt={0.5}>경기 · 투표 알림 설정 및 발송</Text>
+                    </Box>
                     <Button
                       colorScheme="blue"
                       bg="#004ea8"
@@ -4090,47 +4149,23 @@ export default function AdminPageNew() {
                     </Button>
                   </Flex>
 
-                  {/* 알림 시스템 상태 */}
-                  <Card w="100%">
-                    <CardBody py={2} px={4}>
-                      <VStack spacing={2} align="stretch">
-                        <HStack justify="space-between" align="center">
-                          <Text fontSize="lg" fontWeight="bold" color="#004ea8">📊 알림 시스템 상태</Text>
-                          <Switch
-                            isChecked
-                            isDisabled
-                            colorScheme="green"
-                          />
-                        </HStack>
-                        
-                        <HStack spacing={4} mt="-26.44px">
-                          <Badge colorScheme="green" size="lg">
-                            서버 자동
-                          </Badge>
-                          <Text fontSize="sm" color="gray.600">
-                            관리자 페이지를 닫아도 서버가 경기 알림과 투표 독려 메일을 처리합니다.
-                          </Text>
-                        </HStack>
-                      </VStack>
-                    </CardBody>
-                  </Card>
-
-                  <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={2} w="100%">
+                  {/* ZONE A: 알림 설정 */}
+                  <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={3} w="100%">
                     {/* 경기 알림 설정 */}
-                    <Card>
-                      <CardBody pt={2} pb={5} px={4}>
-                        <VStack spacing={2} align="stretch" mt={0} mb={0}>
-                          <HStack spacing={3} mt={0}>
-                            <Icon as={CalendarIcon} color="#004ea8" boxSize={5} />
-                            <Text fontSize="lg" fontWeight="bold" color="#004ea8">경기 알림</Text>
-                            <Badge colorScheme={notificationSettings.gameReminder.enabled ? 'green' : 'gray'}>
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <VStack spacing={3} align="stretch">
+                          <HStack spacing={2}>
+                            <Icon as={MdOutlineSportsSoccer} boxSize={4} color="#004ea8" />
+                            <Text fontSize="sm" fontWeight="bold" color="gray.700">경기 알림</Text>
+                            <Badge colorScheme={notificationSettings.gameReminder.enabled ? 'green' : 'gray'} variant="subtle">
                               {notificationSettings.gameReminder.enabled ? '활성' : '비활성'}
                             </Badge>
                           </HStack>
                           <Divider />
-                          
+
                           <FormControl display="flex" alignItems="center">
-                            <FormLabel mb="0" color="gray.700" fontWeight="bold">경기 알림 활성화</FormLabel>
+                            <FormLabel mb="0" fontSize="sm" color="gray.700">경기 알림 활성화</FormLabel>
                             <Switch
                               isChecked={notificationSettings.gameReminder.enabled}
                               onChange={(e) => handleNotificationChange('gameReminder', 'enabled', e.target.checked)}
@@ -4139,86 +4174,61 @@ export default function AdminPageNew() {
                           </FormControl>
 
                           {notificationSettings.gameReminder.enabled && (
-                            <>
-                              <HStack spacing={4} align="flex-start">
-                                <FormControl flex={1}>
-                                  <FormLabel color="gray.700" fontWeight="bold">알림 전송 시간</FormLabel>
-                                  <HStack>
-                                    <NumberInput
-                                      value={notificationSettings.gameReminder.beforeHours}
-                                      onChange={(_, value) => handleNotificationChange('gameReminder', 'beforeHours', value)}
-                                      min={1}
-                                      max={168}
-                                      w="120px"
-                                    >
-                                      <NumberInputField />
-                                      <NumberInputStepper>
-                                        <NumberIncrementStepper />
-                                        <NumberDecrementStepper />
-                                      </NumberInputStepper>
-                                    </NumberInput>
-                                    <Text color="gray.600">시간 전</Text>
-                                  </HStack>
-                                </FormControl>
-
-                                <FormControl flex={1}>
-                                  <FormLabel color="gray.700" fontWeight="bold">알림 대상</FormLabel>
-                                  <Select
-                                    value={notificationSettings.gameReminder.targets[0]}
-                                    onChange={(e) => handleNotificationChange('gameReminder', 'targets', [e.target.value])}
-                                    focusBorderColor="#004ea8"
+                            <HStack spacing={4} align="flex-start">
+                              <FormControl flex={1}>
+                                <FormLabel fontSize="sm" color="gray.700">알림 전송 시간</FormLabel>
+                                <HStack>
+                                  <NumberInput
+                                    value={notificationSettings.gameReminder.beforeHours}
+                                    onChange={(_, value) => handleNotificationChange('gameReminder', 'beforeHours', value)}
+                                    min={1}
+                                    max={168}
+                                    w="120px"
+                                    size="sm"
                                   >
-                                    <option value="participating">참가 예정 회원</option>
-                                    <option value="all">전체 회원</option>
-                                  </Select>
-                                </FormControl>
-                              </HStack>
-            </>
-          )}
-                          
-                          {/* 수동 발송 버튼 */}
-                          <Divider />
-                          <VStack spacing={2} align="stretch" mb={0}>
-                            <Text fontSize="md" fontWeight="bold" color="gray.700">수동 발송</Text>
-                              <HStack spacing={2}>
-                                <Button
-                                  colorScheme="gray"
-                                  size="md"
-                                  onClick={showGamePreview}
-                                  leftIcon={<Icon as={ViewIcon} />}
+                                    <NumberInputField />
+                                    <NumberInputStepper>
+                                      <NumberIncrementStepper />
+                                      <NumberDecrementStepper />
+                                    </NumberInputStepper>
+                                  </NumberInput>
+                                  <Text fontSize="sm" color="gray.600">시간 전</Text>
+                                </HStack>
+                              </FormControl>
+
+                              <FormControl flex={1}>
+                                <FormLabel fontSize="sm" color="gray.700">알림 대상</FormLabel>
+                                <Select
+                                  value={notificationSettings.gameReminder.targets[0]}
+                                  onChange={(e) => handleNotificationChange('gameReminder', 'targets', [e.target.value])}
+                                  focusBorderColor="#004ea8"
+                                  size="sm"
                                 >
-                                  프리뷰 보기
-                                </Button>
-                <Button
-                  colorScheme="green"
-                  size="md"
-                  onClick={sendGameNotification}
-                  isDisabled={!isNotificationSystemActive}
-                  leftIcon={<Icon as={InfoIcon} />}
-                >
-                  경기 알림 발송
-                </Button>
-                              </HStack>
-                          </VStack>
+                                  <option value="participating">참가 예정 회원</option>
+                                  <option value="all">전체 회원</option>
+                                </Select>
+                              </FormControl>
+                            </HStack>
+                          )}
                         </VStack>
                       </CardBody>
                     </Card>
 
                     {/* 투표 알림 설정 */}
-                    <Card>
-                      <CardBody pt={2} pb={5} px={4}>
-                        <VStack spacing={2} align="stretch" mt={0} mb={0}>
-                          <HStack spacing={3} mt={0}>
-                            <Icon as={ViewIcon} color="#004ea8" boxSize={5} />
-                            <Text fontSize="lg" fontWeight="bold" color="#004ea8">투표 알림</Text>
-                            <Badge colorScheme={notificationSettings.voteReminder.enabled ? 'green' : 'gray'}>
+                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                      <CardBody px={5} py={4}>
+                        <VStack spacing={3} align="stretch">
+                          <HStack spacing={2}>
+                            <Icon as={MdOutlineHowToVote} boxSize={4} color="#004ea8" />
+                            <Text fontSize="sm" fontWeight="bold" color="gray.700">투표 알림</Text>
+                            <Badge colorScheme={notificationSettings.voteReminder.enabled ? 'green' : 'gray'} variant="subtle">
                               {notificationSettings.voteReminder.enabled ? '활성' : '비활성'}
                             </Badge>
                           </HStack>
                           <Divider />
 
                           <FormControl display="flex" alignItems="center">
-                            <FormLabel mb="0" color="gray.700" fontWeight="bold">투표 알림 활성화</FormLabel>
+                            <FormLabel mb="0" fontSize="sm" color="gray.700">투표 알림 활성화</FormLabel>
                             <Switch
                               isChecked={notificationSettings.voteReminder.enabled}
                               onChange={(e) => handleNotificationChange('voteReminder', 'enabled', e.target.checked)}
@@ -4227,101 +4237,228 @@ export default function AdminPageNew() {
                           </FormControl>
 
                           {notificationSettings.voteReminder.enabled && (
-                            <>
-                              <HStack spacing={4} align="flex-start">
-                                <FormControl flex={1}>
-                                  <FormLabel color="gray.700" fontWeight="bold">알림 전송 시간</FormLabel>
-                                  <HStack>
-                                    <NumberInput
-                                      value={notificationSettings.voteReminder.beforeHours}
-                                      onChange={(_, value) => handleNotificationChange('voteReminder', 'beforeHours', value)}
-                                      min={1}
-                                      max={72}
-                                      w="120px"
-                                    >
-                                      <NumberInputField />
-                                      <NumberInputStepper>
-                                        <NumberIncrementStepper />
-                                        <NumberDecrementStepper />
-                                      </NumberInputStepper>
-                                    </NumberInput>
-                                    <Text color="gray.600">시간 전</Text>
-                                  </HStack>
-                                </FormControl>
-
-                                <FormControl flex={1}>
-                                  <FormLabel color="gray.700" fontWeight="bold">알림 대상</FormLabel>
-                                  <Select
-                                    value={notificationSettings.voteReminder.targets[0]}
-                                    onChange={(e) => handleNotificationChange('voteReminder', 'targets', [e.target.value])}
-                                    focusBorderColor="#004ea8"
+                            <HStack spacing={4} align="flex-start">
+                              <FormControl flex={1}>
+                                <FormLabel fontSize="sm" color="gray.700">알림 전송 시간</FormLabel>
+                                <HStack>
+                                  <NumberInput
+                                    value={notificationSettings.voteReminder.beforeHours}
+                                    onChange={(_, value) => handleNotificationChange('voteReminder', 'beforeHours', value)}
+                                    min={1}
+                                    max={72}
+                                    w="120px"
+                                    size="sm"
                                   >
-                                    <option value="all">전체 회원</option>
-                                    <option value="nonVoters">투표 미참여 회원</option>
-                                  </Select>
-                                </FormControl>
-                              </HStack>
-                            </>
+                                    <NumberInputField />
+                                    <NumberInputStepper>
+                                      <NumberIncrementStepper />
+                                      <NumberDecrementStepper />
+                                    </NumberInputStepper>
+                                  </NumberInput>
+                                  <Text fontSize="sm" color="gray.600">시간 전</Text>
+                                </HStack>
+                              </FormControl>
+
+                              <FormControl flex={1}>
+                                <FormLabel fontSize="sm" color="gray.700">알림 대상</FormLabel>
+                                <Select
+                                  value={notificationSettings.voteReminder.targets[0]}
+                                  onChange={(e) => handleNotificationChange('voteReminder', 'targets', [e.target.value])}
+                                  focusBorderColor="#004ea8"
+                                  size="sm"
+                                >
+                                  <option value="all">전체 회원</option>
+                                  <option value="nonVoters">투표 미참여 회원</option>
+                                </Select>
+                              </FormControl>
+                            </HStack>
                           )}
-                          
-                          {/* 수동 발송 버튼 */}
-                          <Divider />
-                          <VStack spacing={2} align="stretch" mb={0}>
-                            <Text fontSize="md" fontWeight="bold" color="gray.700">수동 발송</Text>
-                              <HStack spacing={2}>
-                                <Button
-                                  colorScheme="gray"
-                                  size="md"
-                                  onClick={showVotePreview}
-                                  leftIcon={<Icon as={ViewIcon} />}
-                                >
-                                  프리뷰 보기
-                                </Button>
-                                <Button
-                                  colorScheme="purple"
-                                  size="md"
-                                  onClick={sendVoteReminder}
-                                  isDisabled={!isNotificationSystemActive}
-                                  leftIcon={<Icon as={ViewIcon} />}
-                                >
-                                  투표 알림 발송
-                                </Button>
-                              </HStack>
-                          </VStack>
                         </VStack>
                       </CardBody>
                     </Card>
                   </SimpleGrid>
 
+                  {/* ZONE B: 수동 발송 */}
+                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                    <CardBody px={5} py={4}>
+                      <VStack align="stretch" spacing={4}>
+                        <Text fontSize="md" fontWeight="bold" color="gray.700">수동 발송</Text>
 
+                        {/* 경기 알림 발송 */}
+                        <Flex
+                          justify="space-between"
+                          align={{ base: 'stretch', md: 'center' }}
+                          direction={{ base: 'column', md: 'row' }}
+                          gap={3}
+                          px={4}
+                          py={3}
+                          border="1px solid"
+                          borderColor="gray.200"
+                          borderRadius="md"
+                          bg="gray.50"
+                        >
+                          <HStack spacing={3} align="flex-start">
+                            <Icon as={MdOutlineSportsSoccer} boxSize={5} color="#004ea8" mt={0.5} />
+                            <VStack align="flex-start" spacing={0}>
+                              <Text fontSize="sm" fontWeight="bold" color="gray.800">경기 알림</Text>
+                              <Text fontSize="xs" color="gray.500">대상: {gameTargetLabel}</Text>
+                              <Text fontSize="xs" color="gray.500">예상 수신 {expectedGameRecipientCount}명</Text>
+                            </VStack>
+                          </HStack>
+                          <HStack spacing={2}>
+                            <Button
+                              variant="outline"
+                              borderColor="gray.300"
+                              size="sm"
+                              onClick={showGamePreview}
+                              leftIcon={<Icon as={ViewIcon} />}
+                            >
+                              프리뷰
+                            </Button>
+                            <Button
+                              colorScheme="blue"
+                              bg="#004ea8"
+                              _hover={{ bg: '#003d7a' }}
+                              size="sm"
+                              onClick={() => setSendConfirmTarget('game')}
+                              isDisabled={!isNotificationSystemActive || expectedGameRecipientCount === 0}
+                              leftIcon={<Icon as={MdOutlineSend} />}
+                            >
+                              발송
+                            </Button>
+                          </HStack>
+                        </Flex>
 
-                  {/* 알림 설정 요약 */}
-                  <Card w="100%">
-                    <CardBody py={2} px={4}>
-                      <VStack spacing={2} align="stretch">
-                        <Text fontSize="lg" fontWeight="bold" color="#004ea8">📋 알림 설정 요약</Text>
-                        <Divider />
-                        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={2}>
-                          <Box>
-                            <Text fontSize="sm" color="gray.600" fontWeight="bold">경기 알림</Text>
-                            <Text>
-                              {notificationSettings.gameReminder.enabled 
-                                ? `활성 - ${notificationSettings.gameReminder.beforeHours}시간 전 알림` 
-                                : '비활성'}
-                            </Text>
-                          </Box>
-                          <Box>
-                            <Text fontSize="sm" color="gray.600" fontWeight="bold">투표 알림</Text>
-                            <Text>
-                              {notificationSettings.voteReminder.enabled 
-                                ? `활성 - ${notificationSettings.voteReminder.beforeHours}시간 전 알림` 
-                                : '비활성'}
-                            </Text>
-                          </Box>
-                        </SimpleGrid>
+                        {/* 투표 알림 발송 */}
+                        <Flex
+                          justify="space-between"
+                          align={{ base: 'stretch', md: 'center' }}
+                          direction={{ base: 'column', md: 'row' }}
+                          gap={3}
+                          px={4}
+                          py={3}
+                          border="1px solid"
+                          borderColor="gray.200"
+                          borderRadius="md"
+                          bg="gray.50"
+                        >
+                          <HStack spacing={3} align="flex-start">
+                            <Icon as={MdOutlineHowToVote} boxSize={5} color="#004ea8" mt={0.5} />
+                            <VStack align="flex-start" spacing={0}>
+                              <Text fontSize="sm" fontWeight="bold" color="gray.800">투표 알림</Text>
+                              <Text fontSize="xs" color="gray.500">대상: {voteTargetLabel}</Text>
+                              <Text fontSize="xs" color="gray.500">예상 수신 {expectedVoteRecipientCount}명</Text>
+                            </VStack>
+                          </HStack>
+                          <HStack spacing={2}>
+                            <Button
+                              variant="outline"
+                              borderColor="gray.300"
+                              size="sm"
+                              onClick={showVotePreview}
+                              leftIcon={<Icon as={ViewIcon} />}
+                            >
+                              프리뷰
+                            </Button>
+                            <Button
+                              colorScheme="blue"
+                              bg="#004ea8"
+                              _hover={{ bg: '#003d7a' }}
+                              size="sm"
+                              onClick={() => setSendConfirmTarget('vote')}
+                              isDisabled={!isNotificationSystemActive || expectedVoteRecipientCount === 0}
+                              leftIcon={<Icon as={MdOutlineSend} />}
+                            >
+                              발송
+                            </Button>
+                          </HStack>
+                        </Flex>
                       </VStack>
                     </CardBody>
                   </Card>
+
+                  {/* 발송 확인 모달 */}
+                  <Modal isOpen={sendConfirmTarget !== null} onClose={() => !isSendingNotification && setSendConfirmTarget(null)}>
+                    <ModalOverlay />
+                    <ModalContent>
+                      <ModalHeader>
+                        {sendConfirmTarget === 'game' ? '경기 알림을 발송하시겠습니까?' : '투표 알림을 발송하시겠습니까?'}
+                      </ModalHeader>
+                      {!isSendingNotification && <ModalCloseButton />}
+                      <ModalBody>
+                        <VStack align="stretch" spacing={2}>
+                          <HStack justify="space-between">
+                            <Text fontSize="sm" color="gray.500">대상</Text>
+                            <Text fontSize="sm" fontWeight="bold">
+                              {sendConfirmTarget === 'game' ? gameTargetLabel : voteTargetLabel}
+                            </Text>
+                          </HStack>
+                          <HStack justify="space-between">
+                            <Text fontSize="sm" color="gray.500">예상 수신</Text>
+                            <Text fontSize="sm" fontWeight="bold">
+                              {sendConfirmTarget === 'game' ? expectedGameRecipientCount : expectedVoteRecipientCount}명
+                            </Text>
+                          </HStack>
+                          <Text fontSize="xs" color="gray.500" pt={2}>
+                            실제로 이메일이 발송됩니다. 발송 후에는 취소할 수 없습니다.
+                          </Text>
+                        </VStack>
+                      </ModalBody>
+                      <ModalFooter>
+                        <Button variant="ghost" mr={2} onClick={() => setSendConfirmTarget(null)} isDisabled={isSendingNotification}>
+                          취소
+                        </Button>
+                        <Button
+                          colorScheme="blue"
+                          bg="#004ea8"
+                          _hover={{ bg: '#003d7a' }}
+                          onClick={handleConfirmSend}
+                          isLoading={isSendingNotification}
+                        >
+                          발송
+                        </Button>
+                      </ModalFooter>
+                    </ModalContent>
+                  </Modal>
+
+                  {/* ZONE C: 이번 세션 발송 내역 */}
+                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
+                    <CardBody px={5} py={4}>
+                      <VStack align="stretch" spacing={3}>
+                        <HStack spacing={2}>
+                          <Icon as={MdOutlineHistory} boxSize={4} color="gray.500" />
+                          <Text fontSize="sm" fontWeight="bold" color="gray.700">이번 세션 발송 내역</Text>
+                        </HStack>
+                        <Text fontSize="xs" color="gray.400">새로고침하면 사라지는 임시 기록입니다.</Text>
+
+                        {notifications.length === 0 ? (
+                          <Text color="gray.500" fontSize="sm">이번 세션에서 발송한 알림이 없습니다.</Text>
+                        ) : (
+                          <VStack spacing={2} align="stretch" maxH="280px" overflowY="auto">
+                            {notifications.map((n) => (
+                              <Flex key={n.id} justify="space-between" align="center" px={4} py={2} border="1px solid" borderColor="gray.200" borderRadius="md" bg="gray.50">
+                                <VStack align="flex-start" spacing={0}>
+                                  <Text fontSize="sm" fontWeight="medium" color="gray.800">{n.title}</Text>
+                                  <Text fontSize="xs" color="gray.500">
+                                    {new Date(n.sentAt).toLocaleString('ko-KR')} · 수신 대상 {n.recipients.length}명
+                                  </Text>
+                                </VStack>
+                                <Badge colorScheme={n.status === 'SENT' ? 'green' : n.status === 'FAILED' ? 'red' : 'blue'}>{n.status}</Badge>
+                              </Flex>
+                            ))}
+                          </VStack>
+                        )}
+                      </VStack>
+                    </CardBody>
+                  </Card>
+
+                  {/* 진단 / 보조 정보 */}
+                  <VStack align="stretch" spacing={2}>
+                    <MailDiagnosticsPanel />
+                    <Text fontSize="xs" color="gray.400">
+                      서버가 경기 알림과 투표 독려 메일을 자동으로 처리합니다. 관리자 페이지를 닫아도 발송은 계속됩니다.
+                    </Text>
+                  </VStack>
                 </VStack>
               )}
 
