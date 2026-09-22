@@ -28,6 +28,8 @@ import {
   FormControl,
   FormLabel,
   Input,
+  InputGroup,
+  InputLeftElement,
   Select,
   useToast,
   Flex,
@@ -69,6 +71,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [originalMemberData, setOriginalMemberData] = useState<Member | null>(null);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onClose: onEditModalClose } = useDisclosure();
   const { isOpen: isViewModalOpen, onOpen: onViewModalOpen, onClose: onViewModalClose } = useDisclosure();
@@ -141,8 +145,9 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
 
   // 회원 정보 저장
   const handleSaveMember = async () => {
-    if (!editingMember) return;
+    if (!editingMember || isSaving) return;
 
+    setIsSaving(true);
     try {
       if (editingMember.id === 0) {
         // 새 회원 추가 - 이메일 검증 강화
@@ -351,6 +356,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
         duration: 3000,
         isClosable: true,
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -405,7 +412,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
 
   // 회원 삭제
   const handleDeleteMember = async () => {
-    if (!selectedMember) return;
+    if (!selectedMember || isDeleting) return;
 
     // 인증 토큰 확인
     const token = localStorage.getItem('token');
@@ -420,6 +427,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
       return;
     }
 
+    setIsDeleting(true);
     try {
       // API 호출로 실제 삭제
       await deleteMember(selectedMember.id);
@@ -449,6 +457,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
         duration: 3000,
         isClosable: true,
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -487,14 +497,11 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
     <Box>
       <VStack spacing={6} align="stretch">
         {/* 헤더 */}
-        <HStack justify="space-between">
-          <VStack align="start" spacing={2}>
-            <HStack spacing={3}>
-              <Text fontSize="2xl">👥</Text>
-              <Text fontSize="2xl" fontWeight="bold">회원 관리</Text>
-            </HStack>
-            <Text>전체 회원 정보를 관리할 수 있습니다.</Text>
-          </VStack>
+        <Flex justify="space-between" align="flex-end" wrap="wrap" gap={2}>
+          <Box>
+            <Text fontSize="2xl" fontWeight="bold" color="#004ea8">회원 관리</Text>
+            <Text fontSize="sm" color="gray.500" mt={0.5}>회원 정보와 계정 상태를 관리합니다.</Text>
+          </Box>
           <Button
             leftIcon={<AddIcon />}
             colorScheme="blue"
@@ -514,7 +521,20 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
           >
             추가
           </Button>
-        </HStack>
+        </Flex>
+
+        {/* 검색 */}
+        <InputGroup maxW="320px">
+          <InputLeftElement pointerEvents="none">
+            <SearchIcon color="gray.400" boxSize={3.5} />
+          </InputLeftElement>
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="이름, 이메일, 등급으로 검색"
+            bg="white"
+          />
+        </InputGroup>
 
         {/* 회원 목록 테이블 */}
         <Box
@@ -724,8 +744,9 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
           </ModalBody>
           <Box p={6} borderTop="1px" borderColor="gray.200">
             <HStack spacing={3} justify="flex-end">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
+                isDisabled={isSaving}
                 onClick={() => {
                   // 취소 시에도 상태 초기화하지 않음 (데이터 보존)
                   onEditModalClose();
@@ -733,7 +754,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
               >
                 취소
               </Button>
-              <Button colorScheme="blue" onClick={handleSaveMember}>
+              <Button colorScheme="blue" onClick={handleSaveMember} isLoading={isSaving} loadingText="저장 중...">
                 저장
               </Button>
             </HStack>
@@ -794,25 +815,28 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
       </Modal>
 
       {/* 회원 삭제 확인 모달 */}
-      <Modal isOpen={isDeleteModalOpen} onClose={onDeleteModalClose}>
+      <Modal isOpen={isDeleteModalOpen} onClose={() => !isDeleting && onDeleteModalClose()}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>회원 삭제 확인</ModalHeader>
           <ModalBody>
-            <Alert status="warning">
+            <Alert status="warning" alignItems="flex-start">
               <AlertIcon />
-              <Text>
-                <strong>{selectedMember?.name}</strong> 회원을 정말 삭제하시겠습니까?
-                이 작업은 되돌릴 수 없습니다.
-              </Text>
+              <VStack align="start" spacing={2}>
+                <Text><strong>{selectedMember?.name}</strong> 회원을 삭제하시겠습니까?</Text>
+                <Text fontSize="sm">
+                  이 회원의 출석·투표·좋아요·댓글 기록이 삭제되고, 이 회원이 생성한 경기·일정, 업로드한 사진/영상, 작성한 공지사항도 함께 삭제됩니다.
+                </Text>
+                <Text fontSize="sm" fontWeight="bold">이 작업은 되돌릴 수 없습니다.</Text>
+              </VStack>
             </Alert>
           </ModalBody>
           <Box p={6} borderTop="1px" borderColor="gray.200">
             <HStack spacing={3} justify="flex-end">
-              <Button variant="ghost" onClick={onDeleteModalClose}>
+              <Button variant="ghost" onClick={onDeleteModalClose} isDisabled={isDeleting}>
                 취소
               </Button>
-              <Button colorScheme="red" onClick={handleDeleteMember}>
+              <Button colorScheme="red" onClick={handleDeleteMember} isLoading={isDeleting} loadingText="삭제 중...">
                 삭제
               </Button>
             </HStack>
