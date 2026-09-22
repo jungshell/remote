@@ -17,17 +17,21 @@ import {
   Alert,
   AlertIcon,
   Divider,
-  Tooltip
+  Tooltip,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter
 } from '@chakra-ui/react';
-import { 
+import {
   getUnifiedVoteDataNew,
   getSavedVoteResults,
   aggregateAndSaveVoteResults,
   resumeVoteSession,
   closeVoteSession,
   deleteVoteSession,
-  bulkDeleteVoteSessions,
-  renumberVoteSessions,
   startWeeklyVote,
   getAdminVoteSessionsSummary,
   cleanupDuplicateSessions
@@ -116,6 +120,8 @@ export default function VoteResultsPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [unifiedData, setUnifiedData] = useState<any>(null);
+  const [pendingAction, setPendingAction] = useState<{ session: VoteSession; type: 'close' | 'resume' | 'delete' } | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
   const sessionsPerPage = 4;
   const toast = useToast();
 
@@ -376,12 +382,8 @@ export default function VoteResultsPage() {
     await toggleVoteSessionStatus(sessionId);
   };
 
-  // 투표 세션 삭제 핸들러
+  // 투표 세션 삭제 핸들러 (확인은 호출 전 confirm modal에서 처리됨)
   const handleDeleteVoteSession = async (sessionId: number | string) => {
-    if (!confirm('정말로 이 투표 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-      return;
-    }
-
     try {
       // ID 파싱 (문자열인 경우 숫자로 변환, 복합 ID인 경우 첫 번째 부분만 사용)
       const cleanId = typeof sessionId === 'string' 
@@ -416,66 +418,19 @@ export default function VoteResultsPage() {
     }
   };
 
-
-  // 투표 세션 일괄 삭제 핸들러 (10, 11번 제외)
-  const handleBulkDeleteVoteSessions = async () => {
-    if (!confirm('10번, 11번 세션을 제외한 모든 투표 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-      return;
-    }
-
+  // 마감/재개/삭제 확인 모달 → 실제 실행
+  const handleConfirmPendingAction = async () => {
+    if (!pendingAction || isProcessingAction) return;
+    setIsProcessingAction(true);
     try {
-      const result = await bulkDeleteVoteSessions();
-      toast({
-        title: '일괄 삭제 완료',
-        description: `${result.deletedCount}개의 투표 세션이 삭제되었습니다.`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      
-      // 데이터 새로고침
-      loadVoteSessionsData();
-      window.dispatchEvent(new CustomEvent('voteDataChanged'));
-    } catch (error) {
-      console.error('투표 세션 일괄 삭제 실패:', error);
-      toast({
-        title: '일괄 삭제 실패',
-        description: error instanceof Error ? error.message : '투표 세션 일괄 삭제 중 오류가 발생했습니다.',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
-
-  // 투표 세션 ID 재설정 핸들러 (10, 11번을 1, 2번으로)
-  const handleRenumberVoteSessions = async () => {
-    if (!confirm('10번, 11번 세션을 1번, 2번으로 재설정하시겠습니까?')) {
-      return;
-    }
-
-    try {
-      const result = await renumberVoteSessions();
-      toast({
-        title: '재설정 완료',
-        description: '세션 ID가 1번, 2번으로 재설정되었습니다.',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      
-      // 데이터 새로고침
-      loadVoteSessionsData();
-      window.dispatchEvent(new CustomEvent('voteDataChanged'));
-    } catch (error) {
-      console.error('투표 세션 재설정 실패:', error);
-      toast({
-        title: '재설정 실패',
-        description: error instanceof Error ? error.message : '투표 세션 재설정 중 오류가 발생했습니다.',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
+      if (pendingAction.type === 'delete') {
+        await handleDeleteVoteSession(pendingAction.session.id);
+      } else {
+        await toggleVoteSessionStatus(pendingAction.session.id);
+      }
+    } finally {
+      setIsProcessingAction(false);
+      setPendingAction(null);
     }
   };
 
@@ -592,6 +547,12 @@ export default function VoteResultsPage() {
 
   return (
     <VStack spacing={6} align="stretch">
+      {/* 헤더 */}
+      <Box>
+        <Text fontSize="2xl" fontWeight="bold" color="#004ea8">투표 결과</Text>
+        <Text fontSize="sm" color="gray.500" mt={0.5}>주간 투표 세션과 결과를 관리합니다.</Text>
+      </Box>
+
       {error && (
         <Alert status="error" borderRadius="md">
           <AlertIcon />
@@ -603,14 +564,11 @@ export default function VoteResultsPage() {
       )}
       {/* 투표 세션 통계 - 각각 네모칸으로 1행 */}
       <SimpleGrid columns={{ base: 2, sm: 2, md: 4 }} spacing={4}>
-        <Card border="1px" borderColor="gray.200" shadow="sm" bg="white">
+        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
           <CardBody pt={1.5} pb={6} px={6}>
             <VStack align="stretch" spacing={-2}>
               <Flex justify="space-between" align="center">
-                <HStack spacing={1}>
-                  <Box as="span" fontSize="sm">📋</Box>
-                  <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">전체 세션</Heading>
-                </HStack>
+                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">전체 세션</Heading>
                 <Text fontSize="2xl" fontWeight="bold" color="blue.600" lineHeight={0.95}>
                   {allVoteSessions.length}
                 </Text>
@@ -618,14 +576,11 @@ export default function VoteResultsPage() {
             </VStack>
           </CardBody>
         </Card>
-        <Card border="1px" borderColor="gray.200" shadow="sm" bg="white">
+        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
           <CardBody pt={1.5} pb={6} px={6}>
             <VStack align="stretch" spacing={-2}>
               <Flex justify="space-between" align="center">
-                <HStack spacing={1}>
-                  <Box as="span" fontSize="sm">✅</Box>
-                  <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">완료된 세션</Heading>
-                </HStack>
+                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">완료된 세션</Heading>
                 <Text fontSize="2xl" fontWeight="bold" color="green.600" lineHeight={0.95}>
                   {allVoteSessions.filter((s: VoteSession) => s.isCompleted).length}
                 </Text>
@@ -633,14 +588,11 @@ export default function VoteResultsPage() {
             </VStack>
           </CardBody>
         </Card>
-        <Card border="1px" borderColor="gray.200" shadow="sm" bg="white">
+        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
           <CardBody pt={1.5} pb={6} px={6}>
             <VStack align="stretch" spacing={-2}>
               <Flex justify="space-between" align="center">
-                <HStack spacing={1}>
-                  <Box as="span" fontSize="sm">⏳</Box>
-                  <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">진행중 세션</Heading>
-                </HStack>
+                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">진행중 세션</Heading>
                 <Text fontSize="2xl" fontWeight="bold" color="orange.600" lineHeight={0.95}>
                   {allVoteSessions.filter((s: VoteSession) => s.isActive).length}
                 </Text>
@@ -648,14 +600,11 @@ export default function VoteResultsPage() {
             </VStack>
           </CardBody>
         </Card>
-        <Card border="1px" borderColor="gray.200" shadow="sm" bg="white">
+        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
           <CardBody pt={1.5} pb={6} px={6}>
             <VStack align="stretch" spacing={-2}>
               <Flex justify="space-between" align="center">
-                <HStack spacing={1}>
-                  <Box as="span" fontSize="sm">👥</Box>
-                  <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">총 참여자</Heading>
-                </HStack>
+                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">총 참여자</Heading>
                 <Text fontSize="2xl" fontWeight="bold" color="purple.600" lineHeight={0.95}>
                   {allVoteSessions.reduce((sum: number, s: any) => sum + getSessionVoteScore(s), 0)}
                 </Text>
@@ -666,11 +615,10 @@ export default function VoteResultsPage() {
       </SimpleGrid>
 
       {/* 투표 세션 목록 */}
-      <Box bg="white" pt={1.5} pb={6} px={6} borderRadius="lg" shadow="sm" border="1px" borderColor="gray.200">
+      <Box bg="white" pt={1.5} pb={6} px={6} borderRadius="lg" boxShadow="none" border="1px" borderColor="gray.200">
         <VStack align="stretch" spacing={-2}>
           <HStack justify="space-between" mb={1}>
             <HStack spacing={1}>
-              <Box as="span" fontSize="md">📝</Box>
               <Heading size="md" color="gray.800">투표 세션 목록</Heading>
             </HStack>
             <HStack spacing={2}>
@@ -742,29 +690,31 @@ export default function VoteResultsPage() {
                 // 진행중인 경우 "진행중" 표시
                 opinionPeriod = `${formatDateWithDay(opinionStartDate.toISOString())} 00:01 - 진행중`;
               } else {
-                // 완료된 경우 실제 투표 마감 시간 표시 (UTC를 한국 시간으로 변환)
+                // 완료된 경우 실제 투표 마감 시간 표시
+                // session.endTime은 서버가 실제 UTC 인스턴트로 저장한 값(auth_simple.ts 마감 처리 주석 참고).
+                // 브라우저가 이미 KST 로컬 타임존이므로 getFullYear/getHours 등은 추가 보정 없이 KST 값을 반환한다.
                 const opinionEndDate = new Date(session.endTime);
-                
-                // 한국 시간으로 변환 (UTC+9)
-                const kstEndDate = new Date(opinionEndDate.getTime() + (9 * 60 * 60 * 1000));
-                
-                // 안전한 날짜 포맷팅
-                const year = kstEndDate.getFullYear();
-                const month = String(kstEndDate.getMonth() + 1).padStart(2, '0');
-                const day = String(kstEndDate.getDate()).padStart(2, '0');
-                const hours = String(kstEndDate.getHours()).padStart(2, '0');
-                const minutes = String(kstEndDate.getMinutes()).padStart(2, '0');
+
+                const year = opinionEndDate.getFullYear();
+                const month = String(opinionEndDate.getMonth() + 1).padStart(2, '0');
+                const day = String(opinionEndDate.getDate()).padStart(2, '0');
+                const hours = String(opinionEndDate.getHours()).padStart(2, '0');
+                const minutes = String(opinionEndDate.getMinutes()).padStart(2, '0');
                 const days = ['일', '월', '화', '수', '목', '금', '토'];
-                const dayName = days[kstEndDate.getDay()];
-                
+                const dayName = days[opinionEndDate.getDay()];
+
                 // 최종 시간 표시
                 const timeDisplay = `${year}. ${month}. ${day}.(${dayName}) ${hours}:${minutes}`;
-                
+
                 opinionPeriod = `${formatDateWithDay(opinionStartDate.toISOString())} 00:01 ~ ${timeDisplay}`;
               }
 
+              // 오늘 날짜(달력 기준)가 투표 시작일보다 이전인지 — 시각까지 비교하면 KST 오프셋 때문에
+              // 시작 당일 오전~오후 경계에서 왜곡될 수 있어 두 값 모두 로컬 달력일로 정규화해 비교한다.
               const now = new Date();
-              const isBeforeVoteStart = now < voteStartDate;
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const voteStartDay = new Date(voteStartDate.getFullYear(), voteStartDate.getMonth(), voteStartDate.getDate());
+              const isBeforeVoteStart = today < voteStartDay;
               const canResume = !session.isActive && (!session.isCompleted || isBeforeVoteStart);
 
               // 참여자와 미참자 목록
@@ -819,11 +769,9 @@ export default function VoteResultsPage() {
                                   size="xs"
                                   colorScheme="red"
                                   variant="solid"
-                                  bg="#e53e3e"
-                                  _hover={{ bg: "#c53030" }}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    toggleVoteSessionStatus(session.id);
+                                    setPendingAction({ session, type: 'close' });
                                   }}
                                 >
                                   투표 마감
@@ -833,11 +781,9 @@ export default function VoteResultsPage() {
                                   size="xs"
                                   colorScheme="green"
                                   variant="solid"
-                                  bg="#38a169"
-                                  _hover={{ bg: "#2f855a" }}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    toggleVoteSessionStatus(session.id);
+                                    setPendingAction({ session, type: 'resume' });
                                   }}
                                 >
                                   투표 재개
@@ -850,7 +796,7 @@ export default function VoteResultsPage() {
                                   variant="outline"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleDeleteVoteSession(session.id);
+                                    setPendingAction({ session, type: 'delete' });
                                   }}
                                 >
                                   삭제
@@ -905,11 +851,9 @@ export default function VoteResultsPage() {
                               size="xs"
                               colorScheme="red"
                               variant="solid"
-                              bg="#e53e3e"
-                              _hover={{ bg: "#c53030" }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleVoteSessionStatus(session.id);
+                                setPendingAction({ session, type: 'close' });
                               }}
                             >
                               마감
@@ -919,11 +863,9 @@ export default function VoteResultsPage() {
                               size="xs"
                               colorScheme="green"
                               variant="outline"
-                              borderColor="#38a169"
-                              color="#2f855a"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleVoteSessionStatus(session.id);
+                                setPendingAction({ session, type: 'resume' });
                               }}
                             >
                               재개
@@ -982,10 +924,9 @@ export default function VoteResultsPage() {
 
       {/* 선택된 세션의 상세 결과 - 컴팩트 버전 */}
       {selectedVoteSessionId && sessionDetails && (
-        <Box bg="white" pt={1.5} pb={6} px={6} borderRadius="md" shadow="sm" border="1px" borderColor="gray.200">
+        <Box bg="white" pt={1.5} pb={6} px={6} borderRadius="lg" boxShadow="none" border="1px" borderColor="gray.200">
           <Flex justify="space-between" align="center" mb={3}>
             <HStack spacing={1}>
-              <Box as="span" fontSize="md">📊</Box>
               <Heading size="md" color="gray.800">요일별 투표 분포</Heading>
             </HStack>
             <Text fontSize="xs" color="gray.500">
@@ -1011,7 +952,7 @@ export default function VoteResultsPage() {
           
           {selectedVoteResults ? (
             <VoteCharts 
-              key={`vote-charts-${selectedVoteResults.sessionId}-${selectedVoteResults.totalVotes}-${Math.random()}`}
+              key={`vote-charts-${selectedVoteResults.sessionId}-${selectedVoteResults.totalVotes}`}
               voteResults={selectedVoteResults} 
             />
           ) : (
@@ -1024,6 +965,37 @@ export default function VoteResultsPage() {
           )}
         </Box>
       )}
+
+      {/* 마감/재개/삭제 확인 모달 */}
+      <Modal isOpen={!!pendingAction} onClose={() => !isProcessingAction && setPendingAction(null)}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            {pendingAction?.type === 'close' && '투표를 마감하시겠습니까?'}
+            {pendingAction?.type === 'resume' && '투표를 재개하시겠습니까?'}
+            {pendingAction?.type === 'delete' && '투표 세션 삭제 확인'}
+          </ModalHeader>
+          <ModalBody>
+            <Text fontSize="sm" color="gray.700">
+              {pendingAction?.type === 'close' && '요일별 득표 결과에 따라 자동 일정이 생성되고, 기존 자동 생성 일정은 정리됩니다.'}
+              {pendingAction?.type === 'resume' && '재개하면 이번 주에 생성된 자동 일정이 삭제되고, 투표가 다시 진행 상태로 전환됩니다.'}
+              {pendingAction?.type === 'delete' && '이 투표 세션과 관련 투표 기록이 영구히 삭제됩니다. 이 작업은 되돌릴 수 없습니다.'}
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={2} onClick={() => setPendingAction(null)} isDisabled={isProcessingAction}>
+              취소
+            </Button>
+            <Button
+              colorScheme={pendingAction?.type === 'resume' ? 'green' : 'red'}
+              onClick={handleConfirmPendingAction}
+              isLoading={isProcessingAction}
+            >
+              {pendingAction?.type === 'close' ? '마감' : pendingAction?.type === 'resume' ? '재개' : '삭제'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </VStack>
   );
 }
