@@ -120,20 +120,6 @@ interface Player {
 }
 
 // 풋살 경기 현황판 타입
-type PlayerPosition = 'GK' | 'DF' | 'MF' | 'FW';
-
-interface FieldPlayer {
-  name: string;
-  number: number;
-  position: PlayerPosition;
-}
-
-interface Team {
-  name: string;
-  players: FieldPlayer[];
-  score: number;
-}
-
 // 알림 타입 정의
             interface Notification {
               id: string;
@@ -359,28 +345,6 @@ export default function AdminPageNew() {
   const [voteWarnings, setVoteWarnings] = useState<{userId: number, userName: string, warningCount: number, lastWarningDate: string}[]>([]);
   // 최근 발송 알림 상세 보기 모달 상태
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
-
-  // 풋살 경기 현황판 상태
-  const [teamA, setTeamA] = useState<Team>({
-    name: 'A팀',
-    players: [],
-    score: 0
-  });
-  const [teamB, setTeamB] = useState<Team>({
-    name: 'B팀',
-    players: [],
-    score: 0
-  });
-  const [newPlayerA, setNewPlayerA] = useState<FieldPlayer>({
-    name: '',
-    number: 1,
-    position: 'MF'
-  });
-  const [newPlayerB, setNewPlayerB] = useState<FieldPlayer>({
-    name: '',
-    number: 1,
-    position: 'MF'
-  });
 
   // 알림 시스템 상태
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -2790,104 +2754,6 @@ export default function AdminPageNew() {
       description: `${userName}님에게 투표 참여 경고가 발송되었습니다.`,
       status: 'warning',
       duration: 5000,
-      isClosable: true,
-    });
-  };
-
-  // 풋살 경기 현황판 관련 함수들
-  const handleAddFieldPlayer = (team: 'A' | 'B') => {
-    const newPlayer = team === 'A' ? newPlayerA : newPlayerB;
-    
-    if (!newPlayer.name.trim()) {
-      toast({
-        title: '선수명을 입력해주세요',
-        status: 'error',
-        duration: 2000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    // 등번호 중복 확인
-    const currentPlayers = team === 'A' ? teamA.players : teamB.players;
-    if (currentPlayers.some(player => player.number === newPlayer.number)) {
-      toast({
-        title: '이미 사용 중인 등번호입니다',
-        status: 'error',
-        duration: 2000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (team === 'A') {
-      setTeamA(prev => ({
-        ...prev,
-        players: [...prev.players, newPlayer]
-      }));
-      setNewPlayerA({ name: '', number: 1, position: 'MF' });
-    } else {
-      setTeamB(prev => ({
-        ...prev,
-        players: [...prev.players, newPlayer]
-      }));
-      setNewPlayerB({ name: '', number: 1, position: 'MF' });
-    }
-
-    toast({
-      title: '선수가 추가되었습니다',
-      status: 'success',
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  const handleRemovePlayer = (team: 'A' | 'B', playerIndex: number) => {
-    if (team === 'A') {
-      setTeamA(prev => ({
-        ...prev,
-        players: prev.players.filter((_, index) => index !== playerIndex)
-      }));
-    } else {
-      setTeamB(prev => ({
-        ...prev,
-        players: prev.players.filter((_, index) => index !== playerIndex)
-      }));
-    }
-
-    toast({
-      title: '선수가 삭제되었습니다',
-      status: 'info',
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  const handleScore = (team: 'A' | 'B') => {
-    if (team === 'A') {
-      setTeamA(prev => ({ ...prev, score: prev.score + 1 }));
-    } else {
-      setTeamB(prev => ({ ...prev, score: prev.score + 1 }));
-    }
-
-    toast({
-      title: `${team}팀 득점!`,
-      description: `현재 스코어: ${teamA.score}${team === 'A' ? ' + 1' : ''} - ${teamB.score}${team === 'B' ? ' + 1' : ''}`,
-      status: 'success',
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  const handleResetGame = () => {
-    setTeamA(prev => ({ ...prev, score: 0 }));
-    setTeamB(prev => ({ ...prev, score: 0 }));
-
-    toast({
-      title: '경기가 리셋되었습니다',
-      description: '스코어가 0-0으로 초기화되었습니다',
-      status: 'info',
-      duration: 2000,
       isClosable: true,
     });
   };

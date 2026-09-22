@@ -14,7 +14,13 @@ import {
   Input,
   Divider,
   IconButton,
-  Select
+  Select,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter
 } from '@chakra-ui/react';
 import { DeleteIcon, AddIcon, EditIcon, CheckIcon, CloseIcon } from '@chakra-ui/icons';
 
@@ -150,6 +156,9 @@ export default function FootballFieldPage({ memberList: propMemberList, games }:
   // 드래그 상태
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // 파괴적 로컬 작업(선수 삭제 / 경기 리셋) 확인 모달 상태
+  const [confirmDialog, setConfirmDialog] = useState<{ type: 'deletePlayer'; player: Player } | { type: 'reset' } | null>(null);
 
   // 실시간 데이터 동기화 (상태 변경 시 즉시 localStorage 저장)
   const saveToLocalStorage = (key: string, data: any) => {
@@ -955,11 +964,12 @@ ${teamTable}
     });
   };
 
-  // 드래그 시작
-  const handleDragStart = (e: React.MouseEvent, playerId: string) => {
+  // 드래그 시작 (Pointer Events: 마우스/터치/펜 공통 처리)
+  const handleDragStart = (e: React.PointerEvent, playerId: string) => {
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     setDraggedPlayer(playerId);
-    
+
     const rect = fieldRef.current?.getBoundingClientRect();
     if (rect) {
       const position = playerPositions.find(p => p.id === playerId);
@@ -986,7 +996,7 @@ ${teamTable}
   };
 
   // 드래그 중
-  const handleDrag = (e: React.MouseEvent) => {
+  const handleDrag = (e: React.PointerEvent) => {
     if (!draggedPlayer || !fieldRef.current) return;
 
     const rect = fieldRef.current.getBoundingClientRect();
@@ -1025,12 +1035,18 @@ ${teamTable}
   return (
     <Box p={4} bg="gray.50" minH="100vh">
       <VStack spacing={6} align="stretch" maxW="1400px" mx="auto">
+        {/* 헤더 */}
+        <Box>
+          <Text fontSize="2xl" fontWeight="bold" color="#004ea8">풋살 현황판</Text>
+          <Text fontSize="sm" color="gray.500" mt={0.5}>경기 당일 팀 배정과 포지션을 관리합니다.</Text>
+        </Box>
+
         {/* 경기 날짜 선택 및 팀 구성 공유 */}
-        <Card variant="outline" borderColor="green.300" shadow="md">
+        <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
           <CardBody p={4}>
             <VStack spacing={4} align="stretch">
               <Text fontSize="md" fontWeight="bold" color="green.700" textAlign="center">
-                📅 경기 날짜 선택 및 팀 구성 공유
+                경기 날짜 선택 및 팀 구성 공유
               </Text>
               <Divider />
               
@@ -1069,7 +1085,7 @@ ${teamTable}
                       onClick={() => shareTeamComposition('kakao')}
                       isDisabled={teamA.length === 0 && teamB.length === 0}
                     >
-                      💬 카카오톡
+                      카카오톡
                     </Button>
                     <Button
                       colorScheme="blue"
@@ -1077,7 +1093,7 @@ ${teamTable}
                       onClick={() => shareTeamComposition('email')}
                       isDisabled={teamA.length === 0 && teamB.length === 0}
                     >
-                      📧 이메일
+                      이메일
                     </Button>
                   </HStack>
                 </VStack>
@@ -1087,11 +1103,11 @@ ${teamTable}
         </Card>
 
         {/* 팀 선택 및 배정 - 컴팩트하게 */}
-        <Card variant="outline" borderColor="blue.300" shadow="md">
+        <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
           <CardBody p={4}>
             <VStack spacing={4} align="stretch">
               <Text fontSize="lg" fontWeight="bold" color="blue.700" textAlign="center">
-                🎯 팀 선택 및 배정
+                팀 선택 및 배정
               </Text>
               
               <HStack justify="center" spacing={4}>
@@ -1103,7 +1119,7 @@ ${teamTable}
                   _hover={{ transform: 'translateY(-1px)', shadow: 'md' }}
                   transition="all 0.2s"
                 >
-                  🟡 A팀
+                  A팀
                 </Button>
                 <Button
                   size="md"
@@ -1113,14 +1129,14 @@ ${teamTable}
                   _hover={{ transform: 'translateY(-1px)', shadow: 'md' }}
                   transition="all 0.2s"
                 >
-                  🔴 B팀
+                  B팀
                 </Button>
               </HStack>
 
               {selectedTeam && (
                 <Box textAlign="center">
                   <Text fontSize="sm" color="gray.600" mb={2}>
-                    {selectedTeam === 'A' ? '🟡 A팀' : '🔴 B팀'} 선택됨
+                    {selectedTeam === 'A' ? 'A팀' : 'B팀'} 선택됨
                   </Text>
                   <Text fontSize="xs" color="gray.500">
                     아래에서 선수들을 선택 후 팀 배정하세요
@@ -1137,7 +1153,7 @@ ${teamTable}
                     _hover={{ transform: 'translateY(-1px)', shadow: 'md' }}
                     transition="all 0.2s"
                   >
-                    🎯 {selectedTeam === 'A' ? 'A팀' : 'B팀'}에 {selectedPlayers.size}명 배정
+                    {selectedTeam === 'A' ? 'A팀' : 'B팀'}에 {selectedPlayers.size}명 배정
                   </Button>
                 </Box>
               )}
@@ -1148,11 +1164,11 @@ ${teamTable}
         {/* 팀 배정 시스템 - 컴팩트하게 */}
         <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={4}>
           {/* 회원명단 */}
-          <Card variant="outline" borderColor="blue.300" shadow="md">
+          <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
             <CardBody p={4}>
               <VStack spacing={4} align="stretch">
                 <Text fontSize="md" fontWeight="bold" color="blue.700" textAlign="center">
-                  👥 회원명단
+                  회원명단
                 </Text>
                 <Divider />
                 
@@ -1165,7 +1181,7 @@ ${teamTable}
                   return (
                     <>
                       <Text fontSize="sm" fontWeight="bold" color="green.600" textAlign="center">
-                        ✅ 투표한 인원 ({votedMembers.length}명)
+                        투표한 인원 ({votedMembers.length}명)
                       </Text>
                       <SimpleGrid columns={6} spacing={2}>
                         {votedMembers.map((player) => {
@@ -1291,7 +1307,7 @@ ${teamTable}
                         <>
                           <Divider />
                           <Text fontSize="sm" fontWeight="bold" color="gray.600" textAlign="center">
-                            ⚠️ 투표하지 않은 인원 ({nonVotedMembers.length}명)
+                            투표하지 않은 인원 ({nonVotedMembers.length}명)
                           </Text>
                           <SimpleGrid columns={6} spacing={2}>
                             {nonVotedMembers.map((player) => {
@@ -1470,11 +1486,11 @@ ${teamTable}
           </Card>
 
           {/* 용병 + 수기입력 */}
-          <Card variant="outline" borderColor="green.300" shadow="md">
+          <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
             <CardBody p={4}>
               <VStack spacing={4} align="stretch">
                 <Text fontSize="md" fontWeight="bold" color="green.700" textAlign="center">
-                  ✏️ 수기입력
+                  수기입력
                 </Text>
                 <Divider />
                 
@@ -1564,7 +1580,7 @@ ${teamTable}
                                       size="xs"
                                       colorScheme="red"
                                       variant="outline"
-                                      onClick={() => handleDeleteManualPlayer(player)}
+                                      onClick={() => setConfirmDialog({ type: 'deletePlayer', player })}
                                     />
                                   </HStack>
                                 </HStack>
@@ -1582,18 +1598,18 @@ ${teamTable}
           </Card>
 
           {/* 팀 현황 */}
-          <Card variant="outline" borderColor="purple.300" shadow="md">
+          <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
             <CardBody p={4}>
               <VStack spacing={4} align="stretch">
                 <Text fontSize="md" fontWeight="bold" color="purple.700" textAlign="center">
-                  🏆 팀 현황
+                  팀 현황
                 </Text>
                 <Divider />
                 
                 {/* A팀 */}
                 <Box>
                   <Text fontSize="sm" fontWeight="bold" mb={2} color="yellow.700">
-                    🟡 A팀 ({teamA.length}명)
+                    A팀 ({teamA.length}명)
                   </Text>
                   <SimpleGrid columns={6} spacing={1}>
                     {teamA.length === 0 ? (
@@ -1639,7 +1655,7 @@ ${teamTable}
                 {/* B팀 */}
                 <Box>
                   <Text fontSize="sm" fontWeight="bold" mb={2} color="red.700">
-                    🔴 B팀 ({teamB.length}명)
+                    B팀 ({teamB.length}명)
                   </Text>
                   <SimpleGrid columns={6} spacing={1}>
                     {teamB.length === 0 ? (
@@ -1686,10 +1702,10 @@ ${teamTable}
                 <Button
                   colorScheme="gray"
                   size="sm"
-                  onClick={handleResetGame}
+                  onClick={() => setConfirmDialog({ type: 'reset' })}
                   isDisabled={teamA.length === 0 && teamB.length === 0}
                 >
-                  🔄 경기 리셋
+                  경기 리셋
                 </Button>
               </VStack>
             </CardBody>
@@ -1697,11 +1713,11 @@ ${teamTable}
         </SimpleGrid>
 
         {/* 포지션 - 가로형 축구장으로 재설계 */}
-        <Card variant="outline" borderColor="green.400" shadow="lg">
+        <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
           <CardBody p={4}>
             <VStack spacing={4} align="stretch">
               <Text fontSize="lg" fontWeight="bold" color="green.700" textAlign="center">
-                🏟️ 포지션
+                포지션
               </Text>
               
               {/* 팀별 인원수 표시 */}
@@ -1719,15 +1735,15 @@ ${teamTable}
                 ref={fieldRef}
                 position="relative"
                 w="100%"
-                h="400px"
+                h={{ base: '300px', md: '400px' }}
                 bg="white"
                 borderRadius="none"
                 border="2px solid"
                 borderColor="black"
                 overflow="hidden"
-                onMouseMove={handleDrag}
-                onMouseUp={handleDragEnd}
-                onMouseLeave={handleDragEnd}
+                onPointerMove={handleDrag}
+                onPointerUp={handleDragEnd}
+                onPointerCancel={handleDragEnd}
                 cursor={draggedPlayer ? 'grabbing' : 'default'}
               >
                 {/* 중앙선 (세로) */}
@@ -1823,10 +1839,11 @@ ${teamTable}
                       alignItems="center"
                       justifyContent="center"
                       cursor="grab"
+                      touchAction="none"
                       _hover={{ transform: 'scale(1.1)', shadow: 'xl' }}
                       transition="all 0.3s"
                       boxShadow="0 4px 15px rgba(0,0,0,0.3)"
-                      onMouseDown={(e) => handleDragStart(e, player.id)}
+                      onPointerDown={(e) => handleDragStart(e, player.id)}
                       _active={{ cursor: 'grabbing' }}
                     >
                       <Text fontSize="xs" fontWeight="bold" color="white">
@@ -1857,10 +1874,11 @@ ${teamTable}
                       alignItems="center"
                       justifyContent="center"
                       cursor="grab"
+                      touchAction="none"
                       _hover={{ transform: 'scale(1.1)', shadow: 'xl' }}
                       transition="all 0.3s"
                       boxShadow="0 4px 15px rgba(0,0,0,0.3)"
-                      onMouseDown={(e) => handleDragStart(e, player.id)}
+                      onPointerDown={(e) => handleDragStart(e, player.id)}
                       _active={{ cursor: 'grabbing' }}
                     >
                       <Text fontSize="xs" fontWeight="bold" color="white">
@@ -1874,6 +1892,41 @@ ${teamTable}
           </CardBody>
         </Card>
       </VStack>
+
+      {/* 선수 삭제 / 경기 리셋 확인 모달 */}
+      <Modal isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            {confirmDialog?.type === 'deletePlayer' ? '선수 삭제 확인' : '경기 리셋 확인'}
+          </ModalHeader>
+          <ModalBody>
+            <Text fontSize="sm" color="gray.700">
+              {confirmDialog?.type === 'deletePlayer'
+                ? `"${confirmDialog.player.name}" 선수를 삭제하시겠습니까? 팀 배정과 보드 위치에서도 함께 제거됩니다.`
+                : '현재 팀 배정과 보드 위치가 모두 초기화됩니다. 이 브라우저에만 저장된 내용이며 되돌릴 수 없습니다.'}
+            </Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={2} onClick={() => setConfirmDialog(null)}>
+              취소
+            </Button>
+            <Button
+              colorScheme="red"
+              onClick={() => {
+                if (confirmDialog?.type === 'deletePlayer') {
+                  handleDeleteManualPlayer(confirmDialog.player);
+                } else if (confirmDialog?.type === 'reset') {
+                  handleResetGame();
+                }
+                setConfirmDialog(null);
+              }}
+            >
+              {confirmDialog?.type === 'deletePlayer' ? '삭제' : '리셋'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
