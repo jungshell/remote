@@ -35,6 +35,8 @@ import {
 } from '../utils/voteSessionManager';
 import { renderGameReminderMailPng, type GameMailImageInput } from '../utils/gameReminderImage';
 import { buildVoteParticipationSummary } from '../services/voteParticipation';
+import { MemberWithdrawalError, withdrawMember } from '../services/memberWithdrawal';
+import { randomBytes } from 'crypto';
 import { getJwtSecret } from '../utils/jwtSecret';
 import { generateTempPassword } from '../utils/password';
 import { getMailConfigurationStatus, sendMail, verifyMailTransport } from '../utils/mailTransport';
@@ -4096,12 +4098,12 @@ router.get('/votes/sessions/summary', authenticateToken, requireAdmin, async (re
   }
 });
 
-// 회원 삭제 API
+// 회원 삭제 API — 실제로는 탈퇴 처리(개인정보 익명화 + 팀 기록 보존). 경로/메서드는 호환성을 위해 유지.
 router.delete('/members/:id', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
-    
+
     const memberId = parseInt(req.params.id);
-    
+
     if (isNaN(memberId)) {
       return res.status(400).json({
         success: false,
@@ -4109,56 +4111,26 @@ router.delete('/members/:id', authenticateToken, requireSuperAdmin, async (req, 
       });
     }
 
-    // 회원 존재 여부 확인
-    const member = await prisma.user.findUnique({
-      where: { id: memberId }
+    // 로그인 불가능한 랜덤 비밀번호 해시 (평문은 어디에도 저장/반환하지 않음)
+    const passwordHash = await bcrypt.hash(randomBytes(32).toString('hex'), 10);
+
+    // 조회·보호 검사·익명화를 하나의 트랜잭션으로 — 하나라도 실패하면 전체 rollback
+    await prisma.$transaction(async (tx) => {
+      await withdrawMember(tx, { memberId, requesterId: Number(req.user.userId), passwordHash });
     });
-
-    if (!member) {
-      return res.status(404).json({
-        success: false,
-        message: '해당 회원을 찾을 수 없습니다.'
-      });
-    }
-
-    // 외래키 제약 조건을 위해 관련 데이터 먼저 삭제
-    try {
-      await prisma.attendance.deleteMany({ where: { userId: memberId } });
-      console.log('✅ Attendance 데이터 삭제 완료');
-      await prisma.vote.deleteMany({ where: { userId: memberId } });
-      console.log('✅ Vote 데이터 삭제 완료');
-      await prisma.game.deleteMany({ where: { createdById: memberId } });
-      console.log('✅ Game 데이터 삭제 완료');
-      await prisma.schedule.deleteMany({ where: { createdById: memberId } });
-      console.log('✅ Schedule 데이터 삭제 완료');
-      await prisma.gallery.deleteMany({ where: { uploaderId: memberId } });
-      console.log('✅ Gallery 데이터 삭제 완료');
-      await prisma.like.deleteMany({ where: { userId: memberId } });
-      console.log('✅ Like 데이터 삭제 완료');
-      await prisma.comment.deleteMany({ where: { userId: memberId } });
-      console.log('✅ Comment 데이터 삭제 완료');
-      await prisma.notice.deleteMany({ where: { authorId: memberId } });
-      console.log('✅ Notice 데이터 삭제 완료');
-    } catch (foreignKeyError) {
-      console.log('⚠️ 외래키 관련 데이터 삭제 중 오류 (무시하고 계속):', foreignKeyError.message);
-    }
-
-    // 회원 삭제
-    await prisma.user.delete({
-      where: { id: memberId }
-    });
-
 
     res.json({
       success: true,
-      message: '회원이 성공적으로 삭제되었습니다.'
+      message: '회원이 성공적으로 탈퇴 처리되었습니다.'
     });
   } catch (error) {
-    console.error('회원 삭제 오류:', error);
+    if (error instanceof MemberWithdrawalError) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    console.error('회원 탈퇴 처리 오류:', error);
     res.status(500).json({
       success: false,
-      message: '회원 삭제 중 오류가 발생했습니다.',
-      error: error.message
+      message: '회원 탈퇴 처리 중 오류가 발생했습니다.'
     });
   }
 });

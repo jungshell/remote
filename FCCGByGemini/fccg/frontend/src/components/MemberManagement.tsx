@@ -437,8 +437,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
       onUserListChange(updatedList);
       
       toast({
-        title: '회원 삭제 완료',
-        description: '회원이 성공적으로 삭제되었습니다.',
+        title: '탈퇴 처리 완료',
+        description: '회원이 탈퇴 처리되었습니다. 기존 활동 기록은 보존됩니다.',
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -451,8 +451,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
     } catch (error) {
       console.error('회원 삭제 오류:', error);
       toast({
-        title: '회원 삭제 실패',
-        description: '회원 삭제 중 오류가 발생했습니다.',
+        title: '탈퇴 처리 실패',
+        description: error instanceof Error ? error.message : '탈퇴 처리 중 오류가 발생했습니다.',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -629,7 +629,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                       </Tooltip>
                       {isSuperAdmin && (
                         <Tooltip
-                          label="회원 삭제"
+                          label="탈퇴 처리"
                           placement="top"
                           hasArrow
                           bg="red.600"
@@ -637,7 +637,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                           fontSize="sm"
                         >
                           <IconButton
-                            aria-label="회원 삭제"
+                            aria-label="탈퇴 처리"
                             icon={<DeleteIcon />}
                             size="sm"
                             bg="#004ea8"
@@ -814,18 +814,18 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
         </ModalContent>
       </Modal>
 
-      {/* 회원 삭제 확인 모달 */}
+      {/* 회원 탈퇴 처리 확인 모달 (DELETE API = 탈퇴 처리) */}
       <Modal isOpen={isDeleteModalOpen} onClose={() => !isDeleting && onDeleteModalClose()}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>회원 삭제 확인</ModalHeader>
+          <ModalHeader>회원 탈퇴 처리</ModalHeader>
           <ModalBody>
             <Alert status="warning" alignItems="flex-start">
               <AlertIcon />
               <VStack align="start" spacing={2}>
-                <Text><strong>{selectedMember?.name}</strong> 회원을 삭제하시겠습니까?</Text>
+                <Text><strong>{selectedMember?.name}</strong> 회원을 탈퇴 처리하시겠습니까?</Text>
                 <Text fontSize="sm">
-                  이 회원의 출석·투표·좋아요·댓글 기록이 삭제되고, 이 회원이 생성한 경기·일정, 업로드한 사진/영상, 작성한 공지사항도 함께 삭제됩니다.
+                  탈퇴 처리 후 이 계정으로는 로그인할 수 없으며, 이름·이메일·연락처 등 개인정보는 익명화됩니다. 경기·출석·사진·댓글 등 FC CGG의 기존 활동 기록은 보존되며 작성자는 '탈퇴회원'으로 표시됩니다. 아직 집계가 완료되지 않은 투표의 참여 기록만 제외됩니다.
                 </Text>
                 <Text fontSize="sm" fontWeight="bold">이 작업은 되돌릴 수 없습니다.</Text>
               </VStack>
@@ -836,8 +836,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
               <Button variant="ghost" onClick={onDeleteModalClose} isDisabled={isDeleting}>
                 취소
               </Button>
-              <Button colorScheme="red" onClick={handleDeleteMember} isLoading={isDeleting} loadingText="삭제 중...">
-                삭제
+              <Button colorScheme="red" onClick={handleDeleteMember} isLoading={isDeleting} loadingText="처리 중...">
+                탈퇴 처리
               </Button>
             </HStack>
           </Box>

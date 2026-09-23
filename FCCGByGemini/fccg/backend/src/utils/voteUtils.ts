@@ -272,7 +272,8 @@ export function filterVotesForResultsDisplay<T extends { user?: { status?: strin
     const u = v.user;
     if (u == null) return true;
     const s = u.status;
-    if (s === 'INACTIVE' || s === 'SUSPENDED') return false;
+    // DELETED(탈퇴) 회원의 표는 row는 보존하되 현재 집계에서는 항상 제외 (재개된 세션 포함)
+    if (s === 'INACTIVE' || s === 'SUSPENDED' || s === 'DELETED') return false;
     return true;
   });
 }
