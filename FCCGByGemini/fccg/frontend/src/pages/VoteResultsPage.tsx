@@ -28,13 +28,11 @@ import {
 import {
   getUnifiedVoteDataNew,
   getSavedVoteResults,
-  aggregateAndSaveVoteResults,
   resumeVoteSession,
   closeVoteSession,
   deleteVoteSession,
   startWeeklyVote,
-  getAdminVoteSessionsSummary,
-  cleanupDuplicateSessions
+  getAdminVoteSessionsSummary
 } from '../api/auth';
 import VoteCharts from '../components/VoteCharts';
 
@@ -114,7 +112,6 @@ export default function VoteResultsPage() {
   const [selectedVoteSessionId, setSelectedVoteSessionId] = useState<number | null>(null);
   const [selectedVoteResults, setSelectedVoteResults] = useState<VoteResults | null>(null);
   const [sessionDetails, setSessionDetails] = useState<VoteSession | null>(null);
-  const [isAggregating, setIsAggregating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -377,11 +374,6 @@ export default function VoteResultsPage() {
     }
   };
 
-  // 기존 투표 세션 마감 핸들러 (하위 호환성 유지)
-  const handleCloseVoteSession = async (sessionId: number) => {
-    await toggleVoteSessionStatus(sessionId);
-  };
-
   // 투표 세션 삭제 핸들러 (확인은 호출 전 confirm modal에서 처리됨)
   const handleDeleteVoteSession = async (sessionId: number | string) => {
     try {
@@ -434,37 +426,6 @@ export default function VoteResultsPage() {
     }
   };
 
-  // 중복 세션 정리 핸들러
-  const handleCleanupDuplicateSessions = async () => {
-    if (!confirm('중복된 투표 세션을 정리하시겠습니까? 같은 주간의 세션 중 하나만 남기고 나머지는 삭제됩니다.')) {
-      return;
-    }
-
-    try {
-      const result = await cleanupDuplicateSessions();
-      toast({
-        title: '중복 세션 정리 완료',
-        description: `${result.deletedCount || 0}개의 중복 세션이 삭제되었고, 세션 번호가 재정렬되었습니다.`,
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      // 데이터 새로고침
-      await loadVoteSessionsData();
-      window.dispatchEvent(new CustomEvent('voteDataChanged'));
-    } catch (error) {
-      console.error('중복 세션 정리 실패:', error);
-      toast({
-        title: '중복 세션 정리 실패',
-        description: error instanceof Error ? error.message : '중복 세션 정리 중 오류가 발생했습니다.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-
 
   // 세션 선택 핸들러
   const handleSessionSelect = async (session: VoteSession) => {
@@ -479,55 +440,6 @@ export default function VoteResultsPage() {
     } catch (e) {
       console.error('투표 결과 로드 실패:', e);
       setSelectedVoteResults(null);
-    }
-  };
-
-  // 집계 저장 핸들러
-  const handleAggregateSave = async () => {
-    if (!selectedVoteSessionId) {
-      toast({
-        title: '오류',
-        description: '선택된 세션이 없습니다.',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    try {
-      setIsAggregating(true);
-      console.log('집계 저장 시작:', selectedVoteSessionId);
-      
-      const result = await aggregateAndSaveVoteResults(selectedVoteSessionId);
-      try { window.dispatchEvent(new CustomEvent('votesChanged')); } catch {}
-      try { window.dispatchEvent(new CustomEvent('voteDataChanged')); } catch {}
-      try { window.dispatchEvent(new CustomEvent('gamesChanged')); } catch {}
-      console.log('집계 저장 결과:', result);
-      
-      toast({ 
-        title: '집계 저장 완료', 
-        description: `세션 ${selectedVoteSessionId}의 집계가 완료되었습니다.`,
-        status: 'success', 
-        duration: 3000, 
-        isClosable: true 
-      });
-      
-      // 데이터 새로고침 및 이벤트 발생
-      await loadVoteSessionsData();
-      window.dispatchEvent(new CustomEvent('voteDataChanged'));
-      console.log('✅ 투표 세션 생성 후 이벤트 발생');
-    } catch (e) {
-      console.error('집계 저장 실패:', e);
-      toast({ 
-        title: '집계 저장 실패', 
-        description: '세션 집계를 저장하지 못했습니다.', 
-        status: 'error', 
-        duration: 3000, 
-        isClosable: true 
-      });
-    } finally {
-      setIsAggregating(false);
     }
   };
 

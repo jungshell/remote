@@ -65,13 +65,12 @@ import {
   MdOutlineHistory,
   MdOutlineSend
 } from 'react-icons/md';
-import { GameCardSkeleton, MemberListSkeleton } from '../components/common/SkeletonLoader';
+import { GameCardSkeleton } from '../components/common/SkeletonLoader';
 import { getValidToken, getMemberStats, type Game } from '../api/auth';
 import MemberManagement from '../components/MemberManagement';
 import { API_ENDPOINTS, ensureApiBaseUrl } from '../constants';
 import { getApiBaseUrl } from '../config/api';
 import GameManagement from '../components/GameManagement';
-import ThisWeekScheduleManagement from '../components/ThisWeekScheduleManagement';
 import FootballFieldPage from './FootballFieldPage';
 import VoteResultsPage from './VoteResultsPage';
 import VoteSessionManagement from '../components/VoteSessionManagement';
@@ -81,20 +80,6 @@ import FloatingHelpButton from '../components/FloatingHelpButton';
 import MailDiagnosticsPanel from '../components/MailDiagnosticsPanel';
 
 // ===== 타입 정의 =====
-interface ThisWeekSchedule {
-  id: number;
-  date: string;
-  event: string;
-  description?: string;
-  createdById: number;
-  createdAt: string;
-  updatedAt: string;
-  createdBy?: {
-    id: number;
-    name: string;
-  };
-}
-
 interface ExtendedMember {
   id: number;
   name: string;
@@ -119,7 +104,6 @@ interface Player {
   notes?: string;
 }
 
-// 풋살 경기 현황판 타입
 // 알림 타입 정의
             interface Notification {
               id: string;
@@ -227,7 +211,6 @@ const rolePermissions = {
 export default function AdminPageNew() {
   const [userList, setUserList] = useState<ExtendedMember[]>([]);
   const [games, setGames] = useState<Game[]>([]);
-  const [thisWeekSchedules, setThisWeekSchedules] = useState<ThisWeekSchedule[]>([]);
   const [memberStats, setMemberStats] = useState<{
     totalMembers?: number;
     thisWeekGame?: number;
@@ -376,7 +359,6 @@ export default function AdminPageNew() {
       'vote-results': '투표 결과 확인 및 관리',
       'vote-sessions': '투표 세션 생성 및 관리',
       'games': '경기 일정 생성 및 관리',
-      'this-week-schedules': '이번주 일정 관리',
       'notifications': '알림 발송 및 관리',
       'analytics': '회원 활동 분석 및 통계',
       'football': '풋살 경기 현황판 관리'
@@ -3092,29 +3074,36 @@ export default function AdminPageNew() {
           <Button {...commonMenuButtonProps('dashboard')} onClick={() => handleClick('dashboard')} leftIcon={<Icon as={MdOutlineDashboard} boxSize={4.5} />}>
             대시보드
           </Button>
-          <Button {...commonMenuButtonProps('users')} onClick={() => handleClick('users')} leftIcon={<Icon as={MdOutlineGroups} boxSize={4.5} />}>
-            회원 관리
-          </Button>
+          {hasPermission('member_management') && (
+            <Button {...commonMenuButtonProps('users')} onClick={() => handleClick('users')} leftIcon={<Icon as={MdOutlineGroups} boxSize={4.5} />}>
+              회원 관리
+            </Button>
+          )}
           <Button {...commonMenuButtonProps('vote-results')} onClick={() => handleClick('vote-results')} leftIcon={<Icon as={MdOutlineHowToVote} boxSize={4.5} />}>
             투표 결과
           </Button>
           <Button {...commonMenuButtonProps('vote-sessions')} onClick={() => handleClick('vote-sessions')} leftIcon={<Icon as={MdOutlineEventNote} boxSize={4.5} />}>
             투표 세션 관리
           </Button>
-          <Button {...commonMenuButtonProps('games')} onClick={() => handleClick('games')} leftIcon={<Icon as={MdOutlineSportsSoccer} boxSize={4.5} />}>
-            경기 관리
-          </Button>
-          <Button {...commonMenuButtonProps('notifications')} onClick={() => handleClick('notifications')} leftIcon={<Icon as={MdOutlineNotifications} boxSize={4.5} />}>
-            알림 관리
-          </Button>
-          {hasPermission('all') && (
-            <Button {...commonMenuButtonProps('analytics')} onClick={() => handleClick('analytics')} leftIcon={<Icon as={MdOutlineInsights} boxSize={4.5} />}>
-              활동 분석
+          {hasPermission('game_management') && (
+            <Button {...commonMenuButtonProps('games')} onClick={() => handleClick('games')} leftIcon={<Icon as={MdOutlineSportsSoccer} boxSize={4.5} />}>
+              경기 관리
             </Button>
           )}
-          <Button {...commonMenuButtonProps('football')} onClick={() => handleClick('football')} leftIcon={<Icon as={MdOutlineStadium} boxSize={4.5} />}>
-            풋살 현황판
-          </Button>
+          {/* 메뉴 노출 조건은 아래 selectedMenu content guard와 동일하게 유지한다 */}
+          {hasPermission('all') && (
+            <>
+              <Button {...commonMenuButtonProps('notifications')} onClick={() => handleClick('notifications')} leftIcon={<Icon as={MdOutlineNotifications} boxSize={4.5} />}>
+                알림 관리
+              </Button>
+              <Button {...commonMenuButtonProps('analytics')} onClick={() => handleClick('analytics')} leftIcon={<Icon as={MdOutlineInsights} boxSize={4.5} />}>
+                활동 분석
+              </Button>
+              <Button {...commonMenuButtonProps('football')} onClick={() => handleClick('football')} leftIcon={<Icon as={MdOutlineStadium} boxSize={4.5} />}>
+                풋살 현황판
+              </Button>
+            </>
+          )}
         </VStack>
         <Box px={3} py={3} borderTop="1px" borderColor="gray.200">
           <Box
@@ -3240,18 +3229,11 @@ export default function AdminPageNew() {
               </Box>
 
               {/* 메뉴별 스켈레톤 */}
-              {selectedMenu === 'members' && <MemberListSkeleton />}
               {selectedMenu === 'games' && (
                 <VStack spacing={3} align="stretch">
                   {Array.from({ length: 3 }).map((_, i) => (
                     <GameCardSkeleton key={i} />
                   ))}
-                </VStack>
-              )}
-              {selectedMenu === 'schedule' && (
-                <VStack spacing={3} align="stretch">
-                  <Skeleton height="40px" borderRadius="lg" />
-                  <Skeleton height="200px" borderRadius="lg" />
                 </VStack>
               )}
             </VStack>
@@ -3760,16 +3742,6 @@ export default function AdminPageNew() {
                 />
               )}
               
-              {/* 이번주 일정 */}
-              {selectedMenu === 'this-week-schedules' && hasPermission('game_management') && (
-                <Box w="100%">
-                  <ThisWeekScheduleManagement 
-                    schedules={thisWeekSchedules} 
-                    onSchedulesChange={setThisWeekSchedules} 
-                  />
-                </Box>
-              )}
-
 
 
               {/* 알림 관리 */}
