@@ -48,7 +48,12 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusWarning, setStatusWarning] = useState<any>(null);
-  const [inactiveModalMessage, setInactiveModalMessage] = useState('');
+  const [blockedInfo, setBlockedInfo] = useState<{
+    label: string;
+    reason?: string;
+    changedAt?: string;
+    guide: string[];
+  } | null>(null);
   const setUser = useAuthStore((s) => s.setUser);
   const setToken = useAuthStore((s) => s.setToken);
   const toast = useToast();
@@ -148,15 +153,20 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
       let errorMsg = '오류 발생';
       
       if (err && typeof err === 'object' && 'response' in err) {
-        const axiosError = err as { response?: { data?: { error?: string; message?: string }; status?: number } };
+        const axiosError = err as { response?: { data?: any; status?: number } };
         
         if (axiosError.response?.status === 401) {
           errorMsg = '이메일 또는 비밀번호가 올바르지 않습니다.';
         } else if (axiosError.response?.status === 403) {
           const responseMessage = axiosError.response.data?.error || axiosError.response.data?.message || '';
-          const isInactiveMember = axiosError.response.data?.memberStatus === 'INACTIVE' || responseMessage.includes('비활성');
-          if (isInactiveMember) {
-            setInactiveModalMessage(responseMessage || '비활성화된 계정입니다. 관리자에게 확인 바랍니다.');
+          const data = axiosError.response.data || {};
+          if (data.memberStatus) {
+            setBlockedInfo({
+              label: data.memberStatusLabel || '비활성',
+              reason: data.statusChangeReason,
+              changedAt: data.statusChangedAt,
+              guide: Array.isArray(data.releaseGuide) ? data.releaseGuide : ['관리자에게 문의해주세요.'],
+            });
             onInactiveModalOpen();
             return;
           }
@@ -290,17 +300,32 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
       <Modal isOpen={isInactiveModalOpen} onClose={onInactiveModalClose} size="md" isCentered>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>비활성 계정 안내</ModalHeader>
+          <ModalHeader>{blockedInfo?.label || '비활성'} 계정 안내</ModalHeader>
           <ModalBody>
-            <Alert status="warning" variant="left-accent" borderRadius="md">
-              <AlertIcon />
+            <VStack align="stretch" spacing={4}>
+              <Alert status="warning" variant="left-accent" borderRadius="md">
+                <AlertIcon />
+                <Box>
+                  <AlertTitle mb={1}>로그인이 제한되었습니다.</AlertTitle>
+                  <AlertDescription>
+                    {blockedInfo?.reason || '회원 상태가 변경되어 현재 이용할 수 없습니다.'}
+                    {blockedInfo?.changedAt && (
+                      <Text fontSize="sm" color="gray.600" mt={1}>
+                        변경일: {new Date(blockedInfo.changedAt).toLocaleDateString('ko-KR')}
+                      </Text>
+                    )}
+                  </AlertDescription>
+                </Box>
+              </Alert>
               <Box>
-                <AlertTitle mb={1}>로그인이 제한되었습니다.</AlertTitle>
-                <AlertDescription>
-                  {inactiveModalMessage || '비활성화된 계정입니다. 관리자에게 확인 바랍니다.'}
-                </AlertDescription>
+                <Text fontWeight="bold" mb={2}>해제 방법</Text>
+                <VStack as="ol" align="stretch" spacing={1} pl={5} style={{ listStyle: 'decimal' }}>
+                  {blockedInfo?.guide.map((line) => (
+                    <Text as="li" key={line} fontSize="sm">{line}</Text>
+                  ))}
+                </VStack>
               </Box>
-            </Alert>
+            </VStack>
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="blue" onClick={onInactiveModalClose}>

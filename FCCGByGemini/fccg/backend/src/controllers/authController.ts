@@ -7,6 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import { getHolidaysByYear } from '../utils/holidayApi';
 import { getJwtSecret } from '../utils/jwtSecret';
+import { sendMail } from '../utils/mailTransport';
+import { MEMBER_STATUS_LABELS, MEMBER_STATUS_RELEASE_GUIDE } from '../utils/memberStatusGuide';
 
 // 투표 데이터 파일 경로
 const VOTE_DATA_FILE = path.join(__dirname, '../../voteData.json');
@@ -366,111 +368,53 @@ function evaluateLoginActivity(
   return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
 }
 
-// 상태 변경 알림 발송 함수
+const escapeHtml = (text: string) =>
+  String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+// 상태 변경 알림 메일 발송 (실패해도 상태 변경은 유지)
 const sendStatusChangeNotification = async (member: any, oldStatus: string, newStatus: string, reason: string) => {
+  if (!member.email || !MEMBER_STATUS_RELEASE_GUIDE[newStatus]) return;
   try {
-    console.log(`📧 상태 변경 알림 발송: ${member.name} (${oldStatus} → ${newStatus})`);
-    console.log(`📧 이메일: ${member.email}`);
-    console.log(`📧 사유: ${reason}`);
-    
-    // 이메일 템플릿 생성
-    const emailTemplate = getStatusChangeEmailTemplate(member, oldStatus, newStatus, reason);
-    
-    // 실제 이메일 발송 (현재는 콘솔에 출력)
-    console.log('📧 이메일 내용:');
-    console.log('제목:', emailTemplate.subject);
-    console.log('내용:', emailTemplate.html);
-    
-    // TODO: 실제 이메일 발송 서비스 연동
-    // await sendEmail(member.email, emailTemplate.subject, emailTemplate.html);
+    const { subject, html } = getStatusChangeEmailTemplate(member, oldStatus, newStatus, reason);
+    await sendMail({ to: member.email, subject, html });
+    console.log(`📧 상태 변경 메일 발송: ${member.name} (${oldStatus} → ${newStatus})`);
   } catch (error) {
-    console.error('이메일 발송 오류:', error);
+    console.error(`❌ 상태 변경 메일 발송 실패: ${member.name}`, error);
   }
 };
 
-// 이메일 템플릿 생성 함수
 const getStatusChangeEmailTemplate = (member: any, oldStatus: string, newStatus: string, reason: string) => {
-  const statusNames = {
-    'ACTIVE': '활성',
-    'INACTIVE': '비활성',
-    'SUSPENDED': '정지',
-    'DELETED': '삭제됨'
-  };
-  
-  const oldStatusName = statusNames[oldStatus as keyof typeof statusNames] || oldStatus;
-  const newStatusName = statusNames[newStatus as keyof typeof statusNames] || newStatus;
-  
-  let subject = '';
-  let content = '';
-  
-  if (newStatus === 'INACTIVE') {
-    subject = `[FC CHAL-GGYEO] 회원 상태 변경 안내 - ${oldStatusName} → ${newStatusName}`;
-    content = `
+  const oldStatusName = MEMBER_STATUS_LABELS[oldStatus] || oldStatus;
+  const newStatusName = MEMBER_STATUS_LABELS[newStatus] || newStatus;
+  const isSuspended = newStatus === 'SUSPENDED';
+  const color = isSuspended ? '#721c24' : '#856404';
+  const bg = isSuspended ? '#f8d7da' : '#fff3cd';
+  const guide = MEMBER_STATUS_RELEASE_GUIDE[newStatus]
+    .map((line) => `<li>${escapeHtml(line)}</li>`)
+    .join('');
+
+  return {
+    subject: `[FC CHAL-GGYEO] 회원 ${newStatusName} 안내`,
+    html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #004ea8;">FC CHAL-GGYEO 회원 상태 변경 안내</h2>
-        <p>안녕하세요, ${member.name}님.</p>
-        <p>회원 상태가 <strong>${oldStatusName}</strong>에서 <strong>${newStatusName}</strong>으로 변경되었습니다.</p>
-        
-        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; border-radius: 5px;">
-          <h3 style="color: #856404; margin-top: 0;">변경 사유</h3>
-          <p style="color: #856404; margin-bottom: 0;">${reason}</p>
+        <p>안녕하세요, ${escapeHtml(member.name)}님.</p>
+        <p>회원 상태가 <strong>${oldStatusName}</strong>에서 <strong>${newStatusName}</strong>(으)로 변경되어 현재 로그인 및 서비스 이용이 제한됩니다.</p>
+        <div style="background-color: ${bg}; padding: 15px; margin: 20px 0; border-radius: 5px;">
+          <h3 style="color: ${color}; margin-top: 0;">변경 사유</h3>
+          <p style="color: ${color}; margin-bottom: 0;">${escapeHtml(reason)}</p>
         </div>
-        
-        <h3>비활성 상태에서의 제한사항</h3>
-        <ul>
-          <li>투표 참여 불가</li>
-          <li>경기 참여 불가</li>
-          <li>게시글 조회만 가능</li>
-        </ul>
-        
-        <h3>활성 상태 복구 방법</h3>
-        <p>다음 조건을 만족하면 관리자가 활성 상태로 복구해드립니다:</p>
-        <ul>
-          <li>투표에 정기적으로 참여</li>
-          <li>경기에 적극적으로 참여</li>
-          <li>관리자에게 복구 요청</li>
-        </ul>
-        
-        <p>문의사항이 있으시면 관리자에게 연락해주세요.</p>
+        <h3>해제 방법</h3>
+        <ul>${guide}</ul>
         <p>감사합니다.</p>
         <hr>
         <p style="color: #666; font-size: 12px;">FC CHAL-GGYEO 관리팀</p>
       </div>
-    `;
-  } else if (newStatus === 'SUSPENDED') {
-    subject = `[FC CHAL-GGYEO] 회원 정지 안내 - ${oldStatusName} → ${newStatusName}`;
-    content = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #dc3545;">FC CHAL-GGYEO 회원 정지 안내</h2>
-        <p>안녕하세요, ${member.name}님.</p>
-        <p>회원 상태가 <strong>${oldStatusName}</strong>에서 <strong>${newStatusName}</strong>으로 변경되었습니다.</p>
-        
-        <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin: 20px 0; border-radius: 5px;">
-          <h3 style="color: #721c24; margin-top: 0;">정지 사유</h3>
-          <p style="color: #721c24; margin-bottom: 0;">${reason}</p>
-        </div>
-        
-        <h3>정지 상태에서의 제한사항</h3>
-        <ul>
-          <li>로그인 불가</li>
-          <li>모든 기능 사용 불가</li>
-          <li>시스템 접근 차단</li>
-        </ul>
-        
-        <h3>정지 해제 방법</h3>
-        <p>정지 해제를 원하시면 관리자에게 직접 연락하여 문의해주세요.</p>
-        
-        <p>문의사항이 있으시면 관리자에게 연락해주세요.</p>
-        <p>감사합니다.</p>
-        <hr>
-        <p style="color: #666; font-size: 12px;">FC CHAL-GGYEO 관리팀</p>
-      </div>
-    `;
-  }
-  
-  return {
-    subject,
-    html: content
+    `,
   };
 };
 

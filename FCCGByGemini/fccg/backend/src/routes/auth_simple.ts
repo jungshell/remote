@@ -41,6 +41,7 @@ import { randomBytes } from 'crypto';
 import { getJwtSecret } from '../utils/jwtSecret';
 import { generateTempPassword } from '../utils/password';
 import { getMailConfigurationStatus, sendMail, verifyMailTransport } from '../utils/mailTransport';
+import { MEMBER_STATUS_LABELS, MEMBER_STATUS_RELEASE_GUIDE } from '../utils/memberStatusGuide';
 
 const prisma = new PrismaClient();
 const AUTH_TOKEN_EXPIRES_IN = (process.env.AUTH_TOKEN_EXPIRES_IN || '365d') as import('jsonwebtoken').SignOptions['expiresIn'];
@@ -363,7 +364,11 @@ router.post('/login', authLimiter, async (req, res) => {
     if (user.status !== 'ACTIVE') {
       return res.status(403).json({
         error: '현재 이용할 수 없는 계정입니다. 관리자에게 확인 바랍니다.',
-        memberStatus: user.status
+        memberStatus: user.status,
+        memberStatusLabel: MEMBER_STATUS_LABELS[user.status] || user.status,
+        statusChangeReason: user.statusChangeReason,
+        statusChangedAt: user.statusChangedAt,
+        releaseGuide: MEMBER_STATUS_RELEASE_GUIDE[user.status] || ['관리자(강병우, 정성인)에게 문의해주세요.']
       });
     }
 
