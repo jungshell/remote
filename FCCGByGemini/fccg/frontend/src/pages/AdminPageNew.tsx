@@ -61,11 +61,17 @@ import {
   MdOutlineInsights,
   MdOutlineStadium,
   MdOutlineMenuBook,
-  MdOutlinePendingActions,
   MdOutlineHistory,
   MdOutlineSend
 } from 'react-icons/md';
 import { GameCardSkeleton } from '../components/common/SkeletonLoader';
+import {
+  LuArrowRight, LuBan, LuBellRing, LuCalendarPlus, LuCircleCheck, LuCircleX, LuHistory, LuLogIn, LuLogOut,
+  LuMapPin, LuMegaphone, LuPencil, LuTriangleAlert, LuUserCheck, LuUserCog, LuUsers, LuVote
+} from 'react-icons/lu';
+import { CggShieldTemp, DateBlock, EASE_EXPO_OUT, LiveDot, PanelHeader, PitchLines, StatBlock } from '../components/admin/MatchDay';
+import { GRADIENTS } from '../constants/designTokens';
+import { normalizeEventType } from '../utils/eventTypeNormalizer';
 import { getValidToken, getMemberStats, type Game } from '../api/auth';
 import MemberManagement from '../components/MemberManagement';
 import { API_ENDPOINTS, ensureApiBaseUrl } from '../constants';
@@ -3274,263 +3280,360 @@ export default function AdminPageNew() {
                 const voteResults = unifiedVoteData?.lastWeekResults?.results || null;
                 const isVoteActive = !!unifiedVoteData?.activeSession?.isActive;
 
+                // Match Day 표시용 파생 값 (표시 전용 — 기존 데이터만 사용)
+                const parseList = (v: unknown): unknown[] => {
+                  if (Array.isArray(v)) return v;
+                  if (typeof v === 'string') {
+                    try { const parsed = JSON.parse(v); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+                  }
+                  return [];
+                };
+                // GameManagement의 참가 인원 계산 규칙과 동일: 선택 회원 + (용병·중복 제외) 수기 이름 + 용병 수
+                const nextGameRaw = nextGame as (Game & { eventType?: string; selectedMembers?: unknown; mercenaryCount?: number }) | null;
+                const nextGameParticipants = (() => {
+                  if (!nextGameRaw) return 0;
+                  const selected = new Set(parseList(nextGameRaw.selectedMembers).filter((n): n is string => typeof n === 'string' && !!n.trim()));
+                  const others = parseList(nextGameRaw.memberNames).filter((n): n is string => {
+                    if (typeof n !== 'string') return false;
+                    const t = n.trim();
+                    return !!t && !t.startsWith('용병') && !selected.has(t);
+                  }).length;
+                  return (Number(nextGameRaw.mercenaryCount) || 0) + selected.size + others;
+                })();
+                const nextGameDate = nextGame ? new Date(nextGame.date) : null;
+                const isoWeek = (() => {
+                  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+                  const day = d.getUTCDay() || 7;
+                  d.setUTCDate(d.getUTCDate() + 4 - day);
+                  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+                  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+                })();
+                const daysAgo = (iso: string) => {
+                  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+                  return days <= 0 ? '오늘' : `${days}일 전`;
+                };
+                const voteCounts = voteDays.map(({ key }) => Number(voteResults?.[key]?.count ?? 0));
+                const voteMax = Math.max(0, ...voteCounts);
+                const ACTIVITY_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+                  LOGIN: { label: '로그인', icon: LuLogIn, color: 'green.500' },
+                  LOGOUT: { label: '로그아웃', icon: LuLogOut, color: 'gray.400' },
+                  GAME_JOIN: { label: '경기참여', icon: MdOutlineSportsSoccer, color: 'brand.500' },
+                  GAME_CANCEL: { label: '경기취소', icon: LuCircleX, color: 'red.500' },
+                  VOTE_PARTICIPATE: { label: '투표참여', icon: LuVote, color: 'brand.500' },
+                  VOTE_ABSENT: { label: '투표불참', icon: LuCircleX, color: 'gray.400' },
+                  ANNOUNCEMENT_CREATE: { label: '공지작성', icon: LuMegaphone, color: 'brand.500' },
+                  ANNOUNCEMENT_EDIT: { label: '공지수정', icon: LuPencil, color: 'brand.500' },
+                  MEMBER_STATUS_CHANGE: { label: '상태변경', icon: LuUserCog, color: 'gray.500' },
+                  VOTE_WARNING: { label: '투표경고', icon: LuTriangleAlert, color: 'orange.500' },
+                  MEMBER_SUSPENDED: { label: '회원정지', icon: LuBan, color: 'red.500' },
+                };
+
                 return (
-                <VStack spacing={5} align="stretch" w="100%">
-                  {/* 헤더 */}
-                  <Flex justify="space-between" align="flex-end" wrap="wrap" gap={2}>
-                    <Box>
-                      <Text fontSize="2xl" fontWeight="bold" color="#004ea8">관리자 대시보드</Text>
-                      <Text fontSize="sm" color="gray.500" mt={0.5}>회원 · 경기 · 투표 운영 현황</Text>
+                <VStack className="fccg-matchday" spacing={5} align="stretch" w="100%" pb={{ base: '88px', md: 0 }}>
+                  {/* HERO: Match Day Command Center + 스코어보드 */}
+                  <Box position="relative" overflow="hidden" bg="matchday.navy" borderRadius="xl" color="white">
+                    <PitchLines />
+                    <Box position="relative" overflow="hidden">
+                      {/* 유니폼 사선 띠 + Volt 줄: 상단 영역 안에만 (스코어보드를 가로지르지 않음) */}
+                      <Box
+                        position="absolute"
+                        top="-60%"
+                        right={{ base: '-34%', md: '-4%' }}
+                        w={{ base: '72%', md: '40%' }}
+                        h="220%"
+                        transform="rotate(18deg)"
+                        bgGradient="linear(to-r, rgba(0,78,168,0), rgba(0,78,168,.5) 30%, rgba(0,78,168,.8) 60%, rgba(0,78,168,0))"
+                        pointerEvents="none"
+                      />
+                      <Box position="absolute" top={{ base: '-30%', md: '-60%' }} right={{ base: '6%', md: '33%' }} w={{ base: '4px', md: '6px' }} h={{ base: '95%', md: '220%' }} transform="rotate(18deg)" bg="matchday.volt" opacity={0.85} pointerEvents="none" />
+
+                      <Flex position="relative" direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} gap={{ base: 5, md: 8 }} px={{ base: 5, md: 8 }} pt={{ base: 6, md: 8 }} pb={{ base: 5, md: 8 }}>
+                        <Flex align="center" gap={{ base: 3.5, md: 5 }}>
+                          <Box display={{ base: 'block', md: 'none' }}><CggShieldTemp size={48} /></Box>
+                          <Box display={{ base: 'none', md: 'block' }}><CggShieldTemp size={68} /></Box>
+                          <Box>
+                            <Text textStyle="scoreLabel" color="whiteAlpha.700">FC CGG ADMIN</Text>
+                            <Text fontFamily="display" fontWeight="700" fontSize={{ base: '27px', md: '44px', xl: '52px' }} lineHeight={{ base: '1.02', md: '0.95' }} letterSpacing="-0.005em" mt={{ base: 1, md: 2 }} textTransform="uppercase">
+                              Match Day<br />Command Center
+                            </Text>
+                          </Box>
+                        </Flex>
+
+                        {/* 시즌·날짜·업데이트: 모바일은 구분선 아래 좌우 배치, 데스크톱은 우측 정보 패널 */}
+                        <Flex
+                          direction={{ base: 'row', md: 'column' }}
+                          justify="space-between"
+                          align="flex-end"
+                          gap={{ base: 3, md: 1.5 }}
+                          pt={{ base: 4, md: 1 }}
+                          pb={{ md: 1 }}
+                          pl={{ md: 6 }}
+                          borderTop={{ base: '1px solid', md: 'none' }}
+                          borderLeft={{ base: 'none', md: '1px solid' }}
+                          borderColor="whiteAlpha.300"
+                          textAlign={{ base: 'left', md: 'right' }}
+                          minW={{ md: '220px' }}
+                        >
+                          <Box>
+                            <Text textStyle="scoreLabel" color="whiteAlpha.600">SEASON {now.getFullYear()} · WEEK {isoWeek}</Text>
+                            <Text fontFamily="display" fontWeight="700" fontSize={{ base: '22px', md: '30px' }} lineHeight="1.1" mt={1} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                              {now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                            </Text>
+                          </Box>
+                          <Text fontSize="11px" color="whiteAlpha.600" textAlign="right" whiteSpace="nowrap">
+                            마지막 업데이트 {lastUpdateTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </Flex>
+                      </Flex>
                     </Box>
-                    <Text fontSize="xs" color="gray.400">
-                      마지막 업데이트: {lastUpdateTime.toLocaleTimeString('ko-KR')}
-                    </Text>
-                  </Flex>
 
-                  {/* ZONE A: 운영 현황 */}
-                  <SimpleGrid columns={{ base: 2, lg: 4 }} spacing={3} w="100%">
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">전체 회원</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{userList.length}명</Text>
-                      </CardBody>
-                    </Card>
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">활성 회원</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activeMembers.length}명</Text>
-                      </CardBody>
-                    </Card>
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">예정 경기</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{upcomingGames.length}건</Text>
-                      </CardBody>
-                    </Card>
-                    <Card bg="white" border="1px solid" borderColor={actionRequiredCount > 0 ? '#004ea8' : 'gray.200'} borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">처리 필요</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color={actionRequiredCount > 0 ? '#004ea8' : 'gray.800'} mt={1}>{actionRequiredCount}건</Text>
-                      </CardBody>
-                    </Card>
-                  </SimpleGrid>
-
-                  {/* ZONE B + C: 다음 경기 / 투표 현황 */}
-                  <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={3} w="100%">
-                    <Card
-                      bg="white"
-                      border="1px solid"
-                      borderColor="gray.200"
-                      borderRadius="lg"
-                      boxShadow="none"
-                      cursor="pointer"
-                      onClick={() => handleMenuSelect('games')}
-                      _hover={{ borderColor: 'gray.300', bg: 'gray.50' }}
-                      transition="all 0.15s ease"
+                    {/* 스코어보드 스트립 */}
+                    <SimpleGrid
+                      position="relative"
+                      columns={{ base: 2, lg: 4 }}
+                      bg="rgba(15,39,71,.92)"
+                      borderTop="1px solid"
+                      borderColor="whiteAlpha.200"
+                      sx={{
+                        '& > *': { borderColor: 'whiteAlpha.200' },
+                        '& > *:nth-of-type(odd)': { borderRightWidth: '1px' },
+                        '& > *:nth-of-type(-n+2)': { borderBottomWidth: { base: '1px', lg: 0 } },
+                        '@media (min-width: 62em)': { '& > *:not(:last-of-type)': { borderRightWidth: '1px' } },
+                      }}
                     >
-                      <CardBody px={5} py={4}>
-                        <HStack spacing={2} mb={3}>
-                          <Icon as={MdOutlineSportsSoccer} boxSize={4} color="#004ea8" />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.700">다음 경기</Text>
+                      <StatBlock label="TOTAL" caption="전체 회원" value={userList.length} unit="명" />
+                      <StatBlock label="ACTIVE" caption="활성 회원" value={activeMembers.length} unit="명" />
+                      <StatBlock label="MATCH" caption="예정 경기" value={upcomingGames.length} unit="경기" />
+                      <StatBlock label="ACTION" caption="처리 필요" value={actionRequiredCount} unit="건" highlight={actionRequiredCount > 0} />
+                    </SimpleGrid>
+                  </Box>
+
+                  {/* NEXT MATCH + VOTE STATUS */}
+                  <SimpleGrid columns={{ base: 1, xl: 5 }} spacing={4} w="100%">
+                    {/* Match Day Card */}
+                    <Box
+                      gridColumn={{ xl: 'span 3' }}
+                      position="relative"
+                      overflow="hidden"
+                      borderRadius="xl"
+                      bgGradient={nextGameDDay === 0 ? GRADIENTS.NEXT_MATCH_MATCHDAY : GRADIENTS.NEXT_MATCH_DEFAULT}
+                      color="white"
+                      p={{ base: 5, md: 6 }}
+                      boxShadow={nextGameDDay === 0 ? '0 0 0 2px #D7FF3A' : 'none'}
+                    >
+                      <PitchLines opacity={0.08} />
+                      <Flex position="relative" justify="space-between" align="center" mb={5}>
+                        <HStack spacing={2}>
+                          <Icon as={MdOutlineSportsSoccer} boxSize={4} color="whiteAlpha.800" />
+                          <Text textStyle="scoreLabel" color="whiteAlpha.800">{nextGameDDay === 0 ? 'MATCH DAY' : 'NEXT MATCH'}</Text>
                         </HStack>
-                        {nextGame ? (
-                          <VStack align="stretch" spacing={1}>
-                            <HStack justify="space-between" align="baseline">
-                              <Text fontSize="lg" fontWeight="bold" color="gray.800">{nextGame.date}</Text>
-                              {nextGameDDay !== null && (
-                                <Badge colorScheme={nextGameDDay <= 1 ? 'blue' : 'gray'} borderRadius="md">
-                                  {nextGameDDay === 0 ? 'D-DAY' : `D-${nextGameDDay}`}
-                                </Badge>
-                              )}
+                        {nextGameDDay !== null && (
+                          nextGameDDay === 0 ? (
+                            <HStack spacing={1.5} bg="matchday.volt" px={2.5} py={1} borderRadius="sm">
+                              <LiveDot color="matchday.navy" />
+                              <Text textStyle="scoreLabel" color="matchday.navy">TODAY</Text>
                             </HStack>
-                            {nextGame.location && (
-                              <Text fontSize="sm" color="gray.600">{nextGame.location}</Text>
-                            )}
-                            <HStack spacing={2} mt={1}>
+                          ) : (
+                            <Box border="1px solid" borderColor="whiteAlpha.500" px={2.5} py={1} borderRadius="sm">
+                              <Text textStyle="scoreLabel" color="white">D-{nextGameDDay}</Text>
+                            </Box>
+                          )
+                        )}
+                      </Flex>
+
+                      {nextGame && nextGameDate ? (
+                        <Flex position="relative" direction={{ base: 'column', sm: 'row' }} gap={{ base: 4, md: 6 }} align={{ base: 'stretch', sm: 'center' }}>
+                          <DateBlock date={nextGameDate} alignSelf={{ base: 'flex-start', sm: 'center' }} />
+                          <Box flex={1} minW={0}>
+                            <Text textStyle="scoreLabel" color="whiteAlpha.700">KICK OFF</Text>
+                            <Text textStyle="statNumber" fontSize={{ base: '52px', md: '68px' }} mt={1}>
+                              {nextGame.time && nextGame.time !== '미정' ? nextGame.time : 'TBD'}
+                            </Text>
+                            <HStack spacing={2} mt={3} flexWrap="wrap">
+                              <Badge bg="whiteAlpha.200" color="white" px={2} py={0.5} borderRadius="sm" fontSize="xs">
+                                {normalizeEventType(nextGameRaw?.eventType)}
+                              </Badge>
                               {nextGame.gameType && (
-                                <Badge colorScheme="gray" variant="subtle">{nextGame.gameType}</Badge>
+                                <Badge bg="whiteAlpha.200" color="white" px={2} py={0.5} borderRadius="sm" fontSize="xs">{nextGame.gameType}</Badge>
                               )}
-                              <Badge colorScheme={nextGame.confirmed ? 'green' : 'gray'} variant="subtle">
+                              <Badge bg={nextGame.confirmed ? 'white' : 'transparent'} color={nextGame.confirmed ? 'brand.600' : 'whiteAlpha.800'} border="1px solid" borderColor={nextGame.confirmed ? 'white' : 'whiteAlpha.500'} px={2} py={0.5} borderRadius="sm" fontSize="xs">
                                 {nextGame.confirmed ? '확정' : '미확정'}
                               </Badge>
                             </HStack>
-                          </VStack>
-                        ) : (
-                          <Text fontSize="sm" color="gray.500">예정된 경기가 없습니다.</Text>
-                        )}
-                      </CardBody>
-                    </Card>
-
-                    <Card
-                      bg="white"
-                      border="1px solid"
-                      borderColor="gray.200"
-                      borderRadius="lg"
-                      boxShadow="none"
-                      cursor="pointer"
-                      onClick={() => handleMenuSelect('vote-sessions')}
-                      _hover={{ borderColor: 'gray.300', bg: 'gray.50' }}
-                      transition="all 0.15s ease"
-                    >
-                      <CardBody px={5} py={4}>
-                        <HStack justify="space-between" mb={3}>
-                          <HStack spacing={2}>
-                            <Icon as={MdOutlineHowToVote} boxSize={4} color="#004ea8" />
-                            <Text fontSize="sm" fontWeight="bold" color="gray.700">투표 현황</Text>
-                          </HStack>
-                          <Badge colorScheme={isVoteActive ? 'blue' : 'gray'} variant="subtle">
-                            {isVoteActive ? '진행중' : '마감'}
-                          </Badge>
-                        </HStack>
-                        {voteResults ? (
-                          <HStack spacing={3} justify="space-between">
-                            {voteDays.map(({ key, label }) => (
-                              <VStack key={key} spacing={0}>
-                                <Text fontSize="xs" color="gray.500">{label}</Text>
-                                <Text fontSize="md" fontWeight="bold" color="gray.800">
-                                  {voteResults[key]?.count ?? 0}
-                                </Text>
-                              </VStack>
-                            ))}
-                          </HStack>
-                        ) : (
-                          <Text fontSize="sm" color="gray.500">투표 데이터가 없습니다.</Text>
-                        )}
-                      </CardBody>
-                    </Card>
-                  </SimpleGrid>
-
-                  {/* ZONE D: 지금 처리할 것 */}
-                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                    <CardBody px={5} py={4}>
-                      <VStack align="stretch" spacing={3}>
-                        <HStack spacing={2}>
-                          <Icon as={MdOutlinePendingActions} boxSize={4} color="#004ea8" />
-                          <Text fontSize="md" fontWeight="bold" color="gray.700">지금 처리할 것</Text>
-                          <Badge colorScheme={actionRequiredCount > 0 ? 'orange' : 'gray'} variant="subtle">
-                            {actionRequiredCount}건
-                          </Badge>
-                        </HStack>
-
-                        {actionRequiredCount === 0 ? (
-                          <Text color="gray.500" fontSize="sm">처리할 요청이 없습니다.</Text>
-                        ) : (
-                          <VStack align="stretch" spacing={4}>
-                            {pendingSuspensions.length > 0 && (
-                              <Box>
-                                <Text fontSize="sm" fontWeight="semibold" color="gray.600" mb={2}>정지 해제 요청 ({pendingSuspensions.length}건)</Text>
-                                <VStack spacing={2} align="stretch">
-                                  {pendingSuspensions.map((request) => (
-                                    <Box
-                                      key={request.id}
-                                      px={4}
-                                      py={2}
-                                      border="1px solid"
-                                      borderColor="gray.200"
-                                      borderRadius="md"
-                                      bg="gray.50"
-                                    >
-                                      <VStack align="stretch" spacing={1}>
-                                        <HStack justify="space-between" align="center">
-                                          <Text fontSize="sm" fontWeight="bold" color="gray.800" lineHeight={1.2}>
-                                            {request.userName}
-                                          </Text>
-                                          <Badge colorScheme="orange" size="sm">대기중</Badge>
-                                        </HStack>
-                                        <Text fontSize="sm" color="gray.700" lineHeight={1.2}>
-                                          <strong>요청 사유:</strong> {request.reason}
-                                        </Text>
-                                        <Text fontSize="xs" color="gray.500" lineHeight={1.2}>
-                                          요청일: {new Date(request.requestDate).toLocaleDateString('ko-KR')}
-                                        </Text>
-                                        <HStack spacing={2} justify="flex-end" mt={1}>
-                                          <Button
-                                            size="sm"
-                                            colorScheme="green"
-                                            onClick={() => approveSuspensionRequest(request.id)}
-                                          >
-                                            승인
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            colorScheme="red"
-                                            variant="outline"
-                                            onClick={() => rejectSuspensionRequest(request.id)}
-                                          >
-                                            거절
-                                          </Button>
-                                        </HStack>
-                                      </VStack>
-                                    </Box>
-                                  ))}
-                                </VStack>
-                              </Box>
-                            )}
-
-                            {voteWarnings.length > 0 && (
-                              <Box>
-                                <Text fontSize="sm" fontWeight="semibold" color="gray.600" mb={2}>투표 경고 ({voteWarnings.length}건)</Text>
-                                <VStack spacing={2} align="stretch">
-                                  {voteWarnings.map((warning) => (
-                                    <Flex key={warning.userId} justify="space-between" align="center" px={4} py={2} border="1px solid" borderColor="gray.200" borderRadius="md" bg="gray.50">
-                                      <VStack align="flex-start" spacing={0}>
-                                        <Text fontSize="sm" color="gray.800" fontWeight="medium" lineHeight={1.2}>{warning.userName}</Text>
-                                        <Text color="gray.500" fontSize="xs" lineHeight={1.2}>
-                                          경고일: {new Date(warning.lastWarningDate).toLocaleDateString('ko-KR')}
-                                        </Text>
-                                      </VStack>
-                                      <Badge colorScheme="orange" size="sm">
-                                        경고 {warning.warningCount}회
-                                      </Badge>
-                                    </Flex>
-                                  ))}
-                                </VStack>
-                              </Box>
-                            )}
-                          </VStack>
-                        )}
-
-                        {resolvedSuspensions.length > 0 && (
-                          <Box>
-                            <Divider mb={2} />
-                            <Text fontSize="xs" fontWeight="semibold" color="gray.500" mb={2}>처리된 정지 해제 요청</Text>
-                            <VStack spacing={2} align="stretch" maxH="200px" overflowY="auto">
-                              {resolvedSuspensions.map((request) => (
-                                <Box
-                                  key={request.id}
-                                  px={4}
-                                  py={2}
-                                  border="1px solid"
-                                  borderColor={request.status === 'APPROVED' ? 'green.200' : 'red.200'}
-                                  borderRadius="md"
-                                  bg={request.status === 'APPROVED' ? 'green.50' : 'red.50'}
-                                >
-                                  <HStack justify="space-between" align="center">
-                                    <VStack align="flex-start" spacing={0} flex={1}>
-                                      <HStack spacing={2}>
-                                        <Text fontSize="sm" fontWeight="medium" lineHeight={1.2}>
-                                          {request.userName}
-                                        </Text>
-                                        <Badge
-                                          colorScheme={request.status === 'APPROVED' ? 'green' : 'red'}
-                                          size="sm"
-                                        >
-                                          {request.status === 'APPROVED' ? '승인됨' : '거절됨'}
-                                        </Badge>
-                                      </HStack>
-                                      <Text fontSize="xs" color="gray.500" lineHeight={1.2}>
-                                        {new Date(request.requestDate).toLocaleDateString('ko-KR')}
-                                      </Text>
-                                    </VStack>
-                                  </HStack>
-                                </Box>
-                              ))}
+                            <VStack align="stretch" spacing={1.5} mt={4} fontSize="sm" color="whiteAlpha.900">
+                              <HStack spacing={2}>
+                                <Icon as={LuMapPin} boxSize={4} color="whiteAlpha.700" flexShrink={0} />
+                                <Text noOfLines={1}>{nextGame.location || '장소 미정'}</Text>
+                              </HStack>
+                              <HStack spacing={2}>
+                                <Icon as={LuUsers} boxSize={4} color="whiteAlpha.700" flexShrink={0} />
+                                <Text><Text as="span" fontFamily="display" fontWeight="700" fontSize="lg" sx={{ fontVariantNumeric: 'tabular-nums' }}>{nextGameParticipants}</Text>명 참가</Text>
+                              </HStack>
                             </VStack>
                           </Box>
+                          <VStack align="stretch" spacing={2} minW={{ sm: '140px' }}>
+                            <Button size="sm" bg="white" color="brand.600" _hover={{ bg: 'whiteAlpha.900' }} rightIcon={<Icon as={LuArrowRight} />} onClick={() => handleMenuSelect('games')}>
+                              경기 관리
+                            </Button>
+                            <Button size="sm" variant="outline" bg="transparent" color="white" borderColor="whiteAlpha.600" _hover={{ bg: 'whiteAlpha.200' }} leftIcon={<Icon as={MdOutlineStadium} />} onClick={() => handleMenuSelect('football')}>
+                              전술판
+                            </Button>
+                          </VStack>
+                        </Flex>
+                      ) : (
+                        <Flex position="relative" direction={{ base: 'column', sm: 'row' }} align={{ base: 'flex-start', sm: 'center' }} justify="space-between" gap={4} py={{ base: 2, md: 6 }}>
+                          <Box>
+                            <Text fontFamily="display" fontWeight="700" fontSize={{ base: '30px', md: '40px' }} lineHeight="1" textTransform="uppercase">No match scheduled</Text>
+                            <Text fontSize="sm" color="whiteAlpha.800" mt={2}>다음 경기를 등록하면 이곳에 Match Day 카드가 표시돼요.</Text>
+                          </Box>
+                          <Button size="md" bg="matchday.volt" color="matchday.navy" _hover={{ opacity: 0.9 }} leftIcon={<Icon as={LuCalendarPlus} />} onClick={() => handleMenuSelect('games')}>
+                            경기 등록하기
+                          </Button>
+                        </Flex>
+                      )}
+                    </Box>
+
+                    {/* Vote Status: 요일별 스탯 트랙 */}
+                    <Box
+                      gridColumn={{ xl: 'span 2' }}
+                      bg="white"
+                      borderRadius="xl"
+                      border="1px solid"
+                      borderColor="gray.200"
+                      p={{ base: 5, md: 6 }}
+                      cursor="pointer"
+                      onClick={() => handleMenuSelect('vote-sessions')}
+                      _hover={{ borderColor: 'brand.500' }}
+                      transition={`border-color .2s ${EASE_EXPO_OUT}`}
+                    >
+                      <PanelHeader
+                        label="VOTE STATUS"
+                        title="요일별 투표"
+                        right={isVoteActive ? (
+                          <HStack spacing={1.5} bg="matchday.navy" px={2.5} py={1} borderRadius="sm">
+                            <LiveDot />
+                            <Text textStyle="scoreLabel" fontFamily="body" letterSpacing="0.06em" color="matchday.volt">LIVE 진행중</Text>
+                          </HStack>
+                        ) : (
+                          <Box bg="gray.100" px={2.5} py={1} borderRadius="sm">
+                            <Text textStyle="scoreLabel" fontFamily="body" letterSpacing="0.06em" color="gray.500">CLOSED 마감</Text>
+                          </Box>
                         )}
-                      </VStack>
-                    </CardBody>
-                  </Card>
+                      />
+                      {voteResults ? (
+                        <Flex justify="space-between" align="flex-end" gap={{ base: 2, md: 3 }} h="200px">
+                          {voteDays.map(({ key, label }, i) => {
+                            const count = voteCounts[i];
+                            const isBest = voteMax > 0 && count === voteMax;
+                            return (
+                              <Flex key={key} direction="column" align="center" justify="flex-end" flex={1} h="100%">
+                                {isBest && (
+                                  <Text textStyle="scoreLabel" fontSize="9px" letterSpacing="0.08em" bg="matchday.volt" color="matchday.navy" px={1.5} py={0.5} borderRadius="sm" mb={1.5} whiteSpace="nowrap">
+                                    BEST DAY
+                                  </Text>
+                                )}
+                                <Text textStyle="statNumber" fontSize="28px" color={isBest ? 'matchday.navy' : 'gray.700'}>{count}</Text>
+                                <Box w="100%" maxW="44px" mt={1.5} h="100px" flexShrink={0} bg="gray.100" borderRadius="sm" display="flex" alignItems="flex-end" overflow="hidden">
+                                  <Box
+                                    w="100%"
+                                    h={voteMax > 0 ? `${Math.max(4, (count / voteMax) * 100)}%` : '4%'}
+                                    bg={isBest ? 'brand.500' : 'brand.200'}
+                                    transition={`height .6s ${EASE_EXPO_OUT}`}
+                                  />
+                                </Box>
+                                <Text textStyle="scoreLabel" fontFamily="body" letterSpacing="0" color={isBest ? 'brand.500' : 'gray.500'} mt={2}>{label}</Text>
+                              </Flex>
+                            );
+                          })}
+                        </Flex>
+                      ) : (
+                        <Flex h="200px" align="center" justify="center" direction="column" gap={2} bg="gray.50" borderRadius="md">
+                          <Icon as={LuVote} boxSize={6} color="gray.300" />
+                          <Text fontSize="sm" color="gray.500">투표 데이터가 없습니다.</Text>
+                        </Flex>
+                      )}
+                    </Box>
+                  </SimpleGrid>
+
+                  {/* ACTION CENTER: 운영 작업 대기열 */}
+                  <Box w="100%" bg="white" borderRadius="xl" border="1px solid" borderColor={actionRequiredCount > 0 ? 'matchday.navy' : 'gray.200'} overflow="hidden">
+                    <Flex justify="space-between" align="center" px={{ base: 5, md: 6 }} py={4} bg={actionRequiredCount > 0 ? 'matchday.navy' : 'white'} color={actionRequiredCount > 0 ? 'white' : 'matchday.navy'}>
+                      <Box>
+                        <Text fontSize="lg" fontWeight="800">지금 처리할 것</Text>
+                        <Text textStyle="scoreLabel" fontSize="10px" color={actionRequiredCount > 0 ? 'whiteAlpha.600' : 'brand.500'} mt={1}>ACTION CENTER</Text>
+                      </Box>
+                      <HStack spacing={2} align="baseline">
+                        <Text textStyle="statNumber" fontSize="44px" color={actionRequiredCount > 0 ? 'matchday.volt' : 'gray.300'}>{actionRequiredCount}</Text>
+                        <Text fontSize="sm" fontWeight="semibold" color={actionRequiredCount > 0 ? 'whiteAlpha.700' : 'gray.400'}>건</Text>
+                      </HStack>
+                    </Flex>
+
+                    <Box px={{ base: 5, md: 6 }} py={4}>
+                      {actionRequiredCount === 0 ? (
+                        <HStack spacing={3} py={2}>
+                          <Icon as={LuCircleCheck} boxSize={5} color="green.500" />
+                          <Text color="gray.600" fontSize="sm">모든 요청을 처리했어요 🎉</Text>
+                        </HStack>
+                      ) : (
+                        <VStack align="stretch" spacing={2}>
+                          {pendingSuspensions.map((request) => (
+                            <Flex key={request.id} align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap={3} pl={4} pr={3} py={3} bg="gray.50" borderRadius="md" borderLeft="4px solid" borderLeftColor="brand.500">
+                              <Box flex={1} minW={0}>
+                                <HStack spacing={2} align="baseline">
+                                  <Text fontSize="md" fontWeight="bold" color="matchday.navy">{request.userName}</Text>
+                                  <Text fontSize="xs" fontWeight="semibold" color="brand.500">정지 해제 요청</Text>
+                                  <Text fontSize="xs" color="gray.400" ml="auto" flexShrink={0}>{daysAgo(request.requestDate)}</Text>
+                                </HStack>
+                                <Text fontSize="sm" color="gray.600" noOfLines={2} mt={1}>{request.reason}</Text>
+                              </Box>
+                              <HStack spacing={2} justify="flex-end">
+                                <Button size="sm" bg="matchday.navy" color="white" _hover={{ bg: 'matchday.pitch' }} leftIcon={<Icon as={LuUserCheck} />} onClick={() => approveSuspensionRequest(request.id)}>
+                                  승인
+                                </Button>
+                                <Button size="sm" variant="outline" colorScheme="red" onClick={() => rejectSuspensionRequest(request.id)}>
+                                  거절
+                                </Button>
+                              </HStack>
+                            </Flex>
+                          ))}
+                          {voteWarnings.map((warning) => (
+                            <Flex key={warning.userId} align="center" gap={3} pl={4} pr={3} py={3} bg="gray.50" borderRadius="md" borderLeft="4px solid" borderLeftColor="orange.400">
+                              <Box flex={1} minW={0}>
+                                <HStack spacing={2} align="baseline">
+                                  <Text fontSize="md" fontWeight="bold" color="matchday.navy">{warning.userName}</Text>
+                                  <Text fontSize="xs" fontWeight="semibold" color="orange.500">투표 경고</Text>
+                                </HStack>
+                                <Text fontSize="xs" color="gray.400" mt={0.5}>{daysAgo(warning.lastWarningDate)}</Text>
+                              </Box>
+                              <HStack spacing={1} align="baseline">
+                                <Text textStyle="statNumber" fontSize="28px" color="orange.500">{warning.warningCount}</Text>
+                                <Text fontSize="xs" color="gray.500">회</Text>
+                              </HStack>
+                            </Flex>
+                          ))}
+                        </VStack>
+                      )}
+
+                      {resolvedSuspensions.length > 0 && (
+                        <Box mt={4}>
+                          <Divider mb={3} />
+                          <Text fontSize="xs" fontWeight="semibold" color="gray.500" mb={2}>처리 완료</Text>
+                          <VStack spacing={1.5} align="stretch" maxH="200px" overflowY="auto">
+                            {resolvedSuspensions.map((request) => (
+                              <HStack key={request.id} justify="space-between" px={3} py={2} borderRadius="md" bg="gray.50">
+                                <HStack spacing={2} minW={0}>
+                                  <Icon as={request.status === 'APPROVED' ? LuCircleCheck : LuCircleX} color={request.status === 'APPROVED' ? 'green.500' : 'red.500'} boxSize={4} />
+                                  <Text fontSize="sm" fontWeight="medium" noOfLines={1}>{request.userName}</Text>
+                                  <Text fontSize="xs" color={request.status === 'APPROVED' ? 'green.600' : 'red.600'}>{request.status === 'APPROVED' ? '승인됨' : '거절됨'}</Text>
+                                </HStack>
+                                <Text display={{ base: 'none', md: 'block' }} fontSize="xs" color="gray.500" flexShrink={0}>{new Date(request.requestDate).toLocaleDateString('ko-KR')}</Text>
+                              </HStack>
+                            ))}
+                          </VStack>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
 
                   {/* 최근 발송 알림 상세 보기 모달 */}
                   {isNotificationModalOpen ? (
@@ -3595,100 +3698,75 @@ export default function AdminPageNew() {
                     </Modal>
                   ) : null}
 
-                  {/* ZONE E: 최근 활동 (보조 정보) */}
-                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                    <CardBody px={5} py={4}>
-                      <VStack align="stretch" spacing={3}>
-                        <HStack justify="space-between" align="center">
+                  {/* RECENT ACTIVITY: 매치 피드 타임라인 */}
+                  <SimpleGrid columns={{ base: 1, xl: 3 }} spacing={4} w="100%">
+                    <Box gridColumn={{ xl: 'span 2' }} bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200" p={{ base: 5, md: 6 }}>
+                      <PanelHeader
+                        label="MATCH FEED"
+                        title="최근 활동"
+                        right={
                           <HStack spacing={2}>
-                            <Icon as={MdOutlineHistory} boxSize={4} color="gray.500" />
-                            <Text fontSize="sm" fontWeight="bold" color="gray.700">최근 활동</Text>
-                          </HStack>
-                          <HStack spacing={2}>
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => setIsNotificationModalOpen(true)}
-                            >
-                              최근 발송 알림 상세 보기
+                            <Button size="xs" variant="outline" leftIcon={<Icon as={LuBellRing} />} onClick={() => setIsNotificationModalOpen(true)}>
+                              <Box as="span" display={{ base: 'none', sm: 'inline' }}>최근 발송 알림</Box>
+                              <Box as="span" display={{ base: 'inline', sm: 'none' }}>알림</Box>
                             </Button>
-                            <Button
-                              size="xs"
-                              variant="ghost"
-                              onClick={() => setActivityLogs([])}
-                            >
+                            <Button size="xs" variant="ghost" onClick={() => setActivityLogs([])}>
                               로그 초기화
                             </Button>
                           </HStack>
-                        </HStack>
+                        }
+                      />
+                      {activityLogs.length === 0 ? (
+                        <Flex align="center" gap={3} py={6} px={4} bg="gray.50" borderRadius="md">
+                          <Icon as={LuHistory} boxSize={5} color="gray.300" />
+                          <Text color="gray.500" fontSize="sm">아직 활동 내역이 없습니다.</Text>
+                        </Flex>
+                      ) : (
+                        <Box maxH="360px" overflowY="auto" pr={1}>
+                          {activityLogs.slice(0, 20).map((log, i, arr) => {
+                            const meta = ACTIVITY_META[log.action] || { label: '기타', icon: LuHistory, color: 'gray.400' };
+                            const ts = new Date(log.timestamp);
+                            return (
+                              <Flex key={log.id} gap={3} align="stretch">
+                                <Box w="52px" flexShrink={0} textAlign="right" pt={0.5}>
+                                  <Text fontFamily="display" fontWeight="700" fontSize="15px" color="matchday.navy" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                                    {ts.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  </Text>
+                                  {ts.toDateString() !== now.toDateString() && (
+                                    <Text fontSize="10px" color="gray.400">{ts.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</Text>
+                                  )}
+                                </Box>
+                                <Flex direction="column" align="center" flexShrink={0}>
+                                  <Flex w="26px" h="26px" borderRadius="full" bg="white" border="2px solid" borderColor={meta.color} align="center" justify="center">
+                                    <Icon as={meta.icon} boxSize={3.5} color={meta.color} />
+                                  </Flex>
+                                  {i < arr.length - 1 && <Box w="2px" flex={1} bg="gray.100" my={1} />}
+                                </Flex>
+                                <Box flex={1} minW={0} pb={4}>
+                                  <Text fontSize="sm" color="gray.800" lineHeight={1.4}>
+                                    <Text as="span" fontWeight="bold" color="matchday.navy">{log.userName}</Text>
+                                    <Text as="span" color="gray.400"> · </Text>
+                                    {log.description}
+                                  </Text>
+                                  <Text display={{ base: 'none', md: 'block' }} textStyle="scoreLabel" fontSize="10px" fontFamily="body" letterSpacing="0.02em" color={meta.color} mt={1}>{meta.label}</Text>
+                                </Box>
+                              </Flex>
+                            );
+                          })}
+                        </Box>
+                      )}
+                    </Box>
 
-                        {activityLogs.length === 0 ? (
-                        <Text color="gray.500" fontSize="sm">아직 활동 내역이 없습니다.</Text>
-                        ) : (
-                          <VStack spacing={2} align="stretch" maxH="320px" overflowY="auto">
-                            {activityLogs.slice(0, 20).map((log) => (
-                              <Box
-                                key={log.id}
-                                px={4}
-                                py={2}
-                                border="1px solid"
-                                borderColor="gray.200"
-                                borderRadius="md"
-                                bg="gray.50"
-                              >
-                                <HStack justify="space-between" align="flex-start">
-                                  <VStack align="flex-start" spacing={0} flex={1}>
-                                    <HStack spacing={2}>
-                                      <Badge
-                                        colorScheme={
-                                          log.action === 'MEMBER_SUSPENDED' ? 'red' :
-                                          log.action === 'VOTE_WARNING' ? 'orange' :
-                                          log.action === 'LOGIN' ? 'green' :
-                                          log.action === 'VOTE_PARTICIPATE' ? 'blue' :
-                                          'gray'
-                                        }
-                                        size="sm"
-                                      >
-                                        {log.action === 'LOGIN' ? '로그인' :
-                                         log.action === 'LOGOUT' ? '로그아웃' :
-                                         log.action === 'GAME_JOIN' ? '경기참여' :
-                                         log.action === 'GAME_CANCEL' ? '경기취소' :
-                                         log.action === 'VOTE_PARTICIPATE' ? '투표참여' :
-                                         log.action === 'VOTE_ABSENT' ? '투표불참' :
-                                         log.action === 'ANNOUNCEMENT_CREATE' ? '공지작성' :
-                                         log.action === 'ANNOUNCEMENT_EDIT' ? '공지수정' :
-                                         log.action === 'MEMBER_STATUS_CHANGE' ? '상태변경' :
-                                         log.action === 'VOTE_WARNING' ? '투표경고' :
-                                         log.action === 'MEMBER_SUSPENDED' ? '회원정지' : '기타'}
-                                      </Badge>
-                                      <Text fontSize="sm" color="gray.500" lineHeight={1.2}>
-                                        {new Date(log.timestamp).toLocaleString('ko-KR')}
-                                      </Text>
-                                    </HStack>
-                                    <Text fontSize="sm" fontWeight="medium" lineHeight={1.2}>
-                                      {log.userName}
-                                    </Text>
-                                    <Text fontSize="sm" color="gray.700" lineHeight={1.2}>
-                                      {log.description}
-                                    </Text>
-                                  </VStack>
-                                </HStack>
-                              </Box>
-                            ))}
-                          </VStack>
-                        )}
-
-                        <Divider />
-                        <Text fontSize="xs" fontWeight="semibold" color="gray.500">회원 세부</Text>
-                        {renderStatRows([
-                          { label: '활성 회원', value: `${activeMembers.length}명` },
-                          { label: '비활성 회원', value: `${userList.filter(u => u.status === 'INACTIVE').length}명` },
-                          { label: '정지된 회원', value: `${userList.filter(u => u.status === 'SUSPENDED').length}명` },
-                          { label: '신규 가입 (7일)', value: `${recentSignups.length}명` }
-                        ])}
-                      </VStack>
-                    </CardBody>
-                  </Card>
+                    <Box bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200" p={{ base: 5, md: 6 }}>
+                      <PanelHeader label="SQUAD" title="회원 세부" />
+                      {renderStatRows([
+                        { label: '활성 회원', value: `${activeMembers.length}명` },
+                        { label: '비활성 회원', value: `${userList.filter(u => u.status === 'INACTIVE').length}명` },
+                        { label: '정지된 회원', value: `${userList.filter(u => u.status === 'SUSPENDED').length}명` },
+                        { label: '신규 가입 (7일)', value: `${recentSignups.length}명` }
+                      ])}
+                    </Box>
+                  </SimpleGrid>
                 </VStack>
                 );
               })()}

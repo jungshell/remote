@@ -244,3 +244,7 @@ body {
     pointer-events: none;
   }
 }
+
+/* Match Day 레이어: 앱 전역 resetCSS=false 로 남는 브라우저 기본 <p> 여백을 이 영역에서만 제거.
+   :where() 로 우선순위를 0으로 낮춰 Chakra mt/mb 등 개별 지정이 항상 이긴다. */
+:where(.fccg-matchday) p { margin: 0; }

@@ -79,7 +79,7 @@ export default function ChatbotWidget() {
   };
 
   return (
-    <Box position="fixed" bottom={{ base: 4, md: 6 }} right={{ base: 4, md: 6 }} zIndex={Z_INDEX.CHATBOT}>
+    <Box position="fixed" bottom={{ base: 'calc(16px + env(safe-area-inset-bottom, 0px))', md: 6 }} right={{ base: 'calc(16px + env(safe-area-inset-right, 0px))', md: 6 }} zIndex={Z_INDEX.CHATBOT}>
       <IconButton
         aria-label="챗봇 열기"
         icon={isOpen ? <CloseIcon /> : <ChatIcon />}

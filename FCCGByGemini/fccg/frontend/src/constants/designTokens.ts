@@ -14,6 +14,11 @@ export const COLORS = {
   BRAND_SOFT: '#e6f3ff', // brand.50 — 옅은 배경 tint
   BRAND_SOFT_STRONG: '#b3d9ff', // brand.100 — 강조된 옅은 배경 tint
 
+  // Match Day 레이어 (theme의 matchday.* 와 동일)
+  MATCHDAY_NAVY: '#0A1B33',
+  MATCHDAY_PITCH: '#0F2747',
+  MATCHDAY_VOLT: '#D7FF3A', // 신호색 — LIVE / D-DAY / 처리 필요에만
+
   // 상태 색상
   SUCCESS: '#22c55e',
   WARNING: '#f59e0b',

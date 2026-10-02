@@ -8,6 +8,12 @@ const config: ThemeConfig = {
 
 // 커스텀 색상 팔레트
 const colors = {
+  // Match Day 비주얼 레이어: 남색 무대 + 단일 신호색(Volt). Volt는 LIVE/D-DAY/처리 필요 등 핵심 상태에만 쓴다.
+  matchday: {
+    navy: '#0A1B33',
+    pitch: '#0F2747',
+    volt: '#D7FF3A',
+  },
   brand: {
     50: '#e6f3ff',
     100: '#b3d9ff',
@@ -287,9 +293,29 @@ const theme = extendTheme({
   fonts: {
     heading: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     body: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    // 숫자·영문 대형 제목용 좁은 서체. 새 폰트 의존성 없이 시스템 서체로 먼저 구현 (Windows: Bahnschrift)
+    display: "'Bahnschrift SemiCondensed', Bahnschrift, 'Roboto Condensed', 'Arial Narrow', 'Pretendard Variable', Pretendard, sans-serif",
+    mono: "'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, 'Liberation Mono', monospace",
   },
   // Typography foundation: heading/body/caption/button 4개 역할, 모바일(base) → 데스크톱(md) 순으로 커짐
   textStyles: {
+    // 스포츠 스탯 숫자: 좁은 서체 + 자릿수 고정(tabular-nums)
+    statNumber: {
+      fontFamily: 'display',
+      fontWeight: 700,
+      lineHeight: 0.9,
+      letterSpacing: '-0.01em',
+      fontVariantNumeric: 'tabular-nums',
+    },
+    // 스코어보드 라벨: 모노 대문자 + 넓은 자간
+    scoreLabel: {
+      fontFamily: 'mono',
+      fontSize: '0.6875rem', // 11px
+      fontWeight: 600,
+      lineHeight: 1.2,
+      letterSpacing: '0.14em',
+      textTransform: 'uppercase',
+    },
     heading1: {
       fontSize: { base: '1.5rem', md: '1.875rem' }, // 24px / 30px
       fontWeight: 700,
