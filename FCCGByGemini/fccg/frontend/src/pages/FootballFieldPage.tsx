@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
-  Card,
-  CardBody,
+  Flex,
   SimpleGrid,
   Text,
   VStack,
@@ -12,7 +11,6 @@ import {
   FormControl,
   FormLabel,
   Input,
-  Divider,
   IconButton,
   Select,
   Modal,
@@ -23,6 +21,7 @@ import {
   ModalFooter
 } from '@chakra-ui/react';
 import { DeleteIcon, AddIcon, EditIcon, CheckIcon, CloseIcon } from '@chakra-ui/icons';
+import { AdminPageHeader, AdminPanel } from '../components/admin/MatchDay';
 
 // 선수 타입 (포지션 정보 제거)
 interface Player {
@@ -1032,866 +1031,483 @@ ${teamTable}
     setDraggedPlayer(null);
   };
 
+  // ── 표시 전용 헬퍼 (상태·로직은 위 핸들러를 그대로 호출) ──────────────────
+  // 팀 색: A = Brand Blue, B = Orange (Volt와 겹치는 노랑 계열은 쓰지 않음)
+  const TEAM_TONE = {
+    A: { solid: 'brand.500', soft: 'brand.50', border: 'brand.300', text: 'brand.700', scheme: 'brand' },
+    B: { solid: 'orange.600', soft: 'orange.50', border: 'orange.300', text: 'orange.700', scheme: 'orange' },
+  } as const;
+
+  // 회원명단 선수 칩 (투표한 인원 / 투표하지 않은 인원 / 전체 명단 공용)
+  const renderPlayerChip = (player: Player, variant: 'voted' | 'rest') => {
+    const isSelected = selectedPlayers.has(player.id);
+    const isInTeamA = teamA.some(p => p.id === player.id);
+    const isInTeamB = teamB.some(p => p.id === player.id);
+    const isGuestPlayer = String(player.id).startsWith('guest_');
+    const assigned = isInTeamA ? TEAM_TONE.A : isInTeamB ? TEAM_TONE.B : null;
+    const selectedTone = selectedTeam ? TEAM_TONE[selectedTeam] : null;
+
+    if (editingGuestPlayer?.id === player.id) {
+      return (
+        <HStack key={player.id} spacing={1}>
+          <Input value={editGuestPlayerName} onChange={(e) => setEditGuestPlayerName(e.target.value)} size="sm" h="44px" />
+          <IconButton aria-label="용병 이름 저장" icon={<CheckIcon />} size="sm" h="44px" minW="40px" onClick={handleSaveEditGuestPlayer} colorScheme="brand" />
+          <IconButton aria-label="용병 이름 수정 취소" icon={<CloseIcon />} size="sm" h="44px" minW="40px" onClick={handleCancelEditGuestPlayer} variant="outline" colorScheme="gray" />
+        </HStack>
+      );
+    }
+
+    return (
+      <HStack key={player.id} spacing={1} minW={0}>
+        <Button
+          flex={1}
+          minW={0}
+          h="auto"
+          minH="44px"
+          px={2}
+          py={1.5}
+          borderRadius="md"
+          border="1px solid"
+          onClick={() => handlePlayerSelect(player.id)}
+          isDisabled={!selectedTeam || isInTeamA || isInTeamB}
+          bg={assigned ? assigned.soft : isSelected && selectedTone ? selectedTone.solid : variant === 'voted' ? 'white' : 'gray.50'}
+          borderColor={assigned ? assigned.border : isSelected && selectedTone ? selectedTone.solid : variant === 'voted' ? 'gray.300' : 'gray.200'}
+          color={assigned ? assigned.text : isSelected ? 'white' : variant === 'voted' ? 'matchday.navy' : 'gray.600'}
+          fontSize="sm"
+          fontWeight="700"
+          whiteSpace="normal"
+          wordBreak="keep-all"
+          lineHeight="1.2"
+          transition="background-color 0.15s, border-color 0.15s"
+          _hover={{ borderColor: selectedTone ? selectedTone.solid : 'gray.400' }}
+          _disabled={{ opacity: assigned ? 1 : 0.55, cursor: 'not-allowed' }}
+        >
+          {player.name}
+        </Button>
+        {isGuestPlayer && (
+          <IconButton
+            aria-label={`${player.name} 이름 수정`}
+            icon={<EditIcon />}
+            size="sm"
+            h="44px"
+            minW="36px"
+            variant="outline"
+            colorScheme="brand"
+            onClick={(e) => {
+              e.stopPropagation();
+              const newName = prompt('용병 이름을 입력하세요:', player.name);
+              if (newName && newName.trim()) {
+                const trimmedName = newName.trim();
+
+                // guestPlayerNames에 저장
+                setGuestPlayerNames(prev => ({
+                  ...prev,
+                  [player.id]: trimmedName
+                }));
+
+                // memberList 업데이트
+                setMemberList(prev => prev.map(p =>
+                  p.id === player.id ? { ...p, name: trimmedName } : p
+                ));
+                // 팀에서도 업데이트
+                setTeamA(prev => prev.map(p =>
+                  p.id === player.id ? { ...p, name: trimmedName } : p
+                ));
+                setTeamB(prev => prev.map(p =>
+                  p.id === player.id ? { ...p, name: trimmedName } : p
+                ));
+              }
+            }}
+          />
+        )}
+      </HStack>
+    );
+  };
+
+  // 팀 현황 칩 (이름 + 팀에서 제거)
+  const renderTeamChip = (player: Player, team: 'A' | 'B') => {
+    const tone = TEAM_TONE[team];
+    return (
+      <Flex key={player.id} align="center" minH="44px" pl={3} pr={1} borderRadius="md" border="1px solid" borderColor={tone.border} bg={tone.soft} minW={0}>
+        <Text flex={1} minW={0} fontSize="sm" fontWeight="700" color={tone.text} wordBreak="keep-all" lineHeight="1.2">{player.name}</Text>
+        <IconButton
+          aria-label={`${player.name} ${team}팀에서 제거`}
+          icon={<DeleteIcon />}
+          size="sm"
+          minW="32px"
+          h="32px"
+          variant="ghost"
+          colorScheme="red"
+          color="red.500"
+          onClick={() => handleRemoveFromTeam(player.id, team)}
+        />
+      </Flex>
+    );
+  };
+
+  // 보드 위 선수 토큰 — 좌표 기준(left/top = 토큰 좌상단)은 기존과 동일하게 유지
+  const renderFieldToken = (player: Player, team: 'A' | 'B') => {
+    const position = playerPositions.find(p => p.id === player.id);
+    if (!position) return null;
+    const tone = TEAM_TONE[team];
+    const isDragging = draggedPlayer === player.id;
+
+    return (
+      <Box
+        key={`${team}-${player.id}`}
+        position="absolute"
+        left={`${position.x}%`}
+        top={`${position.y}%`}
+        w="50px"
+        h="50px"
+        bg={tone.solid}
+        borderRadius="full"
+        border="2px solid"
+        borderColor="white"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        cursor="grab"
+        sx={{ touchAction: 'none' }}
+        zIndex={isDragging ? 2 : 1}
+        {...(isDragging ? { transform: 'scale(1.08)' } : {})}
+        _hover={{ transform: 'scale(1.08)' }}
+        transition="transform 0.15s, box-shadow 0.15s"
+        boxShadow={isDragging ? '0 0 0 3px rgba(215,255,58,0.85), 0 8px 18px rgba(0,0,0,0.45)' : '0 4px 12px rgba(0,0,0,0.35)'}
+        onPointerDown={(e) => handleDragStart(e, player.id)}
+        _active={{ cursor: 'grabbing' }}
+      >
+        <Text fontSize="xs" fontWeight="800" color="white" textAlign="center" lineHeight="1.1" px={0.5} wordBreak="keep-all">
+          {player.name}
+        </Text>
+      </Box>
+    );
+  };
+
+  const playerGridColumns = { base: 3, sm: 4, md: 6 };
+
   return (
-    <Box p={4} bg="gray.50" minH="100vh">
-      <VStack spacing={6} align="stretch" maxW="1400px" mx="auto">
-        {/* 헤더 */}
-        <Box>
-          <Text fontSize="2xl" fontWeight="bold" color="#004ea8">풋살 현황판</Text>
-          <Text fontSize="sm" color="gray.500" mt={0.5}>경기 당일 팀 배정과 포지션을 관리합니다.</Text>
-        </Box>
+    <VStack className="fccg-matchday fccg-admin" spacing={5} align="stretch" w="100%">
+      <AdminPageHeader eyebrow="TACTICAL BOARD" title="풋살 현황판" description="선수 배치와 포지션을 관리합니다." />
 
-        {/* 경기 날짜 선택 및 팀 구성 공유 */}
-        <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-          <CardBody p={4}>
-            <VStack spacing={4} align="stretch">
-              <Text fontSize="md" fontWeight="bold" color="green.700" textAlign="center">
-                경기 날짜 선택 및 팀 구성 공유
-              </Text>
-              <Divider />
-              
-              <HStack spacing={4} align="end">
-                <FormControl flex="1">
-                  <FormLabel fontSize="sm">확정된 경기 날짜</FormLabel>
-                  <Select
-                    placeholder="경기 날짜를 선택하세요"
-                    value={selectedGameDate}
-                    onChange={(e) => {
-                      console.log('🗓️ 날짜 선택:', e.target.value);
-                      setSelectedGameDate(e.target.value);
-                      localStorage.setItem('futsalSelectedGameDate', e.target.value);
-                    }}
-                    size="sm"
-                  >
-                    {getConfirmedGames().map((game) => (
-                      <option key={game.id} value={game.date}>
-                        {new Date(game.date).toLocaleDateString('ko-KR', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          weekday: 'long'
-                        })}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-                
-                <VStack spacing={2}>
-                  <Text fontSize="xs" color="gray.600">팀 구성 공유</Text>
-                  <HStack spacing={2}>
-                    <Button
-                      colorScheme="yellow"
-                      size="sm"
-                      onClick={() => shareTeamComposition('kakao')}
-                      isDisabled={teamA.length === 0 && teamB.length === 0}
-                    >
-                      카카오톡
-                    </Button>
-                    <Button
-                      colorScheme="blue"
-                      size="sm"
-                      onClick={() => shareTeamComposition('email')}
-                      isDisabled={teamA.length === 0 && teamB.length === 0}
-                    >
-                      이메일
-                    </Button>
-                  </HStack>
-                </VStack>
-              </HStack>
-            </VStack>
-          </CardBody>
-        </Card>
+      {/* 경기 날짜 선택 및 팀 구성 공유 */}
+      <AdminPanel label="MATCH SETUP" title="경기 날짜 · 팀 구성 공유">
+        <Flex direction={{ base: 'column', md: 'row' }} gap={4} align={{ base: 'stretch', md: 'flex-end' }}>
+          <FormControl flex="1">
+            <FormLabel fontSize="sm" color="gray.700">확정된 경기 날짜</FormLabel>
+            <Select
+              placeholder="경기 날짜를 선택하세요"
+              value={selectedGameDate}
+              onChange={(e) => {
+                console.log('🗓️ 날짜 선택:', e.target.value);
+                setSelectedGameDate(e.target.value);
+                localStorage.setItem('futsalSelectedGameDate', e.target.value);
+              }}
+              focusBorderColor="brand.500"
+            >
+              {getConfirmedGames().map((game) => (
+                <option key={game.id} value={game.date}>
+                  {new Date(game.date).toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    weekday: 'long'
+                  })}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
 
-        {/* 팀 선택 및 배정 - 컴팩트하게 */}
-        <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-          <CardBody p={4}>
-            <VStack spacing={4} align="stretch">
-              <Text fontSize="lg" fontWeight="bold" color="blue.700" textAlign="center">
-                팀 선택 및 배정
-              </Text>
-              
-              <HStack justify="center" spacing={4}>
-                <Button
-                  size="md"
-                  colorScheme="yellow"
-                  variant={selectedTeam === 'A' ? 'solid' : 'outline'}
-                  onClick={() => setSelectedTeam('A')}
-                  _hover={{ transform: 'translateY(-1px)', shadow: 'md' }}
-                  transition="all 0.2s"
-                >
-                  A팀
-                </Button>
-                <Button
-                  size="md"
-                  colorScheme="red"
-                  variant={selectedTeam === 'B' ? 'solid' : 'outline'}
-                  onClick={() => setSelectedTeam('B')}
-                  _hover={{ transform: 'translateY(-1px)', shadow: 'md' }}
-                  transition="all 0.2s"
-                >
-                  B팀
-                </Button>
-              </HStack>
+          <HStack spacing={2}>
+            <Button
+              variant="outline"
+              colorScheme="gray"
+              onClick={() => shareTeamComposition('kakao')}
+              isDisabled={teamA.length === 0 && teamB.length === 0}
+              flex={{ base: 1, md: 'none' }}
+            >
+              카카오톡 공유
+            </Button>
+            <Button
+              variant="outline"
+              colorScheme="brand"
+              onClick={() => shareTeamComposition('email')}
+              isDisabled={teamA.length === 0 && teamB.length === 0}
+              flex={{ base: 1, md: 'none' }}
+            >
+              이메일 공유
+            </Button>
+          </HStack>
+        </Flex>
+      </AdminPanel>
 
-              {selectedTeam && (
-                <Box textAlign="center">
-                  <Text fontSize="sm" color="gray.600" mb={2}>
-                    {selectedTeam === 'A' ? 'A팀' : 'B팀'} 선택됨
-                  </Text>
-                  <Text fontSize="xs" color="gray.500">
-                    아래에서 선수들을 선택 후 팀 배정하세요
-                  </Text>
-                </Box>
-              )}
-
-              {selectedTeam && selectedPlayers.size > 0 && (
-                <Box textAlign="center">
-                  <Button
-                    size="md"
-                    colorScheme="green"
-                    onClick={handleAssignTeam}
-                    _hover={{ transform: 'translateY(-1px)', shadow: 'md' }}
-                    transition="all 0.2s"
-                  >
-                    {selectedTeam === 'A' ? 'A팀' : 'B팀'}에 {selectedPlayers.size}명 배정
-                  </Button>
-                </Box>
-              )}
-            </VStack>
-          </CardBody>
-        </Card>
-
-        {/* 팀 배정 시스템 - 컴팩트하게 */}
-        <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={4}>
-          {/* 회원명단 */}
-          <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-            <CardBody p={4}>
-              <VStack spacing={4} align="stretch">
-                <Text fontSize="md" fontWeight="bold" color="blue.700" textAlign="center">
-                  회원명단
-                </Text>
-                <Divider />
-                
-                {/* 투표한 인원 섹션 */}
-                {selectedGameDate && (() => {
-                  const { votedMembers, nonVotedMembers } = getVotedAndNonVotedMembers();
-                  console.log('🔍 UI 렌더링 - votedMembers:', votedMembers);
-                  console.log('🔍 UI 렌더링 - nonVotedMembers:', nonVotedMembers);
-                  
-                  return (
-                    <>
-                      <Text fontSize="sm" fontWeight="bold" color="green.600" textAlign="center">
-                        투표한 인원 ({votedMembers.length}명)
-                      </Text>
-                      <SimpleGrid columns={6} spacing={2}>
-                        {votedMembers.map((player) => {
-                        const isSelected = selectedPlayers.has(player.id);
-                        const isInTeamA = teamA.some(p => p.id === player.id);
-                        const isInTeamB = teamB.some(p => p.id === player.id);
-                        const isGuestPlayer = String(player.id).startsWith('guest_');
-                        
-                        return (
-                          <Box key={player.id}>
-                            {editingGuestPlayer?.id === player.id ? (
-                              <HStack spacing={1}>
-                                <Input
-                                  value={editGuestPlayerName}
-                                  onChange={(e) => setEditGuestPlayerName(e.target.value)}
-                                  size="sm"
-                                  fontSize="xs"
-                                  h="28px"
-                                />
-                                <IconButton
-                                  icon={<CheckIcon />}
-                                  size="sm"
-                                  h="28px"
-                                  w="28px"
-                                  onClick={handleSaveEditGuestPlayer}
-                                  colorScheme="green"
-                                />
-                                <IconButton
-                                  icon={<CloseIcon />}
-                                  size="sm"
-                                  h="28px"
-                                  w="28px"
-                                  onClick={handleCancelEditGuestPlayer}
-                                  colorScheme="red"
-                                />
-                              </HStack>
-                            ) : (
-                              <HStack spacing={1}>
-                                <Button
-                                  w="100%"
-                                  h="28px"
-                                  borderRadius="full"
-                                  variant="outline"
-                                  onClick={() => handlePlayerSelect(player.id)}
-                                  isDisabled={!selectedTeam || isInTeamA || isInTeamB}
-                                  bg={
-                                    isInTeamA ? 'yellow.100' : 
-                                    isInTeamB ? 'red.100' : 
-                                    isSelected ? (selectedTeam === 'A' ? 'yellow.200' : 'red.200') : 'green.100'
-                                  }
-                                  borderColor={
-                                    isInTeamA ? 'yellow.400' : 
-                                    isInTeamB ? 'red.400' : 
-                                    isSelected ? (selectedTeam === 'A' ? 'yellow.500' : 'red.500') : 'green.400'
-                                  }
-                                  color={
-                                    isInTeamA ? 'yellow.700' : 
-                                    isInTeamB ? 'red.700' : 
-                                    isSelected ? (selectedTeam === 'A' ? 'yellow.800' : 'red.800') : 'green.700'
-                                  }
-                                  fontSize="xs"
-                                  fontWeight="bold"
-                                  _hover={{
-                                    bg: isInTeamA ? 'yellow.200' : 
-                                        isInTeamB ? 'red.200' : 
-                                        isSelected ? (selectedTeam === 'A' ? 'yellow.300' : 'red.300') : 'green.200'
-                                  }}
-                                >
-                                  {player.name}
-                                </Button>
-                                {isGuestPlayer && (
-                                  <Box position="relative">
-                                    <IconButton
-                                      icon={<EditIcon />}
-                                      size="xs"
-                                      h="12px"
-                                      w="12px"
-                                      position="absolute"
-                                      top="-12px"
-                                      right="-12px"
-                                      bg="blue.500"
-                                      color="white"
-                                      borderRadius="full"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const newName = prompt('용병 이름을 입력하세요:', player.name);
-                                        if (newName && newName.trim()) {
-                                          const trimmedName = newName.trim();
-                                          
-                                          // guestPlayerNames에 저장
-                                          setGuestPlayerNames(prev => ({
-                                            ...prev,
-                                            [player.id]: trimmedName
-                                          }));
-                                          
-                                          // memberList 업데이트
-                                          setMemberList(prev => prev.map(p => 
-                                            p.id === player.id ? { ...p, name: trimmedName } : p
-                                          ));
-                                          // 팀에서도 업데이트
-                                          setTeamA(prev => prev.map(p => 
-                                            p.id === player.id ? { ...p, name: trimmedName } : p
-                                          ));
-                                          setTeamB(prev => prev.map(p => 
-                                            p.id === player.id ? { ...p, name: trimmedName } : p
-                                          ));
-                                        }
-                                      }}
-                                      _hover={{ bg: "blue.600" }}
-                                      zIndex={1}
-                                    />
-                                  </Box>
-                                )}
-                              </HStack>
-                            )}
-                          </Box>
-                        );
-                      })}
-                    </SimpleGrid>
-                    
-                      {/* 나머지 인원 섹션 */}
-                      {nonVotedMembers.length > 0 && (
-                        <>
-                          <Divider />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.600" textAlign="center">
-                            투표하지 않은 인원 ({nonVotedMembers.length}명)
-                          </Text>
-                          <SimpleGrid columns={6} spacing={2}>
-                            {nonVotedMembers.map((player) => {
-                            const isSelected = selectedPlayers.has(player.id);
-                            const isInTeamA = teamA.some(p => p.id === player.id);
-                            const isInTeamB = teamB.some(p => p.id === player.id);
-                            const isGuestPlayer = String(player.id).startsWith('guest_');
-                            
-                            return (
-                              <Box key={player.id}>
-                                {editingGuestPlayer?.id === player.id ? (
-                                  <HStack spacing={1}>
-                                    <Input
-                                      value={editGuestPlayerName}
-                                      onChange={(e) => setEditGuestPlayerName(e.target.value)}
-                                      size="sm"
-                                      fontSize="xs"
-                                      h="28px"
-                                    />
-                                    <IconButton
-                                      icon={<CheckIcon />}
-                                      size="sm"
-                                      h="28px"
-                                      w="28px"
-                                      onClick={handleSaveEditGuestPlayer}
-                                      colorScheme="green"
-                                    />
-                                    <IconButton
-                                      icon={<CloseIcon />}
-                                      size="sm"
-                                      h="28px"
-                                      w="28px"
-                                      onClick={handleCancelEditGuestPlayer}
-                                      colorScheme="red"
-                                    />
-                                  </HStack>
-                                ) : (
-                                  <HStack spacing={1}>
-                                    <Button
-                                      w="100%"
-                                      h="28px"
-                                      borderRadius="full"
-                                      variant="outline"
-                                      onClick={() => handlePlayerSelect(player.id)}
-                                      isDisabled={!selectedTeam || isInTeamA || isInTeamB}
-                                      bg={
-                                        isInTeamA ? 'yellow.100' : 
-                                        isInTeamB ? 'red.100' : 
-                                        isSelected ? (selectedTeam === 'A' ? 'yellow.200' : 'red.200') : 'gray.100'
-                                      }
-                                      borderColor={
-                                        isInTeamA ? 'yellow.400' : 
-                                        isInTeamB ? 'red.400' : 
-                                        isSelected ? (selectedTeam === 'A' ? 'yellow.500' : 'red.500') : 'gray.400'
-                                      }
-                                      color={
-                                        isInTeamA ? 'yellow.700' : 
-                                        isInTeamB ? 'red.700' : 
-                                        isSelected ? (selectedTeam === 'A' ? 'yellow.800' : 'red.800') : 'gray.700'
-                                      }
-                                      fontSize="xs"
-                                      fontWeight="bold"
-                                      _hover={{
-                                        bg: isInTeamA ? 'yellow.200' : 
-                                            isInTeamB ? 'red.200' : 
-                                            isSelected ? (selectedTeam === 'A' ? 'yellow.300' : 'red.300') : 'gray.200'
-                                      }}
-                                    >
-                                      {player.name}
-                                    </Button>
-                                    {isGuestPlayer && (
-                                      <Box position="relative">
-                                        <IconButton
-                                          icon={<EditIcon />}
-                                          size="xs"
-                                          h="12px"
-                                          w="12px"
-                                          position="absolute"
-                                          top="-12px"
-                                          right="-12px"
-                                          bg="blue.500"
-                                          color="white"
-                                          borderRadius="full"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            const newName = prompt('용병 이름을 입력하세요:', player.name);
-                                            if (newName && newName.trim()) {
-                                              const trimmedName = newName.trim();
-                                              
-                                              // guestPlayerNames에 저장
-                                              setGuestPlayerNames(prev => ({
-                                                ...prev,
-                                                [player.id]: trimmedName
-                                              }));
-                                              
-                                              // memberList 업데이트
-                                              setMemberList(prev => prev.map(p => 
-                                                p.id === player.id ? { ...p, name: trimmedName } : p
-                                              ));
-                                              // 팀에서도 업데이트
-                                              setTeamA(prev => prev.map(p => 
-                                                p.id === player.id ? { ...p, name: trimmedName } : p
-                                              ));
-                                              setTeamB(prev => prev.map(p => 
-                                                p.id === player.id ? { ...p, name: trimmedName } : p
-                                              ));
-                                            }
-                                          }}
-                                          _hover={{ bg: "blue.600" }}
-                                          zIndex={1}
-                                        />
-                                      </Box>
-                                    )}
-                                  </HStack>
-                                )}
-                              </Box>
-                            );
-                          })}
-                          </SimpleGrid>
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-                
-                {/* 날짜가 선택되지 않은 경우 전체 회원명단 표시 */}
-                {!selectedGameDate && (
-                  <SimpleGrid columns={6} spacing={2}>
-                    {memberList.map((player) => {
-                      const isSelected = selectedPlayers.has(player.id);
-                      const isInTeamA = teamA.some(p => p.id === player.id);
-                      const isInTeamB = teamB.some(p => p.id === player.id);
-                      
-                      return (
-                        <Box key={player.id}>
-                          <Button
-                            w="100%"
-                            h="28px"
-                            borderRadius="full"
-                            variant="outline"
-                            onClick={() => handlePlayerSelect(player.id)}
-                            isDisabled={!selectedTeam || isInTeamA || isInTeamB}
-                            bg={
-                              isInTeamA ? 'yellow.100' : 
-                              isInTeamB ? 'red.100' : 
-                              isSelected ? (selectedTeam === 'A' ? 'yellow.200' : 'red.200') : 'gray.100'
-                            }
-                            borderColor={
-                              isInTeamA ? 'yellow.400' : 
-                              isInTeamB ? 'red.400' : 
-                              isSelected ? (selectedTeam === 'A' ? 'yellow.400' : 'red.400') : 'gray.300'
-                            }
-                            color={
-                              isInTeamA ? 'yellow.800' : 
-                              isInTeamB ? 'red.800' : 
-                              isSelected ? (selectedTeam === 'A' ? 'yellow.800' : 'red.800') : 'gray.700'
-                            }
-                            _hover={{
-                              bg: isInTeamA ? 'yellow.200' : 
-                                   isInTeamB ? 'red.200' : 
-                                   isSelected ? (selectedTeam === 'A' ? 'yellow.300' : 'red.300') : 'gray.200'
-                            }}
-                            transition="all 0.2s"
-                            fontSize="xs"
-                            opacity={isInTeamA || isInTeamB ? 0.6 : 1}
-                          >
-                            {player.name}
-                          </Button>
-                        </Box>
-                      );
-                    })}
-                  </SimpleGrid>
-                )}
-              </VStack>
-            </CardBody>
-          </Card>
-
-          {/* 용병 + 수기입력 */}
-          <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-            <CardBody p={4}>
-              <VStack spacing={4} align="stretch">
-                <Text fontSize="md" fontWeight="bold" color="green.700" textAlign="center">
-                  수기입력
-                </Text>
-                <Divider />
-                
-                {/* 수기 입력 */}
-                <VStack spacing={3} align="stretch">
-                  <Text fontSize="sm" fontWeight="bold" color="green.700">수기 입력 선수</Text>
-                  <FormControl size="sm">
-                    <FormLabel fontSize="xs">선수명</FormLabel>
-                    <HStack spacing={2}>
-                      <Input
-                        placeholder="이름"
-                        value={newPlayerName}
-                        onChange={(e) => setNewPlayerName(e.target.value)}
-                        size="sm"
-                      />
-                      <Button
-                        colorScheme="green"
-                        size="sm"
-                        onClick={handleAddManualPlayer}
-                        isDisabled={!newPlayerName.trim()}
-                        leftIcon={<AddIcon />}
-                      >
-                        추가
-                      </Button>
-                    </HStack>
-                  </FormControl>
-                  
-                  {/* 수기 입력 인원 목록 */}
-                  {memberList.filter(player => String(player.id).startsWith('manual_')).length > 0 && (
-                    <Box>
-                      <Text fontSize="xs" fontWeight="bold" mb={2} color="green.600">
-                        수기 입력 인원 목록
-                      </Text>
-                      <VStack spacing={1} align="stretch">
-                        {memberList
-                          .filter(player => String(player.id).startsWith('manual_'))
-                          .map((player) => (
-                            <Box key={player.id}>
-                              {editingPlayer?.id === player.id ? (
-                                // 수정 모드
-                                <HStack spacing={2}>
-                                  <Input
-                                    value={editPlayerName}
-                                    onChange={(e) => setEditPlayerName(e.target.value)}
-                                    size="sm"
-                                    placeholder="수정할 이름"
-                                  />
-                                  <Button
-                                    colorScheme="blue"
-                                    size="sm"
-                                    onClick={handleSaveEdit}
-                                    isDisabled={!editPlayerName.trim()}
-                                  >
-                                    저장
-                                  </Button>
-                                  <Button
-                                    colorScheme="gray"
-                                    size="sm"
-                                    onClick={handleCancelEdit}
-                                  >
-                                    취소
-                                  </Button>
-                                </HStack>
-                              ) : (
-                                // 일반 모드
-                                <HStack spacing={2} justify="space-between">
-                                  <Text fontSize="sm" color="green.700">
-                                    {player.name}
-                                    {player.team && (
-                                      <Text as="span" fontSize="xs" color="gray.500" ml={2}>
-                                        ({player.team}팀)
-                                      </Text>
-                                    )}
-                                  </Text>
-                                  <HStack spacing={1}>
-                                    <IconButton
-                                      aria-label="수정"
-                                      icon={<EditIcon />}
-                                      size="xs"
-                                      colorScheme="blue"
-                                      variant="outline"
-                                      onClick={() => handleStartEdit(player)}
-                                    />
-                                    <IconButton
-                                      aria-label="삭제"
-                                      icon={<DeleteIcon />}
-                                      size="xs"
-                                      colorScheme="red"
-                                      variant="outline"
-                                      onClick={() => setConfirmDialog({ type: 'deletePlayer', player })}
-                                    />
-                                  </HStack>
-                                </HStack>
-                              )}
-                            </Box>
-                          ))}
-                      </VStack>
-                    </Box>
-                  )}
-                </VStack>
-
-
-              </VStack>
-            </CardBody>
-          </Card>
-
-          {/* 팀 현황 */}
-          <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-            <CardBody p={4}>
-              <VStack spacing={4} align="stretch">
-                <Text fontSize="md" fontWeight="bold" color="purple.700" textAlign="center">
-                  팀 현황
-                </Text>
-                <Divider />
-                
-                {/* A팀 */}
-                <Box>
-                  <Text fontSize="sm" fontWeight="bold" mb={2} color="yellow.700">
-                    A팀 ({teamA.length}명)
-                  </Text>
-                  <SimpleGrid columns={6} spacing={1}>
-                    {teamA.length === 0 ? (
-                      <Text fontSize="xs" color="gray.500" textAlign="center" py={1} gridColumn="span 6">
-                        배정된 선수 없음
-                      </Text>
-                    ) : (
-                      teamA.map((player) => (
-                        <Box key={player.id} position="relative">
-                          <Button
-                            w="100%"
-                            h="24px"
-                            borderRadius="full"
-                            bg="yellow.100"
-                            border="1px solid"
-                            borderColor="yellow.200"
-                            color="yellow.800"
-                            fontSize="xs"
-                            fontWeight="medium"
-                            _hover={{ bg: 'yellow.200' }}
-                            transition="all 0.2s"
-                          >
-                            {player.name}
-                          </Button>
-                          <IconButton
-                            aria-label="팀에서 제거"
-                            icon={<DeleteIcon />}
-                            size="xs"
-                            colorScheme="red"
-                            variant="ghost"
-                            position="absolute"
-                            top="-8px"
-                            right="-8px"
-                            onClick={() => handleRemoveFromTeam(player.id, 'A')}
-                            zIndex={1}
-                          />
-                        </Box>
-                      ))
-                    )}
-                  </SimpleGrid>
-                </Box>
-
-                {/* B팀 */}
-                <Box>
-                  <Text fontSize="sm" fontWeight="bold" mb={2} color="red.700">
-                    B팀 ({teamB.length}명)
-                  </Text>
-                  <SimpleGrid columns={6} spacing={1}>
-                    {teamB.length === 0 ? (
-                      <Text fontSize="xs" color="gray.500" textAlign="center" py={1} gridColumn="span 6">
-                        배정된 선수 없음
-                      </Text>
-                    ) : (
-                      teamB.map((player) => (
-                        <Box key={player.id} position="relative">
-                          <Button
-                            w="100%"
-                            h="24px"
-                            borderRadius="full"
-                            bg="red.100"
-                            border="1px solid"
-                            borderColor="red.200"
-                            color="red.800"
-                            fontSize="xs"
-                            fontWeight="medium"
-                            _hover={{ bg: 'red.200' }}
-                            transition="all 0.2s"
-                          >
-                            {player.name}
-                          </Button>
-                          <IconButton
-                            aria-label="팀에서 제거"
-                            icon={<DeleteIcon />}
-                            size="xs"
-                            colorScheme="red"
-                            variant="ghost"
-                            position="absolute"
-                            top="-8px"
-                            right="-8px"
-                            onClick={() => handleRemoveFromTeam(player.id, 'B')}
-                            zIndex={1}
-                          />
-                        </Box>
-                      ))
-                    )}
-                  </SimpleGrid>
-                </Box>
-
-                {/* 경기 리셋 */}
-                <Button
-                  colorScheme="gray"
-                  size="sm"
-                  onClick={() => setConfirmDialog({ type: 'reset' })}
-                  isDisabled={teamA.length === 0 && teamB.length === 0}
-                >
-                  경기 리셋
-                </Button>
-              </VStack>
-            </CardBody>
-          </Card>
+      {/* 팀 선택 및 배정 */}
+      <AdminPanel label="TEAM SELECT" title="팀 선택 및 배정">
+        <SimpleGrid columns={2} spacing={3}>
+          {(['A', 'B'] as const).map((team) => {
+            const tone = TEAM_TONE[team];
+            const isActive = selectedTeam === team;
+            return (
+              <Button
+                key={team}
+                h="56px"
+                borderRadius="md"
+                border="2px solid"
+                borderColor={tone.solid}
+                bg={isActive ? tone.solid : 'white'}
+                color={isActive ? 'white' : tone.text}
+                _hover={{ bg: isActive ? tone.solid : tone.soft }}
+                transition="background-color 0.15s"
+                onClick={() => setSelectedTeam(team)}
+                aria-pressed={isActive}
+              >
+                <Text textStyle="scoreLabel" color={isActive ? 'whiteAlpha.800' : tone.text} mr={2}>TEAM</Text>
+                <Text fontSize="xl" fontWeight="800">{team}팀</Text>
+              </Button>
+            );
+          })}
         </SimpleGrid>
 
-        {/* 포지션 - 가로형 축구장으로 재설계 */}
-        <Card variant="outline" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-          <CardBody p={4}>
-            <VStack spacing={4} align="stretch">
-              <Text fontSize="lg" fontWeight="bold" color="green.700" textAlign="center">
-                포지션
-              </Text>
-              
-              {/* 팀별 인원수 표시 */}
-              <HStack justify="space-between" px={4}>
-                <Text fontSize="md" fontWeight="bold" color="yellow.700">
-                  A팀: {teamA.length}명
-                </Text>
-                <Text fontSize="md" fontWeight="bold" color="red.700">
-                  B팀: {teamB.length}명
-                </Text>
-              </HStack>
-              
-              {/* 단순한 선만으로 구성된 축구장 디자인 */}
-              <Box
-                ref={fieldRef}
-                position="relative"
-                w="100%"
-                h={{ base: '300px', md: '400px' }}
-                bg="white"
-                borderRadius="none"
-                border="2px solid"
-                borderColor="black"
-                overflow="hidden"
-                onPointerMove={handleDrag}
-                onPointerUp={handleDragEnd}
-                onPointerCancel={handleDragEnd}
-                cursor={draggedPlayer ? 'grabbing' : 'default'}
-              >
-                {/* 중앙선 (세로) */}
-                <Box
-                  position="absolute"
-                  top="0"
-                  bottom="0"
-                  left="50%"
-                  w="1px"
-                  bg="black"
-                  transform="translateX(-50%)"
-                />
-                
-                {/* 중앙 원 */}
-                <Box
-                  position="absolute"
-                  top="50%"
-                  left="50%"
-                  w="100px"
-                  h="100px"
-                  border="1px solid"
-                  borderColor="black"
-                  borderRadius="full"
-                  transform="translate(-50%, -50%)"
-                />
-                
-                
-                {/* 페널티 에리어 A팀 (왼쪽) */}
-                <Box
-                  position="absolute"
-                  top="20%"
-                  left="0"
-                  w="15%"
-                  h="60%"
-                  border="1px solid"
-                  borderColor="black"
-                />
-                
-                {/* 페널티 에리어 B팀 (오른쪽) */}
-                <Box
-                  position="absolute"
-                  top="20%"
-                  right="0"
-                  w="15%"
-                  h="60%"
-                  border="1px solid"
-                  borderColor="black"
-                />
-                
-                {/* 골 에리어 A팀 (왼쪽) */}
-                <Box
-                  position="absolute"
-                  top="35%"
-                  left="0"
-                  w="5%"
-                  h="30%"
-                  border="1px solid"
-                  borderColor="black"
-                />
-                
-                {/* 골 에리어 B팀 (오른쪽) */}
-                <Box
-                  position="absolute"
-                  top="35%"
-                  right="0"
-                  w="5%"
-                  h="30%"
-                  border="1px solid"
-                  borderColor="black"
-                />
-                
-                
-                
-                
-                {/* A팀 선수들 (왼쪽, 드래그 가능) */}
-                {teamA.map((player) => {
-                  const position = playerPositions.find(p => p.id === player.id);
-                  if (!position) return null;
-                  
-                  return (
-                    <Box
-                      key={`A-${player.id}`}
-                      position="absolute"
-                      left={`${position.x}%`}
-                      top={`${position.y}%`}
-                      w="50px"
-                      h="50px"
-                      bg="yellow.400"
-                      borderRadius="full"
-                      border="2px solid"
-                      borderColor="yellow.600"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      cursor="grab"
-                      touchAction="none"
-                      _hover={{ transform: 'scale(1.1)', shadow: 'xl' }}
-                      transition="all 0.3s"
-                      boxShadow="0 4px 15px rgba(0,0,0,0.3)"
-                      onPointerDown={(e) => handleDragStart(e, player.id)}
-                      _active={{ cursor: 'grabbing' }}
-                    >
-                      <Text fontSize="xs" fontWeight="bold" color="white">
-                        {player.name}
-                      </Text>
-                    </Box>
-                  );
-                })}
-                
-                {/* B팀 선수들 (오른쪽, 드래그 가능) */}
-                {teamB.map((player) => {
-                  const position = playerPositions.find(p => p.id === player.id);
-                  if (!position) return null;
-                  
-                  return (
-                    <Box
-                      key={`B-${player.id}`}
-                      position="absolute"
-                      left={`${position.x}%`}
-                      top={`${position.y}%`}
-                      w="50px"
-                      h="50px"
-                      bg="red.400"
-                      borderRadius="full"
-                      border="2px solid"
-                      borderColor="red.600"
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                      cursor="grab"
-                      touchAction="none"
-                      _hover={{ transform: 'scale(1.1)', shadow: 'xl' }}
-                      transition="all 0.3s"
-                      boxShadow="0 4px 15px rgba(0,0,0,0.3)"
-                      onPointerDown={(e) => handleDragStart(e, player.id)}
-                      _active={{ cursor: 'grabbing' }}
-                    >
-                      <Text fontSize="xs" fontWeight="bold" color="white">
-                        {player.name}
-                      </Text>
-                    </Box>
-                  );
-                })}
+        {selectedTeam ? (
+          <Flex mt={4} align="center" justify="space-between" gap={3} wrap="wrap">
+            <Text fontSize="sm" color="gray.600">
+              <Text as="span" fontWeight="800" color={TEAM_TONE[selectedTeam].text}>{selectedTeam}팀</Text> 선택됨 · 아래에서 선수들을 선택 후 팀 배정하세요
+            </Text>
+            {selectedPlayers.size > 0 && (
+              <Button colorScheme={TEAM_TONE[selectedTeam].scheme} onClick={handleAssignTeam} minH="44px">
+                {selectedTeam === 'A' ? 'A팀' : 'B팀'}에 {selectedPlayers.size}명 배정
+              </Button>
+            )}
+          </Flex>
+        ) : (
+          <Text mt={4} fontSize="sm" color="gray.500">먼저 배정할 팀을 선택하세요.</Text>
+        )}
+      </AdminPanel>
+
+      {/* 회원명단 */}
+      <AdminPanel label="ROSTER" title="회원명단">
+        {selectedGameDate && (() => {
+          const { votedMembers, nonVotedMembers } = getVotedAndNonVotedMembers();
+
+          return (
+            <VStack align="stretch" spacing={4}>
+              <Box>
+                <HStack spacing={2} mb={2}>
+                  <Text fontSize="sm" fontWeight="800" color="matchday.navy">투표한 인원</Text>
+                  <Text textStyle="statNumber" fontSize="20px" color="brand.500">{votedMembers.length}</Text>
+                  <Text fontSize="xs" color="gray.500">명</Text>
+                </HStack>
+                <SimpleGrid columns={playerGridColumns} spacing={2}>
+                  {votedMembers.map((player) => renderPlayerChip(player, 'voted'))}
+                </SimpleGrid>
               </Box>
+
+              {/* 나머지 인원 섹션 */}
+              {nonVotedMembers.length > 0 && (
+                <Box pt={4} borderTop="1px dashed" borderColor="gray.200">
+                  <HStack spacing={2} mb={2}>
+                    <Text fontSize="sm" fontWeight="800" color="gray.600">투표하지 않은 인원</Text>
+                    <Text textStyle="statNumber" fontSize="20px" color="gray.400">{nonVotedMembers.length}</Text>
+                    <Text fontSize="xs" color="gray.500">명</Text>
+                  </HStack>
+                  <SimpleGrid columns={playerGridColumns} spacing={2}>
+                    {nonVotedMembers.map((player) => renderPlayerChip(player, 'rest'))}
+                  </SimpleGrid>
+                </Box>
+              )}
             </VStack>
-          </CardBody>
-        </Card>
-      </VStack>
+          );
+        })()}
+
+        {/* 날짜가 선택되지 않은 경우 전체 회원명단 표시 */}
+        {!selectedGameDate && (
+          <SimpleGrid columns={playerGridColumns} spacing={2}>
+            {memberList.map((player) => renderPlayerChip(player, 'rest'))}
+          </SimpleGrid>
+        )}
+      </AdminPanel>
+
+      <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={3}>
+        {/* 수기입력 */}
+        <AdminPanel label="MANUAL" title="수기 입력 선수">
+          <FormControl>
+            <FormLabel fontSize="sm" color="gray.700">선수명</FormLabel>
+            <HStack spacing={2}>
+              <Input
+                placeholder="이름"
+                value={newPlayerName}
+                onChange={(e) => setNewPlayerName(e.target.value)}
+                focusBorderColor="brand.500"
+              />
+              <Button
+                colorScheme="brand"
+                onClick={handleAddManualPlayer}
+                isDisabled={!newPlayerName.trim()}
+                leftIcon={<AddIcon />}
+                flexShrink={0}
+              >
+                추가
+              </Button>
+            </HStack>
+          </FormControl>
+
+          {/* 수기 입력 인원 목록 */}
+          {memberList.filter(player => String(player.id).startsWith('manual_')).length > 0 && (
+            <Box mt={4}>
+              <Text fontSize="xs" fontWeight="700" mb={2} color="gray.500">수기 입력 인원 목록</Text>
+              <VStack spacing={2} align="stretch">
+                {memberList
+                  .filter(player => String(player.id).startsWith('manual_'))
+                  .map((player) => (
+                    <Box key={player.id}>
+                      {editingPlayer?.id === player.id ? (
+                        // 수정 모드
+                        <HStack spacing={2}>
+                          <Input
+                            value={editPlayerName}
+                            onChange={(e) => setEditPlayerName(e.target.value)}
+                            placeholder="수정할 이름"
+                            focusBorderColor="brand.500"
+                          />
+                          <Button colorScheme="brand" onClick={handleSaveEdit} isDisabled={!editPlayerName.trim()} flexShrink={0}>
+                            저장
+                          </Button>
+                          <Button variant="outline" colorScheme="gray" onClick={handleCancelEdit} flexShrink={0}>
+                            취소
+                          </Button>
+                        </HStack>
+                      ) : (
+                        // 일반 모드
+                        <Flex align="center" justify="space-between" gap={2} minH="44px" pl={3} pr={1} border="1px solid" borderColor="gray.200" borderRadius="md">
+                          <Text fontSize="sm" fontWeight="700" color="matchday.navy">
+                            {player.name}
+                            {player.team && (
+                              <Text as="span" fontSize="xs" fontWeight="600" color={TEAM_TONE[player.team].text} ml={2}>
+                                {player.team}팀
+                              </Text>
+                            )}
+                          </Text>
+                          <HStack spacing={1}>
+                            <IconButton
+                              aria-label={`${player.name} 이름 수정`}
+                              icon={<EditIcon />}
+                              size="sm"
+                              colorScheme="brand"
+                              variant="ghost"
+                              onClick={() => handleStartEdit(player)}
+                            />
+                            <IconButton
+                              aria-label={`${player.name} 삭제`}
+                              icon={<DeleteIcon />}
+                              size="sm"
+                              colorScheme="red"
+                              variant="ghost"
+                              color="red.500"
+                              onClick={() => setConfirmDialog({ type: 'deletePlayer', player })}
+                            />
+                          </HStack>
+                        </Flex>
+                      )}
+                    </Box>
+                  ))}
+              </VStack>
+            </Box>
+          )}
+        </AdminPanel>
+
+        {/* 팀 현황 */}
+        <AdminPanel label="LINEUP" title="팀 현황">
+          <VStack align="stretch" spacing={4}>
+            {(['A', 'B'] as const).map((team) => {
+              const list = team === 'A' ? teamA : teamB;
+              const tone = TEAM_TONE[team];
+              return (
+                <Box key={team}>
+                  <HStack spacing={2} mb={2}>
+                    <Box w="10px" h="10px" borderRadius="full" bg={tone.solid} />
+                    <Text fontSize="sm" fontWeight="800" color={tone.text}>{team}팀</Text>
+                    <Text textStyle="statNumber" fontSize="20px" color={tone.text}>{list.length}</Text>
+                    <Text fontSize="xs" color="gray.500">명</Text>
+                  </HStack>
+                  {list.length === 0 ? (
+                    <Text fontSize="sm" color="gray.400">배정된 선수 없음</Text>
+                  ) : (
+                    <SimpleGrid columns={{ base: 3, sm: 4 }} spacing={2}>
+                      {list.map((player) => renderTeamChip(player, team))}
+                    </SimpleGrid>
+                  )}
+                </Box>
+              );
+            })}
+
+            {/* 경기 리셋 */}
+            <Button
+              variant="outline"
+              colorScheme="gray"
+              onClick={() => setConfirmDialog({ type: 'reset' })}
+              isDisabled={teamA.length === 0 && teamB.length === 0}
+              alignSelf="flex-start"
+            >
+              경기 리셋
+            </Button>
+          </VStack>
+        </AdminPanel>
+      </SimpleGrid>
+
+      {/* 포지션 — 전술 보드 */}
+      <AdminPanel label="FORMATION" title="포지션">
+        {/* 스코어보드형 팀 인원 */}
+        <Flex align="center" justify="space-between" bg="matchday.navy" color="white" borderRadius="md" px={{ base: 3, md: 5 }} py={2.5} mb={3}>
+          <HStack spacing={2}>
+            <Box w="10px" h="10px" borderRadius="full" bg={TEAM_TONE.A.solid} border="1px solid" borderColor="whiteAlpha.700" />
+            <Text textStyle="scoreLabel" color="whiteAlpha.800">TEAM A</Text>
+            <Text textStyle="statNumber" fontSize="28px">{teamA.length}</Text>
+          </HStack>
+          <Text textStyle="scoreLabel" color="whiteAlpha.500">VS</Text>
+          <HStack spacing={2}>
+            <Text textStyle="statNumber" fontSize="28px">{teamB.length}</Text>
+            <Text textStyle="scoreLabel" color="whiteAlpha.800">TEAM B</Text>
+            <Box w="10px" h="10px" borderRadius="full" bg={TEAM_TONE.B.solid} border="1px solid" borderColor="whiteAlpha.700" />
+          </HStack>
+        </Flex>
+
+        {/* 경기장 — 모든 라인은 % 기반 (반응형) */}
+        <Box
+          ref={fieldRef}
+          position="relative"
+          w="100%"
+          sx={{ aspectRatio: { base: '1 / 1', sm: '3 / 2', md: '2 / 1' } }}
+          bg="matchday.navy"
+          backgroundImage="repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 10%, transparent 10% 20%)"
+          borderRadius="lg"
+          overflow="hidden"
+          onPointerMove={handleDrag}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+          cursor={draggedPlayer ? 'grabbing' : 'default'}
+        >
+          <Box position="absolute" inset="3%" border="2px solid" borderColor="whiteAlpha.500" borderRadius="sm" pointerEvents="none">
+            {/* 중앙선 */}
+            <Box position="absolute" top={0} bottom={0} left="50%" w="2px" bg="whiteAlpha.500" transform="translateX(-50%)" />
+            {/* 센터 서클 · 센터 스팟 */}
+            <Box position="absolute" top="50%" left="50%" h="32%" sx={{ aspectRatio: '1 / 1' }} border="2px solid" borderColor="whiteAlpha.500" borderRadius="full" transform="translate(-50%, -50%)" />
+            <Box position="absolute" top="50%" left="50%" w="6px" h="6px" bg="whiteAlpha.700" borderRadius="full" transform="translate(-50%, -50%)" />
+            {/* 페널티 에리어 */}
+            <Box position="absolute" top="20%" left={0} w="15%" h="60%" border="2px solid" borderLeft={0} borderColor="whiteAlpha.500" />
+            <Box position="absolute" top="20%" right={0} w="15%" h="60%" border="2px solid" borderRight={0} borderColor="whiteAlpha.500" />
+            {/* 골 에리어 */}
+            <Box position="absolute" top="35%" left={0} w="5%" h="30%" border="2px solid" borderLeft={0} borderColor="whiteAlpha.500" />
+            <Box position="absolute" top="35%" right={0} w="5%" h="30%" border="2px solid" borderRight={0} borderColor="whiteAlpha.500" />
+          </Box>
+          <Text position="absolute" left="4.5%" bottom="5%" textStyle="scoreLabel" fontSize="10px" color="whiteAlpha.500" pointerEvents="none">TEAM A</Text>
+          <Text position="absolute" right="4.5%" bottom="5%" textStyle="scoreLabel" fontSize="10px" color="whiteAlpha.500" pointerEvents="none">TEAM B</Text>
+
+          {/* A팀 / B팀 선수들 (드래그 가능) */}
+          {teamA.map((player) => renderFieldToken(player, 'A'))}
+          {teamB.map((player) => renderFieldToken(player, 'B'))}
+        </Box>
+        <Text fontSize="xs" color="gray.500" mt={2}>선수 토큰을 끌어서 위치를 옮길 수 있습니다. 위치는 이 브라우저에 저장됩니다.</Text>
+      </AdminPanel>
 
       {/* 선수 삭제 / 경기 리셋 확인 모달 */}
       <Modal isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)}>
@@ -1927,6 +1543,6 @@ ${teamTable}
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Box>
+    </VStack>
   );
 }
