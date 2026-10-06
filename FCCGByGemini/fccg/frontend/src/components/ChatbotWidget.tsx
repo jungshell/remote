@@ -9,8 +9,10 @@ import {
   Text,
   useColorModeValue,
   Spinner,
-  Collapse
+  Collapse,
+  useBreakpointValue
 } from '@chakra-ui/react';
+import { useLocation } from 'react-router-dom';
 import { ChatIcon, CloseIcon } from '@chakra-ui/icons';
 import { askChatbot } from '../api/auth';
 import { Z_INDEX } from '../constants/designTokens';
@@ -22,6 +24,11 @@ type Message = {
 
 export default function ChatbotWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  // 관리자 모바일(lg 미만 — AdminPageNew의 isMobile과 같은 기준)에서는 콘텐츠를 덜 가리는 우측 edge dock으로만 표시한다.
+  // 열기/닫기 동작(setIsOpen 토글)은 기존 버튼과 동일.
+  const { pathname } = useLocation();
+  const isBelowLg = useBreakpointValue({ base: true, lg: false }, { ssr: false });
+  const isAdminDock = pathname.startsWith('/admin') && !!isBelowLg;
   const [messages, setMessages] = useState<Message[]>([
     {
       from: 'bot',
@@ -79,20 +86,47 @@ export default function ChatbotWidget() {
   };
 
   return (
-    <Box position="fixed" bottom={{ base: 'calc(16px + env(safe-area-inset-bottom, 0px))', md: 6 }} right={{ base: 'calc(16px + env(safe-area-inset-right, 0px))', md: 6 }} zIndex={Z_INDEX.CHATBOT}>
-      <IconButton
-        aria-label="챗봇 열기"
-        icon={isOpen ? <CloseIcon /> : <ChatIcon />}
-        colorScheme="brand"
-        borderRadius="full"
-        size="lg"
-        boxShadow="0 4px 12px rgba(0,0,0,0.2)"
-        onClick={() => setIsOpen((prev) => !prev)}
-      />
+    <Box
+      position="fixed"
+      bottom={isAdminDock ? 'calc(24px + env(safe-area-inset-bottom, 0px))' : { base: 'calc(16px + env(safe-area-inset-bottom, 0px))', md: 6 }}
+      right={isAdminDock ? 'env(safe-area-inset-right, 0px)' : { base: 'calc(16px + env(safe-area-inset-right, 0px))', md: 6 }}
+      zIndex={Z_INDEX.CHATBOT}
+    >
+      {isAdminDock ? (
+        <IconButton
+          aria-label="챗봇 열기"
+          icon={
+            <HStack spacing={1.5}>
+              <Box w="2px" h="14px" borderRadius="full" bg="whiteAlpha.600" />
+              {isOpen ? <CloseIcon boxSize={2.5} /> : <ChatIcon boxSize={3.5} />}
+            </HStack>
+          }
+          colorScheme="brand"
+          minW="38px"
+          w="38px"
+          h="46px"
+          pl={1}
+          borderLeftRadius="xl"
+          borderRightRadius={0}
+          border="0"
+          boxShadow="-2px 2px 10px rgba(10,27,51,0.22)"
+          onClick={() => setIsOpen((prev) => !prev)}
+        />
+      ) : (
+        <IconButton
+          aria-label="챗봇 열기"
+          icon={isOpen ? <CloseIcon /> : <ChatIcon />}
+          colorScheme="brand"
+          borderRadius="full"
+          size="lg"
+          boxShadow="0 4px 12px rgba(0,0,0,0.2)"
+          onClick={() => setIsOpen((prev) => !prev)}
+        />
+      )}
       <Box
         position="absolute"
         bottom="calc(100% + 12px)"
-        right={0}
+        right={isAdminDock ? 2 : 0}
         zIndex={Z_INDEX.CHATBOT}
       >
         <Collapse in={isOpen} animateOpacity unmountOnExit>

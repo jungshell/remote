@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Flex, Text, type BoxProps } from '@chakra-ui/react';
+import { Box, Flex, Icon, SimpleGrid, Text, type BoxProps } from '@chakra-ui/react';
 import { keyframes } from '@emotion/react';
 
 // Match Day 비주얼 레이어 공통 조각: 경기장 라인, 임시 엠블럼, 날짜 블록, 스탯 블록, LIVE 점.
@@ -69,25 +69,27 @@ export const DateBlock: React.FC<{ date: Date } & BoxProps> = ({ date, ...rest }
 };
 
 // 스코어보드 스탯 블록 (어두운 배경 위)
+// compact: 한 줄 3칸처럼 좁은 칸용 — 모바일(base)에서만 여백·글자를 줄이고 md 이상은 기본과 같다.
 export const StatBlock: React.FC<{
   label: string;
   caption: string;
   value: React.ReactNode;
   unit?: string;
   highlight?: boolean;
-}> = ({ label, caption, value, unit, highlight }) => (
-  <Box px={{ base: 4, md: 6 }} py={{ base: 4, md: 5 }}>
-    <Flex align="center" gap={2}>
+  compact?: boolean;
+}> = ({ label, caption, value, unit, highlight, compact }) => (
+  <Box px={{ base: compact ? 3 : 4, md: 6 }} py={{ base: 4, md: 5 }} minW={0}>
+    <Flex align="center" gap={compact ? 1.5 : 2}>
       {highlight && <LiveDot />}
-      <Text textStyle="scoreLabel" color={highlight ? 'matchday.volt' : 'whiteAlpha.600'}>{label}</Text>
+      <Text textStyle="scoreLabel" {...(compact ? { fontSize: { base: '9px', md: '0.6875rem' }, letterSpacing: { base: '0.1em', md: '0.14em' } } : {})} color={highlight ? 'matchday.volt' : 'whiteAlpha.600'} noOfLines={1}>{label}</Text>
     </Flex>
-    <Flex align="baseline" gap={1.5} mt={2}>
-      <Text textStyle="statNumber" fontSize={{ base: '48px', md: '64px' }} color={highlight ? 'matchday.volt' : 'white'}>
+    <Flex align="baseline" gap={compact ? 1 : 1.5} mt={compact ? 1.5 : 2}>
+      <Text textStyle="statNumber" fontSize={{ base: compact ? '40px' : '48px', md: '64px' }} color={highlight ? 'matchday.volt' : 'white'}>
         {value}
       </Text>
-      {unit && <Text fontSize="sm" fontWeight="semibold" color="whiteAlpha.600">{unit}</Text>}
+      {unit && <Text fontSize={compact ? { base: 'xs', md: 'sm' } : 'sm'} fontWeight="semibold" color="whiteAlpha.600">{unit}</Text>}
     </Flex>
-    <Text fontSize="xs" color="whiteAlpha.700" mt={1}>{caption}</Text>
+    <Text fontSize={compact ? { base: '11px', md: 'xs' } : 'xs'} color="whiteAlpha.700" mt={1} noOfLines={1}>{caption}</Text>
   </Box>
 );
 
@@ -113,5 +115,117 @@ export const PanelHeader: React.FC<{ label: string; title: string; right?: React
       <Text textStyle="scoreLabel" fontSize="10px" color="brand.500" mt={1}>{label}</Text>
     </Box>
     {right}
+  </Flex>
+);
+
+// ── 관리자 하위 화면 공통 ─────────────────────────────────────────────
+
+// 페이지 헤더: 모노 eyebrow + 큰 한글 제목 + 설명 + 우측 액션 슬롯
+export const AdminPageHeader: React.FC<{ eyebrow: string; title: string; description?: string; right?: React.ReactNode }> = ({ eyebrow, title, description, right }) => (
+  <Flex justify="space-between" align={{ base: 'stretch', sm: 'flex-end' }} direction={{ base: 'column', sm: 'row' }} gap={3}>
+    <Box minW={0}>
+      <Flex align="center" gap={2}>
+        <Box w="16px" h="3px" bg="brand.500" borderRadius="full" />
+        <Text textStyle="scoreLabel" color="brand.500">{eyebrow}</Text>
+      </Flex>
+      <Text fontSize={{ base: '26px', md: '32px' }} fontWeight="800" color="matchday.navy" letterSpacing="-0.02em" lineHeight="1.15" mt={2}>{title}</Text>
+      {description && <Text fontSize="sm" color="gray.500" mt={1}>{description}</Text>}
+    </Box>
+    {right && <Flex gap={2} flexShrink={0} wrap="wrap">{right}</Flex>}
+  </Flex>
+);
+
+// 흰색 패널: 대시보드 패널과 같은 radius·테두리·여백 (그림자 없음)
+export const AdminPanel: React.FC<{ label?: string; title?: string; right?: React.ReactNode } & BoxProps> = ({ label, title, right, children, ...rest }) => (
+  <Box bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200" p={{ base: 4, md: 6 }} {...rest}>
+    {label && title && <PanelHeader label={label} title={title} right={right} />}
+    {children}
+  </Box>
+);
+
+// 남색 스코어보드 스트립: StatBlock을 children으로 받는다. 4칸은 모바일 2x2, 3칸 이하는 항상 한 줄.
+export const StatStrip: React.FC<{ children: React.ReactNode; columns: 3 | 4 }> = ({ children, columns }) => (
+  <Box position="relative" overflow="hidden" bg="matchday.navy" borderRadius="xl" color="white">
+    <PitchLines opacity={0.07} />
+    <SimpleGrid
+      position="relative"
+      columns={columns === 4 ? { base: 2, lg: 4 } : columns}
+      sx={columns === 4 ? {
+        '& > *': { borderColor: 'whiteAlpha.200' },
+        '& > *:nth-of-type(odd)': { borderRightWidth: '1px' },
+        '& > *:nth-of-type(-n+2)': { borderBottomWidth: { base: '1px', lg: 0 } },
+        '@media (min-width: 62em)': { '& > *:not(:last-of-type)': { borderRightWidth: '1px' } },
+      } : {
+        '& > *': { borderColor: 'whiteAlpha.200', minW: 0 },
+        '& > *:not(:last-of-type)': { borderRightWidth: '1px' },
+      }}
+    >
+      {children}
+    </SimpleGrid>
+  </Box>
+);
+
+// 상태 배지: 회원 등급·회원 상태·경기 유형·확정 대기를 하나의 색상 규칙으로.
+// Volt는 pending(실제 처리 대기)에만 쓴다.
+type BadgeTone = { label: string; bg: string; color: string; borderColor?: string };
+const NEUTRAL_TONE = { bg: 'gray.100', color: 'gray.600' };
+const STATUS_BADGE_MAP = {
+  role: {
+    SUPER_ADMIN: { label: '슈퍼관리자', bg: 'matchday.navy', color: 'white' },
+    ADMIN: { label: '관리자', bg: 'brand.50', color: 'brand.600', borderColor: 'brand.100' },
+    MEMBER: { label: '회원', ...NEUTRAL_TONE },
+  },
+  status: {
+    ACTIVE: { label: '활성', bg: 'green.50', color: 'green.700', borderColor: 'green.100' },
+    INACTIVE: { label: '비활성', ...NEUTRAL_TONE },
+    SUSPENDED: { label: '정지', bg: 'orange.50', color: 'orange.700', borderColor: 'orange.100' },
+    DELETED: { label: '삭제됨', bg: 'transparent', color: 'gray.400', borderColor: 'gray.300' },
+  },
+  eventType: {
+    매치: { label: '매치', bg: 'brand.500', color: 'white' },
+    자체: { label: '자체', bg: 'matchday.navy', color: 'white' },
+    회식: { label: '회식', bg: 'orange.50', color: 'orange.700', borderColor: 'orange.100' },
+  },
+  pending: {
+    PENDING: { label: '확정 필요', bg: 'matchday.volt', color: 'matchday.navy' },
+  },
+} satisfies Record<string, Record<string, BadgeTone>>;
+
+export type StatusBadgeKind = keyof typeof STATUS_BADGE_MAP;
+
+export const StatusBadge: React.FC<{ kind: StatusBadgeKind; value?: string | null }> = ({ kind, value }) => {
+  const tones: Record<string, BadgeTone> = STATUS_BADGE_MAP[kind];
+  const tone = (value && tones[value]) || { label: value || '알 수 없음', ...NEUTRAL_TONE };
+  return (
+    <Box
+      as="span"
+      display="inline-flex"
+      alignItems="center"
+      px={2}
+      py="2px"
+      borderRadius="sm"
+      border="1px solid"
+      borderColor={tone.borderColor || 'transparent'}
+      bg={tone.bg}
+      color={tone.color}
+      fontSize="11px"
+      fontWeight="700"
+      lineHeight="1.5"
+      whiteSpace="nowrap"
+    >
+      {tone.label}
+    </Box>
+  );
+};
+
+// 빈 상태: 남색 아이콘 원 + 제목 + 설명 + 선택 액션
+export const AdminEmptyState: React.FC<{ icon: React.ElementType; title: string; description?: string; action?: React.ReactNode }> = ({ icon, title, description, action }) => (
+  <Flex direction="column" align="center" textAlign="center" gap={2} px={6} py={{ base: 10, md: 14 }}>
+    <Flex align="center" justify="center" w={12} h={12} borderRadius="full" bg="matchday.navy" mb={1}>
+      <Icon as={icon} boxSize={5} color="white" />
+    </Flex>
+    <Text fontWeight="800" fontSize="md" color="matchday.navy">{title}</Text>
+    {description && <Text fontSize="sm" color="gray.500">{description}</Text>}
+    {action && <Box mt={2}>{action}</Box>}
   </Flex>
 );

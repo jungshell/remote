@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import {
   Box,
   Button,
-  Card,
-  CardBody,
   Table,
   TableContainer,
   Thead,
@@ -11,7 +9,6 @@ import {
   Tr,
   Th,
   Td,
-  Badge,
   IconButton,
   HStack,
   VStack,
@@ -24,7 +21,7 @@ import {
   ModalContent,
   ModalHeader,
   ModalBody,
-  ModalCloseButton,
+  ModalFooter,
   FormControl,
   FormLabel,
   Input,
@@ -33,15 +30,14 @@ import {
   Select,
   useToast,
   Flex,
-  Heading,
-  Divider,
-  useColorModeValue,
+  Icon,
   Tooltip
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, DeleteIcon, SearchIcon, ViewIcon, RepeatIcon } from '@chakra-ui/icons';
+import { LuEye, LuKeyRound, LuPencil, LuSearch, LuSearchX, LuUserPlus, LuUserX, LuUsers } from 'react-icons/lu';
 import { updateMember, deleteMember, resetMemberPassword, getValidToken } from '../api/auth';
 import { useAuthStore } from '../store/auth';
 import { getApiUrl } from '../config/api';
+import { AdminEmptyState, AdminPageHeader, AdminPanel, StatBlock, StatStrip, StatusBadge } from './admin/MatchDay';
 import { eventBus, EVENT_TYPES, emitMemberAdded, emitDataRefreshNeeded, emitLoadingStart, emitLoadingEnd, emitAlert } from '../utils/eventBus';
 
 interface Member {
@@ -79,8 +75,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
   const { isOpen: isDeleteModalOpen, onOpen: onDeleteModalOpen, onClose: onDeleteModalClose } = useDisclosure();
   
   const toast = useToast();
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  // 표시 전용 상태 필터 (검색 결과 filteredMembers 위에 한 번 더 거른다)
+  const [statusFilter, setStatusFilter] = useState<'ALL' | Member['status']>('ALL');
   
   // 전역 사용자 정보 업데이트를 위한 store
   const { user, setUser } = useAuthStore();
@@ -462,216 +458,216 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
     }
   };
 
-  // 회원 상태 색상
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'green';
-      case 'INACTIVE': return 'yellow';
-      case 'SUSPENDED': return 'red';
-      case 'DELETED': return 'gray';
-      default: return 'gray';
-    }
+  // 표시 전용 집계 (userList 그대로, 계산 규칙 변경 없음)
+  const statusCounts = {
+    ACTIVE: userList.filter(m => m.status === 'ACTIVE').length,
+    INACTIVE: userList.filter(m => m.status === 'INACTIVE').length,
+    SUSPENDED: userList.filter(m => m.status === 'SUSPENDED').length,
+    DELETED: userList.filter(m => m.status === 'DELETED').length,
   };
-
-  // 회원 등급 색상
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN': return 'red';
-      case 'ADMIN': return 'blue';
-      case 'MEMBER': return 'green';
-      default: return 'gray';
-    }
+  const displayedMembers = statusFilter === 'ALL'
+    ? filteredMembers
+    : filteredMembers.filter(m => m.status === statusFilter);
+  const filterChips: { key: 'ALL' | Member['status']; label: string; count: number }[] = [
+    { key: 'ALL', label: '전체', count: userList.length },
+    { key: 'ACTIVE', label: '활성', count: statusCounts.ACTIVE },
+    { key: 'INACTIVE', label: '비활성', count: statusCounts.INACTIVE },
+    { key: 'SUSPENDED', label: '정지', count: statusCounts.SUSPENDED },
+    // /members 응답은 탈퇴(DELETED) 회원을 제외하므로, 실제로 있을 때만 보조 필터를 노출
+    ...(statusCounts.DELETED > 0 ? [{ key: 'DELETED' as const, label: '삭제됨', count: statusCounts.DELETED }] : []),
+  ];
+  const formatJoined = (createdAt?: string) => (createdAt ? new Date(createdAt).toLocaleDateString('ko-KR') : '-');
+  // 모바일 카드용 짧은 가입일: 2026.01.10
+  const formatJoinedShort = (createdAt?: string) => {
+    if (!createdAt) return '-';
+    const d = new Date(createdAt);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
   };
-
-  // 회원 등급 한글명
-  const getRoleName = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN': return '슈퍼관리자';
-      case 'ADMIN': return '관리자';
-      case 'MEMBER': return '회원';
-      default: return '알 수 없음';
-    }
+  const editLocked = (member: Member) => !isSuperAdmin && member.role !== 'MEMBER';
+  const editTooltip = (member: Member) => (editLocked(member) ? '관리자 계정 수정은 슈퍼관리자만 가능합니다.' : '회원 정보 수정');
+  const openView = (member: Member) => {
+    setSelectedMember(member);
+    onViewModalOpen();
+  };
+  const openDelete = (member: Member) => {
+    setSelectedMember(member);
+    onDeleteModalOpen();
+  };
+  const openAdd = () => {
+    setEditingMember({
+      id: 0,
+      name: '',
+      email: '',
+      role: 'MEMBER',
+      status: 'ACTIVE'
+    });
+    onEditModalOpen();
   };
 
   return (
-    <Box>
-      <VStack spacing={6} align="stretch">
-        {/* 헤더 */}
-        <Flex justify="space-between" align="flex-end" wrap="wrap" gap={2}>
-          <Box>
-            <Text fontSize="2xl" fontWeight="bold" color="#004ea8">회원 관리</Text>
-            <Text fontSize="sm" color="gray.500" mt={0.5}>회원 정보와 계정 상태를 관리합니다.</Text>
-          </Box>
-          <Button
-            leftIcon={<AddIcon />}
-            colorScheme="blue"
-            bg="#004ea8"
-            _hover={{ bg: "#003d7a" }}
-            onClick={() => {
-              setEditingMember({
-                id: 0,
-                name: '',
-                email: '',
-                role: 'MEMBER',
-                status: 'ACTIVE'
-              });
-              onEditModalOpen();
-            }}
-            size="sm"
-          >
-            추가
-          </Button>
-        </Flex>
+    <Box className="fccg-matchday fccg-admin">
+      <VStack spacing={5} align="stretch">
+        <AdminPageHeader
+          eyebrow="SQUAD MANAGEMENT"
+          title="회원 관리"
+          description="회원 상태와 권한을 관리합니다."
+          right={
+            <Button size="sm" bg="brand.500" color="white" _hover={{ bg: 'brand.600' }} leftIcon={<Icon as={LuUserPlus} />} onClick={openAdd}>
+              회원 추가
+            </Button>
+          }
+        />
 
-        {/* 검색 */}
-        <InputGroup maxW="320px">
-          <InputLeftElement pointerEvents="none">
-            <SearchIcon color="gray.400" boxSize={3.5} />
-          </InputLeftElement>
-          <Input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="이름, 이메일, 등급으로 검색"
-            bg="white"
-          />
-        </InputGroup>
+        <StatStrip columns={4}>
+          <StatBlock label="TOTAL" caption="전체 회원" value={userList.length} unit="명" />
+          <StatBlock label="ACTIVE" caption="활성" value={statusCounts.ACTIVE} unit="명" />
+          <StatBlock label="INACTIVE" caption="비활성" value={statusCounts.INACTIVE} unit="명" />
+          <StatBlock label="SUSPENDED" caption="정지" value={statusCounts.SUSPENDED} unit="명" />
+        </StatStrip>
 
-        {/* 회원 목록 테이블 */}
-        <Box
-          bg={bgColor}
-          border="1px"
-          borderColor={borderColor}
-          borderRadius="lg"
-          overflow="hidden"
-        >
-          <TableContainer overflowX="auto" maxW="100%">
-            <Table variant="simple" size="sm" minW="600px">
-            <Thead>
-              <Tr>
-                <Th textAlign="center">이름</Th>
-                <Th textAlign="center">이메일</Th>
-                <Th textAlign="center">등급</Th>
-                <Th textAlign="center">상태</Th>
-                <Th textAlign="center">가입일</Th>
-                <Th textAlign="center">작업</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {filteredMembers.map((member) => (
-                <Tr key={member.id}>
-                  <Td textAlign="center">
-                    <Text fontWeight="medium">{member.name}</Text>
-                  </Td>
-                  <Td textAlign="center">
-                    <Text fontSize="sm" color="gray.600">
-                      {member.email || '-'}
+        <AdminPanel p={0} overflow="hidden">
+          {/* 검색 + 상태 필터 */}
+          <Flex direction={{ base: 'column', md: 'row' }} gap={3} justify="space-between" align={{ base: 'stretch', md: 'center' }} p={{ base: 4, md: 5 }} borderBottom="1px solid" borderColor="gray.100">
+            <InputGroup maxW={{ md: '320px' }}>
+              <InputLeftElement pointerEvents="none">
+                <Icon as={LuSearch} color="gray.400" boxSize={4} />
+              </InputLeftElement>
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="이름, 이메일, 등급으로 검색"
+                bg="white"
+              />
+            </InputGroup>
+            <HStack spacing={2} flexWrap="wrap" role="group" aria-label="회원 상태 필터">
+              {filterChips.map(chip => {
+                const active = statusFilter === chip.key;
+                return (
+                  <Button
+                    key={chip.key}
+                    size="sm"
+                    borderRadius="full"
+                    aria-pressed={active}
+                    bg={active ? 'matchday.navy' : 'white'}
+                    color={active ? 'white' : 'gray.600'}
+                    border="1px solid"
+                    borderColor={active ? 'matchday.navy' : 'gray.200'}
+                    _hover={{ borderColor: 'matchday.navy' }}
+                    fontWeight="600"
+                    onClick={() => setStatusFilter(chip.key)}
+                  >
+                    {chip.label}
+                    <Text as="span" ml={1.5} fontFamily="display" fontWeight="700" color={active ? 'matchday.volt' : 'gray.400'} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {chip.count}
                     </Text>
-                  </Td>
-                  <Td textAlign="center">
-                    <Badge colorScheme={getRoleColor(member.role || '')} variant="subtle">
-                      {getRoleName(member.role || '')}
-                    </Badge>
-                  </Td>
-                  <Td textAlign="center">
-                    <Badge colorScheme={getStatusColor(member.status || '')} variant="subtle">
-                      {member.status === 'ACTIVE' ? '활성' : 
-                       member.status === 'INACTIVE' ? '비활성' :
-                       member.status === 'SUSPENDED' ? '정지' :
-                       member.status === 'DELETED' ? '삭제됨' : '알 수 없음'}
-                    </Badge>
-                  </Td>
-                  <Td textAlign="center">
-                    <Text fontSize="sm" color="gray.600">
-                      {member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR') : '-'}
-                    </Text>
-                  </Td>
-                  <Td textAlign="center">
-                    <HStack spacing={2} justify="center">
-                      <Tooltip 
-                        label="회원 정보 보기" 
-                        placement="top" 
-                        hasArrow
-                        bg="gray.700"
-                        color="white"
-                        fontSize="sm"
-                      >
-                        <IconButton
-                          aria-label="회원 정보 보기"
-                          icon={<ViewIcon />}
-                          size="sm"
-                          bg="#004ea8"
-                          color="white"
-                          _hover={{ bg: "#003d7a" }}
-                          onClick={() => {
-                            setSelectedMember(member);
-                            onViewModalOpen();
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip 
-                        label={!isSuperAdmin && member.role !== 'MEMBER' ? '관리자 계정 수정은 슈퍼관리자만 가능합니다.' : '회원 정보 수정'}
-                        placement="top" 
-                        hasArrow
-                        bg="gray.700"
-                        color="white"
-                        fontSize="sm"
-                      >
-                        <IconButton
-                          aria-label="회원 정보 수정"
-                          icon={<EditIcon />}
-                          size="sm"
-                          bg="#004ea8"
-                          color="white"
-                          _hover={{ bg: "#003d7a" }}
-                          isDisabled={!isSuperAdmin && member.role !== 'MEMBER'}
-                          onClick={() => handleEditMember(member)}
-                        />
-                      </Tooltip>
-                      {isSuperAdmin && (
-                        <Tooltip
-                          label="탈퇴 처리"
-                          placement="top"
-                          hasArrow
-                          bg="red.600"
-                          color="white"
-                          fontSize="sm"
-                        >
-                          <IconButton
-                            aria-label="탈퇴 처리"
-                            icon={<DeleteIcon />}
-                            size="sm"
-                            bg="#004ea8"
-                            color="white"
-                            _hover={{ bg: "#003d7a" }}
-                            onClick={() => {
-                              setSelectedMember(member);
-                              onDeleteModalOpen();
-                            }}
-                          />
-                        </Tooltip>
-                      )}
-                    </HStack>
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-          </TableContainer>
-        </Box>
+                  </Button>
+                );
+              })}
+            </HStack>
+          </Flex>
+
+          {userList.length === 0 ? (
+            <AdminEmptyState
+              icon={LuUsers}
+              title="등록된 회원이 없습니다"
+              description="첫 회원을 추가해 스쿼드를 구성해 보세요."
+              action={<Button size="sm" bg="brand.500" color="white" _hover={{ bg: 'brand.600' }} leftIcon={<Icon as={LuUserPlus} />} onClick={openAdd}>회원 추가</Button>}
+            />
+          ) : displayedMembers.length === 0 ? (
+            <AdminEmptyState
+              icon={LuSearchX}
+              title="조건에 맞는 회원이 없습니다"
+              description="검색어나 상태 필터를 바꿔 보세요."
+              action={<Button size="sm" variant="outline" onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); }}>필터 초기화</Button>}
+            />
+          ) : (
+            <>
+              {/* 데스크톱: 테이블 */}
+              <TableContainer display={{ base: 'none', md: 'block' }}>
+                <Table variant="simple" size="sm">
+                  <Thead>
+                    <Tr>
+                      {['이름', '이메일', '등급', '상태', '가입일'].map(h => (
+                        <Th key={h} textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3}>{h}</Th>
+                      ))}
+                      {/* 작업 열 pr: desktop(lg+) 우하단 챗봇 버튼(right 24px + 48px)과 겹치지 않도록 이 열에만 여백 */}
+                      <Th textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3} textAlign="right" pr={{ base: 4, lg: 12 }}>작업</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {displayedMembers.map((member) => (
+                      <Tr key={member.id} _hover={{ bg: 'gray.50' }}>
+                        <Td py={3}><Text fontWeight="700" color="matchday.navy">{member.name}</Text></Td>
+                        <Td py={3}><Text fontSize="sm" color="gray.600">{member.email || '-'}</Text></Td>
+                        <Td py={3}><StatusBadge kind="role" value={member.role} /></Td>
+                        <Td py={3}><StatusBadge kind="status" value={member.status} /></Td>
+                        <Td py={3}><Text fontSize="sm" color="gray.500" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatJoined(member.createdAt)}</Text></Td>
+                        <Td py={3} pr={{ base: 4, lg: 12 }}>
+                          <HStack spacing={1} justify="flex-end">
+                            <Tooltip label="회원 정보 보기" placement="top" hasArrow bg="matchday.navy" color="white" fontSize="sm">
+                              <IconButton aria-label="회원 정보 보기" icon={<Icon as={LuEye} />} size="sm" variant="ghost" color="gray.600" onClick={() => openView(member)} />
+                            </Tooltip>
+                            <Tooltip label={editTooltip(member)} placement="top" hasArrow bg="matchday.navy" color="white" fontSize="sm">
+                              <IconButton aria-label="회원 정보 수정" icon={<Icon as={LuPencil} />} size="sm" variant="ghost" color="brand.500" isDisabled={editLocked(member)} onClick={() => handleEditMember(member)} />
+                            </Tooltip>
+                            {isSuperAdmin && (
+                              <Tooltip label="탈퇴 처리" placement="top" hasArrow bg="red.600" color="white" fontSize="sm">
+                                <IconButton aria-label="탈퇴 처리" icon={<Icon as={LuUserX} />} size="sm" variant="ghost" color="red.500" _hover={{ bg: 'red.50' }} onClick={() => openDelete(member)} />
+                              </Tooltip>
+                            )}
+                          </HStack>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+
+              {/* 모바일: 카드 리스트 */}
+              <VStack display={{ base: 'flex', md: 'none' }} spacing={0} align="stretch" divider={<Box borderBottom="1px solid" borderColor="gray.100" />}>
+                {displayedMembers.map((member) => (
+                  <Box key={member.id} px={4} py={4}>
+                    <Flex justify="space-between" align="flex-start" gap={3}>
+                      <Box minW={0}>
+                        <Text fontWeight="800" fontSize="md" color="matchday.navy" noOfLines={1}>{member.name}</Text>
+                        <Text fontSize="sm" color="gray.500" noOfLines={1}>{member.email || '-'}</Text>
+                      </Box>
+                      <HStack spacing={1.5} flexShrink={0}>
+                        <StatusBadge kind="role" value={member.role} />
+                        <StatusBadge kind="status" value={member.status} />
+                      </HStack>
+                    </Flex>
+                    <Flex justify="space-between" align="center" mt={3} gap={2}>
+                      <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" sx={{ fontVariantNumeric: 'tabular-nums' }}>가입 {formatJoinedShort(member.createdAt)}</Text>
+                      {/* 터치 영역 44px, 아이콘은 18px 유지. pr: 관리자 모바일 챗봇 edge dock(우측 38px)과 겹치지 않게 */}
+                      <HStack spacing={1} flexShrink={0} pr={{ base: 3, lg: 0 }}>
+                        <IconButton aria-label="회원 정보 보기" icon={<Icon as={LuEye} boxSize="18px" />} minW="44px" h="44px" variant="ghost" color="gray.600" _hover={{ bg: 'gray.100' }} onClick={() => openView(member)} />
+                        <IconButton aria-label={editTooltip(member)} icon={<Icon as={LuPencil} boxSize="18px" />} minW="44px" h="44px" variant="ghost" color="brand.500" isDisabled={editLocked(member)} onClick={() => handleEditMember(member)} />
+                        {isSuperAdmin && (
+                          <IconButton aria-label="탈퇴 처리" icon={<Icon as={LuUserX} boxSize="18px" />} minW="44px" h="44px" variant="ghost" color="red.500" _hover={{ bg: 'red.50' }} onClick={() => openDelete(member)} />
+                        )}
+                      </HStack>
+                    </Flex>
+                  </Box>
+                ))}
+              </VStack>
+            </>
+          )}
+        </AdminPanel>
       </VStack>
 
       {/* 회원 정보 수정 모달 */}
-      <Modal 
-        isOpen={isEditModalOpen} 
+      <Modal
+        isOpen={isEditModalOpen}
         onClose={() => {
           // 모달 닫기 시 상태 초기화하지 않음 (데이터 보존)
           onEditModalClose();
-        }} 
+        }}
         size="lg"
       >
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
+        <ModalContent mx={4} className="fccg-admin">
+          <ModalHeader color="matchday.navy" fontWeight="800">
             {editingMember?.id === 0 ? '새 회원 추가' : '회원 정보 수정'}
           </ModalHeader>
           <ModalBody>
@@ -684,7 +680,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                   placeholder="회원 이름을 입력하세요"
                 />
               </FormControl>
-              
+
               <FormControl>
                 <FormLabel>이메일</FormLabel>
                 <Input
@@ -694,7 +690,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                   type="email"
                 />
               </FormControl>
-              
+
               <FormControl>
                 <FormLabel>등급</FormLabel>
                 <Select
@@ -707,7 +703,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                   <option value="SUPER_ADMIN">슈퍼관리자</option>
                 </Select>
               </FormControl>
-              
+
               <FormControl>
                 <FormLabel>상태</FormLabel>
                 <Select
@@ -719,108 +715,91 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                   <option value="SUSPENDED">정지</option>
                 </Select>
               </FormControl>
-              
-              {/* 비밀번호 초기화 버튼 (기존 회원 수정 시에만 표시) */}
+
+              {/* Danger Zone: 비밀번호 초기화 (기존 회원 수정 시, 슈퍼관리자만) */}
               {isSuperAdmin && editingMember?.id !== 0 && (
-                <FormControl>
-                  <FormLabel>비밀번호 관리</FormLabel>
-                  <Button
-                    leftIcon={<RepeatIcon />}
-                    colorScheme="orange"
-                    variant="outline"
-                    onClick={() => handleResetPassword(editingMember.id)}
-                    isLoading={isResettingPassword}
-                    loadingText="초기화 중..."
-                    w="100%"
-                  >
-                    비밀번호 초기화
-                  </Button>
-                  <Text fontSize="sm" color="gray.500" mt={1}>
-                    초기화된 비밀번호는 토스트 메시지로 표시됩니다.
-                  </Text>
-                </FormControl>
+                <Box w="100%" mt={2} p={4} borderRadius="lg" border="1px solid" borderColor="red.200" bg="red.50">
+                  <Text textStyle="scoreLabel" fontSize="10px" color="red.600">DANGER ZONE</Text>
+                  <Flex direction={{ base: 'column', sm: 'row' }} justify="space-between" align={{ base: 'stretch', sm: 'center' }} gap={3} mt={2}>
+                    <Box>
+                      <Text fontWeight="700" fontSize="sm" color="gray.800">비밀번호 초기화</Text>
+                      <Text fontSize="xs" color="gray.600" mt={0.5}>초기화된 비밀번호는 토스트 메시지로 표시됩니다.</Text>
+                    </Box>
+                    <Button
+                      leftIcon={<Icon as={LuKeyRound} />}
+                      variant="outline"
+                      borderColor="red.300"
+                      color="red.600"
+                      bg="white"
+                      _hover={{ bg: 'red.50' }}
+                      size="sm"
+                      flexShrink={0}
+                      onClick={() => handleResetPassword(editingMember.id)}
+                      isLoading={isResettingPassword}
+                      loadingText="초기화 중..."
+                    >
+                      비밀번호 초기화
+                    </Button>
+                  </Flex>
+                </Box>
               )}
             </VStack>
           </ModalBody>
-          <Box p={6} borderTop="1px" borderColor="gray.200">
-            <HStack spacing={3} justify="flex-end">
-              <Button
-                variant="ghost"
-                isDisabled={isSaving}
-                onClick={() => {
-                  // 취소 시에도 상태 초기화하지 않음 (데이터 보존)
-                  onEditModalClose();
-                }}
-              >
-                취소
-              </Button>
-              <Button colorScheme="blue" onClick={handleSaveMember} isLoading={isSaving} loadingText="저장 중...">
-                저장
-              </Button>
-            </HStack>
-          </Box>
+          <ModalFooter gap={3} borderTop="1px solid" borderColor="gray.100" mt={4}>
+            <Button
+              variant="ghost"
+              color="gray.600"
+              isDisabled={isSaving}
+              onClick={() => {
+                // 취소 시에도 상태 초기화하지 않음 (데이터 보존)
+                onEditModalClose();
+              }}
+            >
+              취소
+            </Button>
+            <Button bg="brand.500" color="white" _hover={{ bg: 'brand.600' }} onClick={handleSaveMember} isLoading={isSaving} loadingText="저장 중...">
+              저장
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
 
       {/* 회원 정보 보기 모달 */}
       <Modal isOpen={isViewModalOpen} onClose={onViewModalClose} size="lg">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>회원 정보</ModalHeader>
+        <ModalContent mx={4} className="fccg-admin">
+          <ModalHeader color="matchday.navy" fontWeight="800">회원 정보</ModalHeader>
           <ModalBody>
             {selectedMember && (
               <VStack spacing={4} align="stretch">
-                <Box>
-                  <Text fontWeight="bold" mb={2}>이름</Text>
-                  <Text>{selectedMember.name}</Text>
-                </Box>
-                
-                <Box>
-                  <Text fontWeight="bold" mb={2}>이메일</Text>
-                  <Text>{selectedMember.email}</Text>
-                </Box>
-                
-                <Box>
-                  <Text fontWeight="bold" mb={2}>등급</Text>
-                  <Badge colorScheme={getRoleColor(selectedMember.role || '')} variant="subtle">
-                    {getRoleName(selectedMember.role || '')}
-                  </Badge>
-                </Box>
-                
-                <Box>
-                  <Text fontWeight="bold" mb={2}>상태</Text>
-                  <Badge colorScheme={getStatusColor(selectedMember.status || '')} variant="subtle">
-                    {selectedMember.status === 'ACTIVE' ? '활성' : 
-                     selectedMember.status === 'INACTIVE' ? '비활성' :
-                     selectedMember.status === 'SUSPENDED' ? '정지' :
-                     selectedMember.status === 'DELETED' ? '삭제됨' : '알 수 없음'}
-                  </Badge>
-                </Box>
-                
-                <Box>
-                  <Text fontWeight="bold" mb={2}>가입일</Text>
-                  <Text>
-                    {selectedMember.createdAt ? new Date(selectedMember.createdAt).toLocaleDateString('ko-KR') : '-'}
-                  </Text>
-                </Box>
+                {[
+                  { label: 'NAME', value: <Text fontWeight="700">{selectedMember.name}</Text> },
+                  { label: 'EMAIL', value: <Text>{selectedMember.email}</Text> },
+                  { label: 'ROLE', value: <StatusBadge kind="role" value={selectedMember.role} /> },
+                  { label: 'STATUS', value: <StatusBadge kind="status" value={selectedMember.status} /> },
+                  { label: 'JOINED', value: <Text>{formatJoined(selectedMember.createdAt)}</Text> },
+                ].map(row => (
+                  <Box key={row.label}>
+                    <Text textStyle="scoreLabel" fontSize="10px" color="gray.500" mb={1.5}>{row.label}</Text>
+                    {row.value}
+                  </Box>
+                ))}
               </VStack>
             )}
           </ModalBody>
-          <Box p={6} borderTop="1px" borderColor="gray.200">
-            <HStack spacing={3} justify="flex-end">
-              <Button onClick={onViewModalClose}>닫기</Button>
-            </HStack>
-          </Box>
+          <ModalFooter borderTop="1px solid" borderColor="gray.100" mt={4}>
+            <Button variant="ghost" color="gray.600" onClick={onViewModalClose}>닫기</Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
 
       {/* 회원 탈퇴 처리 확인 모달 (DELETE API = 탈퇴 처리) */}
       <Modal isOpen={isDeleteModalOpen} onClose={() => !isDeleting && onDeleteModalClose()}>
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>회원 탈퇴 처리</ModalHeader>
+        <ModalContent mx={4} className="fccg-admin">
+          <ModalHeader color="matchday.navy" fontWeight="800">회원 탈퇴 처리</ModalHeader>
           <ModalBody>
-            <Alert status="warning" alignItems="flex-start">
+            <Alert status="warning" alignItems="flex-start" borderRadius="lg">
               <AlertIcon />
               <VStack align="start" spacing={2}>
                 <Text><strong>{selectedMember?.name}</strong> 회원을 탈퇴 처리하시겠습니까?</Text>
@@ -831,16 +810,14 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
               </VStack>
             </Alert>
           </ModalBody>
-          <Box p={6} borderTop="1px" borderColor="gray.200">
-            <HStack spacing={3} justify="flex-end">
-              <Button variant="ghost" onClick={onDeleteModalClose} isDisabled={isDeleting}>
-                취소
-              </Button>
-              <Button colorScheme="red" onClick={handleDeleteMember} isLoading={isDeleting} loadingText="처리 중...">
-                탈퇴 처리
-              </Button>
-            </HStack>
-          </Box>
+          <ModalFooter gap={3} borderTop="1px solid" borderColor="gray.100" mt={4}>
+            <Button variant="ghost" color="gray.600" onClick={onDeleteModalClose} isDisabled={isDeleting}>
+              취소
+            </Button>
+            <Button colorScheme="red" onClick={handleDeleteMember} isLoading={isDeleting} loadingText="처리 중...">
+              탈퇴 처리
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Box>
