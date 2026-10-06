@@ -6,18 +6,10 @@ import {
   Flex,
   Text,
   Button,
-  Heading,
-  SimpleGrid,
-  Badge,
-  Card,
-  CardBody,
-  CardHeader,
   useToast,
   Spinner,
   Alert,
   AlertIcon,
-  Divider,
-  Tooltip,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -35,6 +27,7 @@ import {
   getAdminVoteSessionsSummary
 } from '../api/auth';
 import VoteCharts from '../components/VoteCharts';
+import { AdminPageHeader, AdminPanel, PanelHeader, StatBlock, StatStrip, StatusBadge } from '../components/admin/MatchDay';
 
 interface VoteSession {
   id: number;
@@ -448,7 +441,7 @@ export default function VoteResultsPage() {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
         <VStack spacing={4}>
-          <Spinner size="xl" color="blue.500" />
+          <Spinner size="xl" color="brand.500" />
           <Text color="gray.600">투표 세션 데이터를 불러오는 중...</Text>
         </VStack>
       </Box>
@@ -458,12 +451,8 @@ export default function VoteResultsPage() {
   // 오류가 있어도 폴백 데이터를 보여주기 위해 상단 경고만 노출
 
   return (
-    <VStack spacing={6} align="stretch">
-      {/* 헤더 */}
-      <Box>
-        <Text fontSize="2xl" fontWeight="bold" color="#004ea8">투표 결과</Text>
-        <Text fontSize="sm" color="gray.500" mt={0.5}>주간 투표 세션과 결과를 관리합니다.</Text>
-      </Box>
+    <VStack className="fccg-matchday fccg-admin" spacing={6} align="stretch">
+      <AdminPageHeader eyebrow="MATCH STATS" title="투표 결과" description="투표 현황과 참여 결과를 확인합니다." />
 
       {error && (
         <Alert status="error" borderRadius="md">
@@ -474,68 +463,29 @@ export default function VoteResultsPage() {
           </Box>
         </Alert>
       )}
-      {/* 투표 세션 통계 - 각각 네모칸으로 1행 */}
-      <SimpleGrid columns={{ base: 2, sm: 2, md: 4 }} spacing={4}>
-        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-          <CardBody pt={1.5} pb={6} px={6}>
-            <VStack align="stretch" spacing={-2}>
-              <Flex justify="space-between" align="center">
-                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">전체 세션</Heading>
-                <Text fontSize="2xl" fontWeight="bold" color="blue.600" lineHeight={0.95}>
-                  {allVoteSessions.length}
-                </Text>
-              </Flex>
-            </VStack>
-          </CardBody>
-        </Card>
-        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-          <CardBody pt={1.5} pb={6} px={6}>
-            <VStack align="stretch" spacing={-2}>
-              <Flex justify="space-between" align="center">
-                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">완료된 세션</Heading>
-                <Text fontSize="2xl" fontWeight="bold" color="green.600" lineHeight={0.95}>
-                  {allVoteSessions.filter((s: VoteSession) => s.isCompleted).length}
-                </Text>
-              </Flex>
-            </VStack>
-          </CardBody>
-        </Card>
-        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-          <CardBody pt={1.5} pb={6} px={6}>
-            <VStack align="stretch" spacing={-2}>
-              <Flex justify="space-between" align="center">
-                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">진행중 세션</Heading>
-                <Text fontSize="2xl" fontWeight="bold" color="orange.600" lineHeight={0.95}>
-                  {allVoteSessions.filter((s: VoteSession) => s.isActive).length}
-                </Text>
-              </Flex>
-            </VStack>
-          </CardBody>
-        </Card>
-        <Card border="1px" borderColor="gray.200" borderRadius="lg" boxShadow="none" bg="white">
-          <CardBody pt={1.5} pb={6} px={6}>
-            <VStack align="stretch" spacing={-2}>
-              <Flex justify="space-between" align="center">
-                <Heading size="md" color="gray.800" fontWeight="normal" fontSize="sm">총 참여자</Heading>
-                <Text fontSize="2xl" fontWeight="bold" color="purple.600" lineHeight={0.95}>
-                  {allVoteSessions.reduce((sum: number, s: any) => sum + getSessionVoteScore(s), 0)}
-                </Text>
-              </Flex>
-            </VStack>
-          </CardBody>
-        </Card>
-      </SimpleGrid>
+      {/* 세션 통계: 실제 세션 목록·진행 중 세션 participation 값만 사용 */}
+      {(() => {
+        // participation은 서버가 진행 중(isActive) 세션 하나에 대해 계산한 값: ACTIVE 회원 중 투표한 인원 비율
+        const participation = unifiedData?.activeSession?.participation;
+        const activeCount = allVoteSessions.filter((s: VoteSession) => s.isActive).length;
+        return (
+          <StatStrip columns={4}>
+            <StatBlock label="SESSIONS" value={allVoteSessions.length} unit="개" caption="전체 세션" />
+            <StatBlock label="LIVE" value={activeCount} unit="개" caption="진행 중 세션" highlight={activeCount > 0} />
+            <StatBlock
+              label="TURNOUT"
+              value={participation ? participation.participationRate : '—'}
+              {...(participation ? { unit: '%' } : {})}
+              caption={participation ? `${participation.uniqueVoters}/${participation.totalMembers}명 · 진행 중 세션` : '진행 중 세션 없음'}
+            />
+            <StatBlock label="CLOSED" value={allVoteSessions.filter((s: VoteSession) => s.isCompleted).length} unit="개" caption="마감 완료 세션" />
+          </StatStrip>
+        );
+      })()}
 
       {/* 투표 세션 목록 */}
-      <Box bg="white" pt={1.5} pb={6} px={6} borderRadius="lg" boxShadow="none" border="1px" borderColor="gray.200">
-        <VStack align="stretch" spacing={-2}>
-          <HStack justify="space-between" mb={1}>
-            <HStack spacing={1}>
-              <Heading size="md" color="gray.800">투표 세션 목록</Heading>
-            </HStack>
-            <HStack spacing={2}>
-            </HStack>
-          </HStack>
+      <AdminPanel label="VOTE SESSIONS" title="투표 세션 목록">
+        <VStack align="stretch" spacing={2}>
           {allVoteSessions.length === 0 ? (
             <Box textAlign="center" py={4} px={4}>
               <Text color="gray.500" fontSize="sm" lineHeight={0.95}>투표 세션이 없습니다.</Text>
@@ -544,7 +494,7 @@ export default function VoteResultsPage() {
               </Text>
             </Box>
           ) : (
-            <VStack spacing={1} align="stretch">
+            <VStack spacing={2} align="stretch">
             {(() => {
               // 페이지네이션 계산
               const totalPages = Math.ceil(allVoteSessions.length / sessionsPerPage);
@@ -640,155 +590,96 @@ export default function VoteResultsPage() {
               const isActive = session.isActive;
               const showDetailed = isSelected || isActive;
 
+              const sessionNumber = allVoteSessions.length - (startIndex + index);
+              const statusValue = session.isActive ? 'ACTIVE' : session.isCompleted ? 'COMPLETED' : 'WAITING';
+
               return (
-                <Box 
-                  key={session.id} 
-                  px={4}
-                  py={2}
-                  border="1px" 
-                  borderColor={isSelected ? "blue.300" : "gray.200"} 
+                <Box
+                  key={session.id}
+                  position="relative"
+                  px={{ base: 3, md: 4 }}
+                  py={3}
+                  border="1px solid"
+                  borderColor={isSelected ? 'brand.500' : 'gray.200'}
                   borderRadius="md"
                   cursor="pointer"
-                  bg={isSelected ? "blue.50" : "white"}
-                  _hover={{ bg: isSelected ? "blue.50" : "gray.50" }}
+                  bg={isSelected ? 'brand.50' : 'white'}
+                  _hover={{ bg: isSelected ? 'brand.50' : 'gray.50' }}
                   onClick={() => handleSessionSelect(session)}
                 >
-                  {showDetailed ? (
-                    // 자세한 정보 표시 (선택된 세션이나 진행중인 세션)
-                    <VStack align="stretch" spacing={-2.5}>
-                      <HStack justify="space-between" align="flex-start">
-                        <VStack align="start" spacing={-3} flex={1}>
-                          <Text fontWeight="bold" fontSize="md" lineHeight={0.95}>
-                            세션 #{allVoteSessions.length - (startIndex + index)} - 다음주 일정투표기간 : {votePeriod}
-                          </Text>
-                          <Text fontSize="sm" color="gray.600" lineHeight={0.95} mt={-2}>
-                            의견수렴기간 : {opinionPeriod}
-                          </Text>
-                        </VStack>
-                        <VStack align="end" spacing={1}>
-                          <HStack spacing={2}>
-                            <Badge 
-                              colorScheme={session.isActive ? "green" : session.isCompleted ? "blue" : "gray"}
-                              fontSize="xs"
-                              px={2}
-                              py={0.5}
-                            >
-                              {session.isActive ? '진행중' : session.isCompleted ? '완료' : '대기'}
-                            </Badge>
-                            <HStack spacing={1}>
-                              {session.isActive ? (
-                                <Button
-                                  size="xs"
-                                  colorScheme="red"
-                                  variant="solid"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPendingAction({ session, type: 'close' });
-                                  }}
-                                >
-                                  투표 마감
-                                </Button>
-                              ) : canResume ? (
-                                <Button
-                                  size="xs"
-                                  colorScheme="green"
-                                  variant="solid"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPendingAction({ session, type: 'resume' });
-                                  }}
-                                >
-                                  투표 재개
-                                </Button>
-                              ) : null}
-                              {session.id !== 10 && session.id !== 11 && (
-                                <Button
-                                  size="xs"
-                                  colorScheme="red"
-                                  variant="outline"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPendingAction({ session, type: 'delete' });
-                                  }}
-                                >
-                                  삭제
-                                </Button>
-                              )}
-                            </HStack>
-                          </HStack>
-                          {isSelected && (
-                            <Text fontSize="xs" color="blue.600" fontWeight="bold" lineHeight={0.95}>
-                              선택됨
-                            </Text>
-                          )}
-                        </VStack>
+                  {/* 모바일: 제목·배지 → 기간 → 액션 순으로 쌓고, md 이상에서 액션을 오른쪽으로 */}
+                  <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'flex-start' }} gap={{ base: 2.5, md: 4 }}>
+                    <Box minW={0} flex={1}>
+                      <HStack spacing={2} wrap="wrap">
+                        <Text textStyle="scoreLabel" color={isSelected ? 'brand.600' : 'matchday.navy'}>SESSION #{sessionNumber}</Text>
+                        <StatusBadge kind="voteSession" value={statusValue} />
+                        {isSelected && <Text fontSize="11px" fontWeight="700" color="brand.600">선택됨</Text>}
                       </HStack>
-                      
-                      {/* 참여자/미참자 목록 */}
-                      <Box>
-                        <Text fontSize="xs" color="gray.600" lineHeight={0.95}>
-                          참여자({participantCount}명): {participantNames || '없음'}
-                        </Text>
-                        {nonParticipantNames.length > 0 && (
-                          <Text fontSize="xs" color="gray.500" lineHeight={0.95}>
-                            미참자({nonParticipantNames.length}명): {nonParticipantNames.join(', ')}
-                          </Text>
-                        )}
-                      </Box>
-                    </VStack>
-                  ) : (
-                    // 간략한 정보 표시 (일반 세션)
-                    <HStack justify="space-between" align="flex-start">
-                      <VStack align="start" spacing={-3} flex={1}>
-                        <Text fontWeight="bold" fontSize="sm" lineHeight={0.95}>
-                          세션 #{allVoteSessions.length - (startIndex + index)} - 다음주 일정투표기간 : {votePeriod}
-                        </Text>
-                        <Text fontSize="sm" color="gray.500" lineHeight={0.95} mt={-2}>
-                          의견수렴기간 : {opinionPeriod}
-                        </Text>
-                      </VStack>
-                      <VStack align="end" spacing={-1.5}>
-                        <HStack spacing={1}>
-                          <Badge 
-                            colorScheme={session.isActive ? "green" : session.isCompleted ? "blue" : "gray"}
-                            fontSize="xs"
-                            px={1.5}
-                            py={0.5}
-                          >
-                            {session.isActive ? '진행중' : session.isCompleted ? '완료' : '대기'}
-                          </Badge>
-                          {/* 진행중인 세션에만 마감 버튼 표시 */}
-                          {session.isActive ? (
-                            <Button
-                              size="xs"
-                              colorScheme="red"
-                              variant="solid"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPendingAction({ session, type: 'close' });
-                              }}
-                            >
-                              마감
-                            </Button>
-                          ) : canResume ? (
-                            <Button
-                              size="xs"
-                              colorScheme="green"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPendingAction({ session, type: 'resume' });
-                              }}
-                            >
-                              재개
-                            </Button>
-                          ) : null}
-                        </HStack>
-                        <Text fontSize="xs" color="gray.500" lineHeight={0.95}>
-                          참여자 {participantCount}명
-                        </Text>
-                      </VStack>
+                      <Text fontWeight="700" fontSize={showDetailed ? 'md' : 'sm'} color="matchday.navy" mt={1.5}>
+                        <Text as="span" fontWeight="600" color="gray.500" fontSize="xs" mr={1.5}>다음주 일정투표기간</Text>
+                        {votePeriod}
+                      </Text>
+                      <Text fontSize="xs" color="gray.500" mt={0.5}>
+                        의견수렴기간 : {opinionPeriod}
+                      </Text>
+                    </Box>
+                    <HStack spacing={1.5} flexShrink={0} wrap="wrap">
+                      {session.isActive ? (
+                        <Button
+                          size="xs"
+                          bg="matchday.navy"
+                          color="white"
+                          _hover={{ bg: 'brand.700' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingAction({ session, type: 'close' });
+                          }}
+                        >
+                          투표 마감
+                        </Button>
+                      ) : canResume ? (
+                        <Button
+                          size="xs"
+                          colorScheme="brand"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingAction({ session, type: 'resume' });
+                          }}
+                        >
+                          투표 재개
+                        </Button>
+                      ) : null}
+                      {showDetailed && session.id !== 10 && session.id !== 11 && (
+                        <Button
+                          size="xs"
+                          colorScheme="red"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingAction({ session, type: 'delete' });
+                          }}
+                        >
+                          삭제
+                        </Button>
+                      )}
                     </HStack>
+                  </Flex>
+
+                  {/* 참여자/미참자 목록 (선택·진행중 세션만 상세) */}
+                  {showDetailed ? (
+                    <Box mt={2.5} pt={2.5} borderTop="1px dashed" borderColor="gray.200">
+                      <Text fontSize="xs" color="gray.600">
+                        <Text as="span" fontWeight="700" color="matchday.navy">참여자 {participantCount}명</Text> · {participantNames || '없음'}
+                      </Text>
+                      {nonParticipantNames.length > 0 && (
+                        <Text fontSize="xs" color="gray.500" mt={1}>
+                          <Text as="span" fontWeight="700">미참자 {nonParticipantNames.length}명</Text> · {nonParticipantNames.join(', ')}
+                        </Text>
+                      )}
+                    </Box>
+                  ) : (
+                    <Text fontSize="xs" color="gray.500" mt={1.5}>참여자 {participantCount}명</Text>
                   )}
                 </Box>
               );
@@ -810,7 +701,7 @@ export default function VoteResultsPage() {
                           key={page}
                           size="xs"
                           variant={currentPage === page ? "solid" : "outline"}
-                          colorScheme={currentPage === page ? "blue" : "gray"}
+                          colorScheme={currentPage === page ? "brand" : "gray"}
                           onClick={() => setCurrentPage(page)}
                         >
                           {page}
@@ -832,15 +723,15 @@ export default function VoteResultsPage() {
           </VStack>
         )}
         </VStack>
-      </Box>
+      </AdminPanel>
 
-      {/* 선택된 세션의 상세 결과 - 컴팩트 버전 */}
+      {/* 선택된 세션의 상세 결과 */}
       {selectedVoteSessionId && sessionDetails && (
-        <Box bg="white" pt={1.5} pb={6} px={6} borderRadius="lg" boxShadow="none" border="1px" borderColor="gray.200">
-          <Flex justify="space-between" align="center" mb={3}>
-            <HStack spacing={1}>
-              <Heading size="md" color="gray.800">요일별 투표 분포</Heading>
-            </HStack>
+        <AdminPanel>
+          <PanelHeader
+            label="WEEKDAY RESULT"
+            title="요일별 투표 분포"
+            right={
             <Text fontSize="xs" color="gray.500">
               {(() => {
                 const voteWeekStartDate = new Date(sessionDetails.weekStartDate);
@@ -860,8 +751,8 @@ export default function VoteResultsPage() {
                 return `${year}. ${month}. ${day}.(${dayName}) 주간`;
               })()}
             </Text>
-          </Flex>
-          
+            }
+          />
           {selectedVoteResults ? (
             <VoteCharts 
               key={`vote-charts-${selectedVoteResults.sessionId}-${selectedVoteResults.totalVotes}`}
@@ -875,7 +766,7 @@ export default function VoteResultsPage() {
               </Text>
             </Box>
           )}
-        </Box>
+        </AdminPanel>
       )}
 
       {/* 마감/재개/삭제 확인 모달 */}
@@ -899,7 +790,7 @@ export default function VoteResultsPage() {
               취소
             </Button>
             <Button
-              colorScheme={pendingAction?.type === 'resume' ? 'green' : 'red'}
+              colorScheme={pendingAction?.type === 'resume' ? 'brand' : 'red'}
               onClick={handleConfirmPendingAction}
               isLoading={isProcessingAction}
             >

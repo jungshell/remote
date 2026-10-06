@@ -1,20 +1,5 @@
-import React from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  LineChart,
-  Line
-} from 'recharts';
-import { Box, Text, VStack, HStack, Badge, SimpleGrid, Flex, useColorModeValue } from '@chakra-ui/react';
+import { Box, Text, VStack, SimpleGrid, Flex } from '@chakra-ui/react';
+import { PanelHeader, PitchLines } from './admin/MatchDay';
 
 interface DayVoteResult {
   count: number;
@@ -84,134 +69,36 @@ function coerceSelectedDaysToArray(selectedDays: unknown): string[] {
   return [];
 }
 
-const COLORS = ['#3182CE', '#38A169', '#DD6B20', '#805AD5', '#E53E3E'];
+const WEEKDAY_KEYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'] as const;
 
 export default function VoteCharts({ voteResults }: VoteChartsProps) {
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-
-  // 디버깅을 위한 로그
-  console.log('📊 VoteCharts 렌더링:', {
-    voteResults: voteResults ? '있음' : '없음',
-    results: voteResults?.results,
-    totalParticipants: voteResults?.totalParticipants,
-    weekStartDate: voteResults?.weekStartDate
-  });
-  
-  // 각 요일별 투표 수 상세 로그
-  if (voteResults?.results) {
-    Object.entries(voteResults.results).forEach(([day, data]) => {
-      console.log(`📊 ${day}: ${data.count}명`, data.participants);
-    });
+  // 개발용 진단은 콘솔에만 남긴다 (운영 UI·운영 콘솔에는 노출하지 않음).
+  if (import.meta.env.DEV) {
+    console.debug('[VoteCharts]', { sessionId: voteResults?.sessionId, results: voteResults?.results });
   }
 
-  // 막대 차트용 데이터 변환 (날짜 포함) - 간단하고 확실한 버전
   if (!voteResults || !voteResults.weekStartDate || !voteResults.results) {
     return (
-      <Box p={6} bg={bgColor} borderRadius="lg" border="1px" borderColor={borderColor}>
-        <Text textAlign="center" color="gray.500">
-          투표 결과 데이터가 없습니다.
-        </Text>
+      <Box textAlign="center" py={8}>
+        <Text color="gray.500" fontSize="sm">투표 결과 데이터가 없습니다.</Text>
       </Box>
     );
   }
 
   const weekStartDate = new Date(voteResults.weekStartDate);
-  const weekdayOrder: Record<string, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
-  const barChartData = Object.entries(voteResults.results)
-    .filter(([day]) => day in weekdayOrder)
-    .sort(([a], [b]) => (weekdayOrder[a] ?? 999) - (weekdayOrder[b] ?? 999))
-    .map(([day, data]) => {
-    const index = weekdayOrder[day] ?? 0;
+  const dayStats = WEEKDAY_KEYS.map((day, index) => {
+    const data = voteResults.results[day];
     const currentDate = new Date(weekStartDate.getTime() + index * 24 * 60 * 60 * 1000);
-    const dayName = day === 'MON' ? '월' : day === 'TUE' ? '화' : day === 'WED' ? '수' : day === 'THU' ? '목' : '금';
-    const chartData = {
-      day: `${currentDate.getMonth() + 1}.${currentDate.getDate()}.(${dayName})`,
-      votes: data.count,
-      participants: data.participants.map(p => p.userName).join(', ') || '없음'
+    return {
+      day,
+      date: `${currentDate.getMonth() + 1}.${currentDate.getDate()}`,
+      votes: data?.count ?? 0,
+      participants: data?.participants?.map(p => p.userName).join(', ') || '',
     };
-    console.log(`📊 차트 데이터 변환: ${day} -> `, chartData);
-    return chartData;
   });
-  
-  console.log('📊 최종 barChartData:', barChartData);
-  
-  // 차트 렌더링 여부 확인
-  const hasVoteData = barChartData.some(data => data.votes > 0);
-  console.log('📊 차트 렌더링 조건:', {
-    hasVoteData,
-    barChartDataLength: barChartData.length,
-    shouldRenderChart: hasVoteData && barChartData.length > 0
-  });
-
-  // 데이터가 없으면 빈 상태 표시
-  if (!voteResults || !voteResults.results) {
-    return (
-      <Box textAlign="center" py={8}>
-        <Text color="gray.500">투표 데이터가 없습니다.</Text>
-      </Box>
-    );
-  }
-
-  // 도넛 차트용 데이터 변환
-  const pieChartData = Object.entries(voteResults.results)
-    .filter(([day]) => day in weekdayOrder)
-    .filter(([, data]) => data.count > 0)
-    .map(([day, data]) => ({
-      name: day === 'MON' ? '월' : day === 'TUE' ? '화' : day === 'WED' ? '수' : day === 'THU' ? '목' : '금',
-      value: data.count,
-      participants: data.participants.map(p => p.userName),
-      order: weekdayOrder[day] ?? Number.MAX_SAFE_INTEGER
-    }))
-    .sort((a, b) => a.order - b.order);
-
-  /** 요일별 득표 수 합계 — 도넛 % 분모 (참가자 수가 아닌 실제 득표 건수 기준) */
-  const pieTotalVoteChoices = pieChartData.reduce((sum, row) => sum + (row.value || 0), 0);
-
-  // 시간대별 투표 분포 (참여자별)
-  const timeDistributionData = voteResults.participants.map((participant) => ({
-    name: participant.userName,
-    votes: coerceSelectedDaysToArray(participant.selectedDays).length,
-    votedAt: new Date(participant.votedAt).toLocaleTimeString('ko-KR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    })
-  }));
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <Box bg={bgColor} p={3} borderRadius="md" shadow="lg" border="1px" borderColor={borderColor}>
-          <Text fontWeight="bold" mb={1}>{label}요일</Text>
-          <Text color="blue.600">투표 수: {payload[0].value}명</Text>
-          {payload[0].payload.participants && payload[0].payload.participants !== '없음' && (
-            <Text color="gray.600" fontSize="sm" mt={1}>
-              참여자: {payload[0].payload.participants}
-            </Text>
-          )}
-        </Box>
-      );
-    }
-    return null;
-  };
-
-  const PieTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <Box bg={bgColor} p={3} borderRadius="md" shadow="lg" border="1px" borderColor={borderColor}>
-          <Text fontWeight="bold" mb={1}>{data.name}요일</Text>
-          <Text color="blue.600">투표 수: {data.value}명</Text>
-          {data.participants && data.participants.length > 0 && (
-            <Text color="gray.600" fontSize="sm" mt={1}>
-              참여자: {data.participants.join(', ')}
-            </Text>
-          )}
-        </Box>
-      );
-    }
-    return null;
-  };
+  const maxVotes = Math.max(...dayStats.map(d => d.votes));
+  const hasVoteData = maxVotes > 0;
+  const absentCount = (voteResults.results as Record<string, DayVoteResult | undefined>)['불참']?.count ?? 0;
 
   const getSortValue = (dayStr: string) => {
     if (!dayStr) return Number.MAX_SAFE_INTEGER;
@@ -242,145 +129,57 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
   };
  
   return (
-    <VStack spacing={8} align="stretch">
-      {/* 요일별 투표 수 막대 차트 */}
-      <Box 
-        bg={bgColor} 
-        pt={1.5} 
-        pb={6} 
-        px={6} 
-        borderRadius="lg" 
-        shadow="sm" 
-        border="1px" 
-        borderColor={borderColor}
-        role="img"
-        aria-label="요일별 투표 분포 막대 차트"
-      >
-        <Text fontSize="lg" fontWeight="semibold" mb={4} color="gray.700">
-          📈 요일별 투표 현황
-        </Text>
-        {hasVoteData ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis 
-                dataKey="day" 
-                tick={{ fontSize: 14, fill: '#4A5568' }}
-                axisLine={{ stroke: '#CBD5E0' }}
-              />
-              <YAxis 
-                tick={{ fontSize: 14, fill: '#4A5568' }}
-                axisLine={{ stroke: '#CBD5E0' }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar 
-                dataKey="votes" 
-                fill="#3182CE" 
-                radius={[4, 4, 0, 0]}
-                stroke="#2B6CB0"
-                strokeWidth={1}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <Box textAlign="center" py={8}>
-            <Text color="gray.500" fontSize="lg">투표 데이터가 없습니다.</Text>
-            <Text color="gray.400" fontSize="sm" mt={2}>
-              barChartData: {JSON.stringify(barChartData, null, 2)}
-            </Text>
-          </Box>
-        )}
-        {/* 접근성을 위한 데이터 테이블 */}
-        <Box mt={4} p={3} bg="gray.50" borderRadius="md" display={{ base: "block", md: "none" }}>
-          <Text fontSize="sm" fontWeight="bold" mb={2}>데이터 요약:</Text>
-          {barChartData.map((data, index) => (
-            <Text key={index} fontSize="sm" color="gray.600">
-              {data.day}요일: {data.votes}명 투표
-            </Text>
-          ))}
+    <VStack spacing={6} align="stretch">
+      {/* 요일별 득표: 스코어보드 스탯 행. 최다 득표 요일(동률 포함)은 모두 Volt 강조 */}
+      <Box>
+        <Box position="relative" overflow="hidden" bg="matchday.navy" borderRadius="xl" color="white">
+          <PitchLines opacity={0.07} />
+          <SimpleGrid position="relative" columns={5} sx={{ '& > *:not(:last-of-type)': { borderRightWidth: '1px', borderColor: 'whiteAlpha.200' } }}>
+            {dayStats.map(({ day, date, votes, participants }) => {
+              const isTop = hasVoteData && votes === maxVotes;
+              return (
+                <Box key={day} px={{ base: 2, md: 5 }} py={{ base: 4, md: 5 }} minW={0} title={participants ? `참여자: ${participants}` : undefined}>
+                  <Text textStyle="scoreLabel" color={isTop ? 'matchday.volt' : 'whiteAlpha.600'}>{day}</Text>
+                  <Text fontSize={{ base: '11px', md: 'xs' }} color="whiteAlpha.700" mt={0.5}>{date}</Text>
+                  <Flex align="baseline" gap={1} mt={2}>
+                    <Text textStyle="statNumber" fontSize={{ base: '32px', md: '56px' }} color={isTop ? 'matchday.volt' : 'white'}>{votes}</Text>
+                    <Text fontSize="xs" fontWeight="semibold" color="whiteAlpha.600" display={{ base: 'none', md: 'block' }}>명</Text>
+                  </Flex>
+                  <Box h="4px" bg="whiteAlpha.200" borderRadius="full" mt={3} overflow="hidden">
+                    <Box h="100%" w={`${hasVoteData ? (votes / maxVotes) * 100 : 0}%`} bg={isTop ? 'matchday.volt' : 'brand.300'} borderRadius="full" />
+                  </Box>
+                  <Text fontSize="10px" fontWeight="700" color="matchday.volt" mt={2} visibility={isTop ? 'visible' : 'hidden'} noOfLines={1}>최다 득표</Text>
+                </Box>
+              );
+            })}
+          </SimpleGrid>
         </Box>
+        <Flex justify="space-between" gap={2} mt={2} px={1} wrap="wrap">
+          <Text fontSize="xs" color="gray.500">{hasVoteData ? '막대 길이는 최다 득표 대비 비율입니다.' : '아직 투표 데이터가 없습니다.'}</Text>
+          <Text fontSize="xs" color="gray.500">참여 {voteResults.participants.length}명{absentCount > 0 ? ` · 불참 ${absentCount}명` : ''}</Text>
+        </Flex>
       </Box>
 
-      {/* 투표 비율 도넛 차트 */}
-      {pieChartData.length > 0 && (
-        <Box bg={bgColor} pt={1.5} pb={6} px={6} borderRadius="lg" shadow="sm" border="1px" borderColor={borderColor}>
-          <Text fontSize="lg" fontWeight="semibold" mb={4} color="gray.700">
-            🍩 요일별 투표 비율
-          </Text>
-          <Flex direction={{ base: "column", md: "row" }} gap={{ base: 4, md: 6 }} align="stretch">
-            <Box flex={1} minW={0}>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={pieChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={120}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<PieTooltip />} />
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    payload={pieChartData.map((data, index) => ({
-                      value: `${data.name}요일`,
-                      color: COLORS[index % COLORS.length],
-                      type: 'circle',
-                    }))}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </Box>
-            <Box flex={1} minW={0}>
-              <VStack spacing={3} align="stretch">
-                {pieChartData.map((data, index) => (
-                  <HStack key={data.name} justify="space-between" p={3} bg="gray.50" borderRadius="md">
-                    <HStack>
-                      <Box w={4} h={4} bg={COLORS[index % COLORS.length]} borderRadius="sm" />
-                      <Text fontWeight="medium">{data.name}요일</Text>
-                    </HStack>
-                    <VStack spacing={1} align="end">
-                      <Badge colorScheme="blue" variant="solid">
-                        {data.value}명
-                      </Badge>
-                      <Text fontSize="xs" color="gray.500">
-                        {pieTotalVoteChoices > 0
-                          ? ((data.value / pieTotalVoteChoices) * 100).toFixed(1)
-                          : '0.0'}
-                        %
-                      </Text>
-                    </VStack>
-                  </HStack>
-                ))}
-              </VStack>
-            </Box>
-          </Flex>
-        </Box>
-      )}
-
-      {/* 참여자별 투표 현황 - 8열 그리드 */}
-      <Box bg={bgColor} pt={1.5} pb={6} px={6} borderRadius="lg" shadow="sm" border="1px" borderColor={borderColor}>
-        <Text fontSize="xl" fontWeight="bold" mb={4} color="gray.700">
-          👥 참여자별 투표 현황
-        </Text>
-        <SimpleGrid columns={{ base: 2, sm: 3, md: 4, lg: 8 }} spacing={4}>
-          {voteResults.participants.map((participant, index) => (
+      {/* 참여자별 투표 현황 */}
+      <Box>
+        <PanelHeader label="PARTICIPANTS" title="참여자별 투표 현황" />
+        {voteResults.participants.length === 0 && (
+          <Text fontSize="sm" color="gray.500">아직 참여한 회원이 없습니다.</Text>
+        )}
+        <SimpleGrid columns={{ base: 2, sm: 3, md: 4, lg: 6, xl: 8 }} spacing={2}>
+          {voteResults.participants.map((participant) => (
             <VStack
               key={participant.userId}
-              pt={1.5}
-              pb={1.5}
-              px={1.5}
-              bg="gray.50"
+              py={2}
+              px={2}
+              bg="white"
+              border="1px solid"
+              borderColor="gray.200"
               borderRadius="md"
-              spacing={0.5}
+              spacing={1}
+              minW={0}
             >
-              <Text fontSize="sm" fontWeight="bold" textAlign="center" color="blue.600">
+              <Text fontSize="sm" fontWeight="800" textAlign="center" color="matchday.navy" noOfLines={1}>
                 {participant.userName}
               </Text>
               <VStack spacing={0.1}>
@@ -427,7 +226,7 @@ export default function VoteCharts({ voteResults }: VoteChartsProps) {
                     };
                     
                     return (
-                      <Text key={dayIndex} fontSize="xs" color="gray.600" textAlign="center" lineHeight={1.02}>
+                      <Text key={dayIndex} fontSize="xs" color="gray.600" textAlign="center" lineHeight={1.3}>
                         {convertToKoreanDate(day)}
                       </Text>
                     );

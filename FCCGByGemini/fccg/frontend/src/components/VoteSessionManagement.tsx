@@ -17,15 +17,11 @@ import {
   FormLabel,
   Input,
   Checkbox,
-  Badge,
-  Card,
-  CardBody,
   Divider,
-  IconButton,
-  Textarea,
-  Grid,
+  SimpleGrid,
 } from '@chakra-ui/react';
-import { EditIcon, DeleteIcon } from '@chakra-ui/icons';
+import { LuCalendarX } from 'react-icons/lu';
+import { AdminEmptyState, AdminPageHeader, AdminPanel, DateBlock, LiveDot, PitchLines, StatBlock, StatusBadge } from './admin/MatchDay';
 import { useAuthStore } from '../store/auth';
 import { ensureApiBaseUrl } from '../constants';
 
@@ -248,117 +244,125 @@ const VoteSessionManagement: React.FC<VoteSessionManagementProps> = ({
   ];
 
   return (
-    <VStack spacing={4} align="stretch" w="100%">
-      <Flex justify="space-between" align="center">
-        <Text fontSize="2xl" fontWeight="bold" color="#004ea8">
-          📅 투표 세션 관리
-        </Text>
-        <HStack spacing={2}>
-          {activeSession && (
-            <Button
-              colorScheme="purple"
-              size="sm"
-              onClick={() => setIsDisabledDaysModalOpen(true)}
-            >
-              요일 차단 설정
+    <VStack className="fccg-matchday fccg-admin" spacing={5} align="stretch" w="100%">
+      <AdminPageHeader
+        eyebrow="VOTE SESSION"
+        title="투표 세션 관리"
+        description="주간 투표 기간과 참여 가능 요일을 관리합니다."
+        right={
+          <>
+            {activeSession && (
+              <Button colorScheme="brand" variant="outline" size="sm" onClick={() => setIsDisabledDaysModalOpen(true)}>
+                요일 차단 설정
+              </Button>
+            )}
+            <Button colorScheme="brand" size="sm" onClick={() => setIsCreateModalOpen(true)}>
+              새 세션 생성
             </Button>
-          )}
-          <Button
-            colorScheme="blue"
-            bg="#004ea8"
-            _hover={{ bg: '#003d7a' }}
-            size="sm"
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            새 세션 생성
-          </Button>
-        </HStack>
-      </Flex>
+          </>
+        }
+      />
 
       {/* 활성 세션 정보 */}
-      {activeSession && (
-        <Card borderRadius="lg" boxShadow="sm" border="1px solid" borderColor="gray.200">
-          <CardBody p={4}>
-            <Flex justify="space-between" align="center" mb={3}>
-              <HStack spacing={2}>
-                <Text fontSize="md" fontWeight="bold" color="gray.800">
-                  활성 세션
-                </Text>
-                <Badge colorScheme="green" fontSize="xs" px={2} py={0.5} borderRadius="full">
-                  활성
-                </Badge>
-              </HStack>
-            </Flex>
-            {(() => {
-              let parsedDisabledDays: Array<{ day: string; reason: string }> = [];
-              if (activeSession.disabledDays) {
-                try {
-                  parsedDisabledDays = typeof activeSession.disabledDays === 'string' 
-                    ? JSON.parse(activeSession.disabledDays) 
-                    : activeSession.disabledDays;
-                  if (!Array.isArray(parsedDisabledDays)) {
-                    parsedDisabledDays = [];
-                  }
-                } catch (e) {
-                  parsedDisabledDays = [];
-                }
-              }
-              return (
-                <Flex gap={6} align="flex-start" flexWrap="wrap">
-                  <Box>
-                    <Text color="gray.600" fontWeight="medium" fontSize="xs" mb={0.5}>세션 ID</Text>
-                    <Text color="gray.800" fontWeight="semibold" fontSize="sm">#{activeSession.sessionId}</Text>
-                  </Box>
-                  <Box>
-                    <Text color="gray.600" fontWeight="medium" fontSize="xs" mb={0.5}>투표 기간</Text>
-                    <Text color="gray.800" fontWeight="semibold" fontSize="sm">
-                      {new Date(activeSession.weekStartDate).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ~{' '}
-                      {new Date(activeSession.endTime).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text color="gray.600" fontWeight="medium" fontSize="xs" mb={0.5}>참여자</Text>
-                    <Badge colorScheme="blue" fontSize="xs" px={2} py={0.5} borderRadius="full">
-                      {activeSession.totalParticipants || 0}명
-                    </Badge>
-                  </Box>
-                  <Box flex="1" minW="200px">
-                    <Text color="gray.600" fontWeight="medium" fontSize="xs" mb={0.5}>차단된 요일</Text>
-                    {parsedDisabledDays.length > 0 ? (
-                      <HStack spacing={1.5} flexWrap="wrap">
-                        {parsedDisabledDays.map((d: any) => (
-                          <Badge 
-                            key={d.day} 
-                            colorScheme="red" 
-                            fontSize="xs" 
-                            px={2} 
-                            py={0.5} 
-                            borderRadius="full"
-                            variant="subtle"
-                          >
-                            {dayMapping.find((m) => m.key === d.day)?.name || d.day}요일: {d.reason}
-                          </Badge>
-                        ))}
-                      </HStack>
-                    ) : (
-                      <Text color="gray.400" fontSize="xs">없음</Text>
-                    )}
-                  </Box>
-                </Flex>
-              );
-            })()}
-          </CardBody>
-        </Card>
-      )}
+      {activeSession && (() => {
+        let parsedDisabledDays: Array<{ day: string; reason: string }> = [];
+        if (activeSession.disabledDays) {
+          try {
+            parsedDisabledDays = typeof activeSession.disabledDays === 'string'
+              ? JSON.parse(activeSession.disabledDays)
+              : activeSession.disabledDays;
+            if (!Array.isArray(parsedDisabledDays)) {
+              parsedDisabledDays = [];
+            }
+          } catch (e) {
+            parsedDisabledDays = [];
+          }
+        }
+        const weekStart = new Date(activeSession.weekStartDate);
+        const statusValue = activeSession.isActive ? 'ACTIVE' : activeSession.isCompleted ? 'COMPLETED' : 'WAITING';
+        // participation: 서버가 이 진행 중 세션 기준으로 계산한 값 (ACTIVE 회원 중 투표 인원 비율)
+        const participation = activeSession.participation;
+        return (
+          <>
+            <Box position="relative" overflow="hidden" bg="matchday.navy" borderRadius="xl" color="white">
+              <PitchLines opacity={0.08} />
+              <Flex position="relative" gap={{ base: 4, md: 6 }} align="center" p={{ base: 4, md: 6 }}>
+                <DateBlock date={weekStart} minW={{ base: '80px', md: '92px' }} />
+                <Box minW={0} flex={1}>
+                  <HStack spacing={2} wrap="wrap">
+                    {activeSession.isActive && <LiveDot />}
+                    <Text textStyle="scoreLabel" color={activeSession.isActive ? 'matchday.volt' : 'whiteAlpha.700'}>ACTIVE SESSION</Text>
+                    <StatusBadge kind="voteSession" value={statusValue} />
+                  </HStack>
+                  <Text fontSize={{ base: 'xl', md: '2xl' }} fontWeight="800" letterSpacing="-0.01em" mt={1.5} lineHeight="1.2">
+                    {weekStart.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 주간 투표
+                  </Text>
+                  <Text fontSize="sm" color="whiteAlpha.800" mt={1}>
+                    투표 기간{' '}
+                    {new Date(activeSession.weekStartDate).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ~{' '}
+                    {new Date(activeSession.endTime).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                  </Text>
+                  <Text fontSize="xs" color="whiteAlpha.600" mt={0.5}>세션 #{activeSession.sessionId}</Text>
+                </Box>
+              </Flex>
+              <SimpleGrid position="relative" columns={3} borderTop="1px solid" borderColor="whiteAlpha.200" sx={{ '& > *:not(:last-of-type)': { borderRightWidth: '1px', borderColor: 'whiteAlpha.200' } }}>
+                <StatBlock
+                  compact
+                  label="TURNOUT"
+                  value={participation ? participation.participationRate : '—'}
+                  {...(participation ? { unit: '%' } : {})}
+                  caption={participation ? `활성 회원 ${participation.totalMembers}명 중 ${participation.uniqueVoters}명` : '집계 없음'}
+                />
+                <StatBlock compact label="VOTERS" value={activeSession.totalParticipants || 0} unit="명" caption="투표 참여 인원" />
+                <StatBlock compact label="BLOCKED" value={parsedDisabledDays.length} unit="일" caption="차단된 요일" />
+              </SimpleGrid>
+            </Box>
+
+            {/* 월~금 투표 가능/차단 스트립 */}
+            <AdminPanel label="WEEKDAYS" title="요일별 투표 가능 여부">
+              <SimpleGrid columns={5} spacing={{ base: 1.5, md: 3 }}>
+                {dayMapping.map(({ key, name }) => {
+                  const blocked = parsedDisabledDays.find((d: any) => d.day === key);
+                  return (
+                    <Box
+                      key={key}
+                      minW={0}
+                      borderRadius="md"
+                      border="1px solid"
+                      borderColor={blocked ? 'matchday.navy' : 'gray.200'}
+                      bg={blocked ? 'matchday.navy' : 'white'}
+                      color={blocked ? 'white' : 'matchday.navy'}
+                      px={{ base: 2, md: 4 }}
+                      py={{ base: 3, md: 4 }}
+                      title={blocked ? `${name}요일: ${blocked.reason}` : undefined}
+                    >
+                      <Text textStyle="scoreLabel" color={blocked ? 'whiteAlpha.700' : 'brand.500'}>{key}</Text>
+                      <Text fontSize={{ base: 'lg', md: '2xl' }} fontWeight="800" mt={1}>{name}</Text>
+                      <Text fontSize="11px" fontWeight="700" mt={1} color={blocked ? 'white' : 'brand.500'}>
+                        {blocked ? '차단' : '가능'}
+                      </Text>
+                      {blocked && (
+                        <Text fontSize="11px" color="whiteAlpha.700" mt={0.5} noOfLines={2} wordBreak="keep-all">
+                          {blocked.reason}
+                        </Text>
+                      )}
+                    </Box>
+                  );
+                })}
+              </SimpleGrid>
+            </AdminPanel>
+          </>
+        );
+      })()}
 
       {!activeSession && (
-        <Card>
-          <CardBody>
-            <Text color="gray.500" textAlign="center">
-              현재 활성 세션이 없습니다.
-            </Text>
-          </CardBody>
-        </Card>
+        <AdminPanel p={0}>
+          <AdminEmptyState
+            icon={LuCalendarX}
+            title="현재 활성 세션이 없습니다."
+            description="새 세션을 생성하면 이곳에 투표 기간과 요일 상태가 표시됩니다."
+          />
+        </AdminPanel>
       )}
 
       {/* 세션 생성 모달 */}
@@ -423,7 +427,7 @@ const VoteSessionManagement: React.FC<VoteSessionManagementProps> = ({
               </VStack>
               <HStack spacing={2} justify="flex-end" mt={4}>
                 <Button onClick={() => setIsCreateModalOpen(false)}>취소</Button>
-                <Button colorScheme="blue" onClick={handleCreateSession} isLoading={isLoading}>
+                <Button colorScheme="brand" onClick={handleCreateSession} isLoading={isLoading}>
                   생성
                 </Button>
               </HStack>
@@ -476,7 +480,7 @@ const VoteSessionManagement: React.FC<VoteSessionManagementProps> = ({
               <HStack spacing={2} justify="flex-end" mt={4}>
                 <Button onClick={() => setIsDisabledDaysModalOpen(false)}>취소</Button>
                 <Button
-                  colorScheme="purple"
+                  colorScheme="brand"
                   onClick={handleUpdateDisabledDays}
                   isLoading={isLoading}
                 >

@@ -189,6 +189,11 @@ const STATUS_BADGE_MAP = {
   pending: {
     PENDING: { label: '확정 필요', bg: 'matchday.volt', color: 'matchday.navy' },
   },
+  voteSession: {
+    ACTIVE: { label: '진행중', bg: 'brand.500', color: 'white' },
+    COMPLETED: { label: '완료', bg: 'brand.50', color: 'brand.600', borderColor: 'brand.100' },
+    WAITING: { label: '대기', ...NEUTRAL_TONE },
+  },
 } satisfies Record<string, Record<string, BadgeTone>>;
 
 export type StatusBadgeKind = keyof typeof STATUS_BADGE_MAP;
