@@ -194,6 +194,15 @@ const STATUS_BADGE_MAP = {
     COMPLETED: { label: '완료', bg: 'brand.50', color: 'brand.600', borderColor: 'brand.100' },
     WAITING: { label: '대기', ...NEUTRAL_TONE },
   },
+  toggle: {
+    ON: { label: 'ON', bg: 'brand.500', color: 'white' },
+    OFF: { label: 'OFF', ...NEUTRAL_TONE },
+  },
+  delivery: {
+    SENT: { label: '발송됨', bg: 'green.50', color: 'green.700', borderColor: 'green.100' },
+    FAILED: { label: '실패', bg: 'red.50', color: 'red.700', borderColor: 'red.100' },
+    PENDING: { label: '대기', ...NEUTRAL_TONE },
+  },
 } satisfies Record<string, Record<string, BadgeTone>>;
 
 export type StatusBadgeKind = keyof typeof STATUS_BADGE_MAP;

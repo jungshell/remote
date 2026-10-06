@@ -1,7 +1,8 @@
-import { Alert, AlertIcon, Badge, Box, Button, Divider, HStack, Spinner, Stack, Text, VStack } from '@chakra-ui/react';
+import { Alert, AlertIcon, Badge, Box, Button, Collapse, Divider, Flex, HStack, Spinner, Stack, Text, VStack } from '@chakra-ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import { getValidToken } from '../api/auth';
 import { getApiBaseUrl } from '../config/api';
+import { PanelHeader } from './admin/MatchDay';
 
 type MailDiagnostic = {
   mailConfiguration: {
@@ -28,6 +29,7 @@ export default function MailDiagnosticsPanel() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [checkMessage, setCheckMessage] = useState<string | null>(null);
+  const [showRecipients, setShowRecipients] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,17 +70,18 @@ export default function MailDiagnosticsPanel() {
 
   const eligibleCount = data?.recipients.filter((recipient) => recipient.eligible).length || 0;
   return (
-    <Box borderWidth="1px" borderColor="blue.100" borderRadius="xl" bg="white" p={{ base: 4, md: 5 }}>
-      <HStack justify="space-between" align="start" mb={3}>
-        <Box>
-          <Text fontWeight="800" color="blue.800">메일 발송 진단</Text>
-          <Text fontSize="sm" color="gray.600">설정 · 인증 · 확정 명단 · 최근 실패 원인을 실제 메일 없이 점검합니다.</Text>
-        </Box>
-        <HStack>
-          <Button size="sm" variant="outline" onClick={() => void load()} isLoading={loading}>새로고침</Button>
-          <Button size="sm" colorScheme="blue" onClick={() => void verify()} isLoading={checking}>전송 설정만 확인</Button>
-        </HStack>
-      </HStack>
+    <Box border="1px solid" borderColor="gray.200" borderRadius="xl" bg="white" p={{ base: 4, md: 6 }}>
+      <PanelHeader
+        label="DIAGNOSTICS"
+        title="메일 발송 진단"
+        right={
+          <HStack spacing={2} flexWrap="wrap">
+            <Button size="sm" variant="outline" colorScheme="gray" onClick={() => void load()} isLoading={loading}>새로고침</Button>
+            <Button size="sm" colorScheme="brand" onClick={() => void verify()} isLoading={checking}>전송 설정만 확인</Button>
+          </HStack>
+        }
+      />
+      <Text fontSize="sm" color="gray.500" mt={-2} mb={4}>설정 · 인증 · 확정 명단 · 최근 실패 원인을 실제 메일 없이 점검합니다.</Text>
       {checkMessage && <Alert status={checkMessage.includes('실패') ? 'warning' : 'success'} mb={3} borderRadius="md"><AlertIcon /><Text fontSize="sm">{checkMessage}</Text></Alert>}
       {loading && !data ? <HStack py={5} justify="center"><Spinner /><Text>진단 정보를 불러오는 중입니다.</Text></HStack> : data && (
         <Stack spacing={3} fontSize="sm">
@@ -91,17 +94,35 @@ export default function MailDiagnosticsPanel() {
           <Text color="gray.600">Gmail API 항목 — Client ID: {data.mailConfiguration.gmailClientIdConfigured ? '확인' : '누락'} · Client secret: {data.mailConfiguration.gmailClientSecretConfigured ? '확인' : '누락'} · Refresh token: {data.mailConfiguration.gmailRefreshTokenConfigured ? '확인' : '누락'}</Text>
           <Divider />
           <Box>
-            <Text fontWeight="700">대상 일정</Text>
+            <Text fontWeight="700" color="matchday.navy">대상 일정</Text>
             <Text color="gray.600">{data.game ? `${new Date(data.game.date).toLocaleDateString('ko-KR')} ${data.game.time || ''} · ${data.game.location}` : '확정된 일정이 없습니다.'}</Text>
-            <Text mt={1}>메일 가능 {eligibleCount}명 / 확정 명단 연결 {data.recipients.length}명</Text>
-            <HStack mt={2} flexWrap="wrap">
-              {data.recipients.map((recipient) => <Badge key={recipient.id} colorScheme={recipient.eligible ? 'green' : 'orange'}>{recipient.name} · {recipient.eligible ? '발송 가능' : !recipient.active ? '비활성/정지' : '이메일 없음'}</Badge>)}
-              {data.unresolvedNames.map((name) => <Badge key={name} colorScheme="red">{name} · 회원 연결 없음</Badge>)}
-            </HStack>
+            <Flex align="flex-end" gap={6} mt={3} flexWrap="wrap">
+              <HStack spacing={6} align="flex-end">
+                <Box>
+                  <Text fontSize="11px" fontWeight="700" color="gray.500">메일 가능</Text>
+                  <Flex align="baseline" gap={1}><Text textStyle="statNumber" fontSize="36px" color="matchday.navy">{eligibleCount}</Text><Text fontSize="xs" fontWeight="700" color="gray.500">명</Text></Flex>
+                </Box>
+                <Box>
+                  <Text fontSize="11px" fontWeight="700" color="gray.500">확정 명단 연결</Text>
+                  <Flex align="baseline" gap={1}><Text textStyle="statNumber" fontSize="36px" color="gray.400">{data.recipients.length}</Text><Text fontSize="xs" fontWeight="700" color="gray.500">명</Text></Flex>
+                </Box>
+              </HStack>
+              {(data.recipients.length > 0 || data.unresolvedNames.length > 0) && (
+                <Button size="xs" variant="ghost" colorScheme="brand" onClick={() => setShowRecipients((v) => !v)}>
+                  {showRecipients ? '명단 접기' : '명단 보기'}
+                </Button>
+              )}
+            </Flex>
+            <Collapse in={showRecipients} animateOpacity>
+              <HStack mt={2} flexWrap="wrap">
+                {data.recipients.map((recipient) => <Badge key={recipient.id} colorScheme={recipient.eligible ? 'green' : 'orange'}>{recipient.name} · {recipient.eligible ? '발송 가능' : !recipient.active ? '비활성/정지' : '이메일 없음'}</Badge>)}
+                {data.unresolvedNames.map((name) => <Badge key={name} colorScheme="red">{name} · 회원 연결 없음</Badge>)}
+              </HStack>
+            </Collapse>
           </Box>
           <Divider />
           <Box>
-            <Text fontWeight="700">최근 확정 메일 이력</Text>
+            <Text fontWeight="700" color="matchday.navy">최근 확정 메일 이력</Text>
             {data.history.length === 0 ? <Text color="gray.500">아직 기록이 없습니다. 다음 일정 확정부터 수신자별 결과가 저장됩니다.</Text> : (
               <VStack align="stretch" spacing={1} mt={1}>
                 {data.history.slice(0, 8).map((item, index) => <HStack key={`${item.updatedAt}-${index}`} justify="space-between" align="start"><Text color="gray.600">수신자 #{item.recipientId || '-'} · {new Date(item.updatedAt).toLocaleString('ko-KR')}</Text><HStack><Badge colorScheme={statusColor(item.status)}>{item.status}</Badge>{item.error && <Text color="red.600" maxW="360px">{item.error}</Text>}</HStack></HStack>)}

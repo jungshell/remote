@@ -39,7 +39,6 @@ import {
   Th,
   Td,
   TableContainer,
-  Progress,
   Skeleton,
   Drawer,
   DrawerOverlay,
@@ -61,7 +60,6 @@ import {
   MdOutlineInsights,
   MdOutlineStadium,
   MdOutlineMenuBook,
-  MdOutlineHistory,
   MdOutlineSend
 } from 'react-icons/md';
 import { GameCardSkeleton } from '../components/common/SkeletonLoader';
@@ -69,7 +67,7 @@ import {
   LuArrowRight, LuBan, LuBellRing, LuCalendarPlus, LuCircleCheck, LuCircleX, LuHistory, LuLogIn, LuLogOut,
   LuMapPin, LuMegaphone, LuPencil, LuTriangleAlert, LuUserCheck, LuUserCog, LuUsers, LuVote
 } from 'react-icons/lu';
-import { CggShieldTemp, DateBlock, EASE_EXPO_OUT, LiveDot, PanelHeader, PitchLines, StatBlock } from '../components/admin/MatchDay';
+import { AdminEmptyState, AdminPageHeader, AdminPanel, CggShieldTemp, DateBlock, EASE_EXPO_OUT, LiveDot, PanelHeader, PitchLines, StatBlock, StatStrip, StatusBadge } from '../components/admin/MatchDay';
 import { GRADIENTS } from '../constants/designTokens';
 import { normalizeEventType } from '../utils/eventTypeNormalizer';
 import { getValidToken, getMemberStats, type Game } from '../api/auth';
@@ -3824,58 +3822,63 @@ export default function AdminPageNew() {
 
               {/* 알림 관리 */}
               {selectedMenu === 'notifications' && hasPermission('all') && (
-                <VStack spacing={5} align="stretch" w="100%">
-                  {/* 헤더 */}
-                  <Flex justify="space-between" align="flex-end" wrap="wrap" gap={2}>
-                    <Box>
-                      <Text fontSize="2xl" fontWeight="bold" color="#004ea8">알림 관리</Text>
-                      <Text fontSize="sm" color="gray.500" mt={0.5}>경기 · 투표 알림 설정 및 발송</Text>
-                    </Box>
-                    <Button
-                      colorScheme="blue"
-                      bg="#004ea8"
-                      _hover={{ bg: '#003d7a' }}
-                      onClick={handleSaveNotifications}
-                      isDisabled={!isNotificationChanged}
-                    >
-                      알림 설정 저장
-                    </Button>
-                  </Flex>
+                <VStack className="fccg-matchday fccg-admin" spacing={5} align="stretch" w="100%">
+                  <AdminPageHeader
+                    eyebrow="COMMUNICATION CENTER"
+                    title="알림 관리"
+                    description="경기·투표 알림 설정과 수동 발송을 관리합니다."
+                    right={
+                      <Button colorScheme="brand" size="sm" onClick={handleSaveNotifications} isDisabled={!isNotificationChanged}>
+                        알림 설정 저장
+                      </Button>
+                    }
+                  />
 
                   {/* ZONE A: 알림 설정 */}
                   <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={3} w="100%">
-                    {/* 경기 알림 설정 */}
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <VStack spacing={3} align="stretch">
-                          <HStack spacing={2}>
-                            <Icon as={MdOutlineSportsSoccer} boxSize={4} color="#004ea8" />
-                            <Text fontSize="sm" fontWeight="bold" color="gray.700">경기 알림</Text>
-                            <Badge colorScheme={notificationSettings.gameReminder.enabled ? 'green' : 'gray'} variant="subtle">
-                              {notificationSettings.gameReminder.enabled ? '활성' : '비활성'}
-                            </Badge>
-                          </HStack>
-                          <Divider />
+                    {([
+                      { key: 'gameReminder', title: '경기 알림', icon: MdOutlineSportsSoccer, max: 168, targetLabel: gameTargetLabel, options: [['participating', '참가 예정 회원'], ['all', '전체 회원']] },
+                      { key: 'voteReminder', title: '투표 알림', icon: MdOutlineHowToVote, max: 72, targetLabel: voteTargetLabel, options: [['all', '전체 회원'], ['nonVoters', '투표 미참여 회원']] },
+                    ] as const).map(({ key, title, icon, max, targetLabel, options }) => {
+                      const setting = notificationSettings[key];
+                      return (
+                        <AdminPanel key={key}>
+                          <Flex justify="space-between" align="flex-start" gap={3}>
+                            <HStack spacing={3} align="flex-start" minW={0}>
+                              <Flex align="center" justify="center" w={9} h={9} borderRadius="md" bg="matchday.navy" flexShrink={0}>
+                                <Icon as={icon} boxSize={4} color="white" />
+                              </Flex>
+                              <Box minW={0}>
+                                <Text fontSize="lg" fontWeight="800" color="matchday.navy" letterSpacing="-0.01em">{title}</Text>
+                                <Text textStyle="scoreLabel" fontSize="10px" color="brand.500" mt={0.5}>NOTIFY</Text>
+                              </Box>
+                            </HStack>
+                            <StatusBadge kind="toggle" value={setting.enabled ? 'ON' : 'OFF'} />
+                          </Flex>
+                          <Text fontSize="sm" fontWeight="600" color={setting.enabled ? 'matchday.navy' : 'gray.400'} mt={3}>
+                            {setting.enabled ? `${setting.beforeHours}시간 전 발송 · ${targetLabel}` : '자동 알림 꺼짐'}
+                          </Text>
+                          <Divider my={4} />
 
-                          <FormControl display="flex" alignItems="center">
-                            <FormLabel mb="0" fontSize="sm" color="gray.700">경기 알림 활성화</FormLabel>
+                          <FormControl display="flex" alignItems="center" justifyContent="space-between">
+                            <FormLabel mb="0" fontSize="sm" color="gray.700">{title} 활성화</FormLabel>
                             <Switch
-                              isChecked={notificationSettings.gameReminder.enabled}
-                              onChange={(e) => handleNotificationChange('gameReminder', 'enabled', e.target.checked)}
-                              colorScheme="blue"
+                              isChecked={setting.enabled}
+                              onChange={(e) => handleNotificationChange(key, 'enabled', e.target.checked)}
+                              colorScheme="brand"
                             />
                           </FormControl>
 
-                          {notificationSettings.gameReminder.enabled && (
-                            <HStack spacing={4} align="flex-start">
+                          {setting.enabled && (
+                            <Flex direction={{ base: 'column', sm: 'row' }} gap={4} align="flex-start" mt={4}>
                               <FormControl flex={1}>
                                 <FormLabel fontSize="sm" color="gray.700">알림 전송 시간</FormLabel>
                                 <HStack>
                                   <NumberInput
-                                    value={notificationSettings.gameReminder.beforeHours}
-                                    onChange={(_, value) => handleNotificationChange('gameReminder', 'beforeHours', value)}
+                                    value={setting.beforeHours}
+                                    onChange={(_, value) => handleNotificationChange(key, 'beforeHours', value)}
                                     min={1}
-                                    max={168}
+                                    max={max}
                                     w="120px"
                                     size="sm"
                                   >
@@ -3889,186 +3892,84 @@ export default function AdminPageNew() {
                                 </HStack>
                               </FormControl>
 
-                              <FormControl flex={1}>
+                              <FormControl flex={1} w={{ base: '100%', sm: 'auto' }}>
                                 <FormLabel fontSize="sm" color="gray.700">알림 대상</FormLabel>
                                 <Select
-                                  value={notificationSettings.gameReminder.targets[0]}
-                                  onChange={(e) => handleNotificationChange('gameReminder', 'targets', [e.target.value])}
-                                  focusBorderColor="#004ea8"
+                                  value={setting.targets[0]}
+                                  onChange={(e) => handleNotificationChange(key, 'targets', [e.target.value])}
+                                  focusBorderColor="brand.500"
                                   size="sm"
                                 >
-                                  <option value="participating">참가 예정 회원</option>
-                                  <option value="all">전체 회원</option>
+                                  {options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                 </Select>
                               </FormControl>
-                            </HStack>
+                            </Flex>
                           )}
-                        </VStack>
-                      </CardBody>
-                    </Card>
-
-                    {/* 투표 알림 설정 */}
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <VStack spacing={3} align="stretch">
-                          <HStack spacing={2}>
-                            <Icon as={MdOutlineHowToVote} boxSize={4} color="#004ea8" />
-                            <Text fontSize="sm" fontWeight="bold" color="gray.700">투표 알림</Text>
-                            <Badge colorScheme={notificationSettings.voteReminder.enabled ? 'green' : 'gray'} variant="subtle">
-                              {notificationSettings.voteReminder.enabled ? '활성' : '비활성'}
-                            </Badge>
-                          </HStack>
-                          <Divider />
-
-                          <FormControl display="flex" alignItems="center">
-                            <FormLabel mb="0" fontSize="sm" color="gray.700">투표 알림 활성화</FormLabel>
-                            <Switch
-                              isChecked={notificationSettings.voteReminder.enabled}
-                              onChange={(e) => handleNotificationChange('voteReminder', 'enabled', e.target.checked)}
-                              colorScheme="blue"
-                            />
-                          </FormControl>
-
-                          {notificationSettings.voteReminder.enabled && (
-                            <HStack spacing={4} align="flex-start">
-                              <FormControl flex={1}>
-                                <FormLabel fontSize="sm" color="gray.700">알림 전송 시간</FormLabel>
-                                <HStack>
-                                  <NumberInput
-                                    value={notificationSettings.voteReminder.beforeHours}
-                                    onChange={(_, value) => handleNotificationChange('voteReminder', 'beforeHours', value)}
-                                    min={1}
-                                    max={72}
-                                    w="120px"
-                                    size="sm"
-                                  >
-                                    <NumberInputField />
-                                    <NumberInputStepper>
-                                      <NumberIncrementStepper />
-                                      <NumberDecrementStepper />
-                                    </NumberInputStepper>
-                                  </NumberInput>
-                                  <Text fontSize="sm" color="gray.600">시간 전</Text>
-                                </HStack>
-                              </FormControl>
-
-                              <FormControl flex={1}>
-                                <FormLabel fontSize="sm" color="gray.700">알림 대상</FormLabel>
-                                <Select
-                                  value={notificationSettings.voteReminder.targets[0]}
-                                  onChange={(e) => handleNotificationChange('voteReminder', 'targets', [e.target.value])}
-                                  focusBorderColor="#004ea8"
-                                  size="sm"
-                                >
-                                  <option value="all">전체 회원</option>
-                                  <option value="nonVoters">투표 미참여 회원</option>
-                                </Select>
-                              </FormControl>
-                            </HStack>
-                          )}
-                        </VStack>
-                      </CardBody>
-                    </Card>
+                        </AdminPanel>
+                      );
+                    })}
                   </SimpleGrid>
 
-                  {/* ZONE B: 수동 발송 */}
-                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                    <CardBody px={5} py={4}>
-                      <VStack align="stretch" spacing={4}>
-                        <Text fontSize="md" fontWeight="bold" color="gray.700">수동 발송</Text>
-
-                        {/* 경기 알림 발송 */}
-                        <Flex
-                          justify="space-between"
-                          align={{ base: 'stretch', md: 'center' }}
-                          direction={{ base: 'column', md: 'row' }}
-                          gap={3}
-                          px={4}
-                          py={3}
-                          border="1px solid"
-                          borderColor="gray.200"
-                          borderRadius="md"
-                          bg="gray.50"
-                        >
-                          <HStack spacing={3} align="flex-start">
-                            <Icon as={MdOutlineSportsSoccer} boxSize={5} color="#004ea8" mt={0.5} />
-                            <VStack align="flex-start" spacing={0}>
-                              <Text fontSize="sm" fontWeight="bold" color="gray.800">경기 알림</Text>
-                              <Text fontSize="xs" color="gray.500">대상: {gameTargetLabel}</Text>
-                              <Text fontSize="xs" color="gray.500">예상 수신 {expectedGameRecipientCount}명</Text>
-                            </VStack>
-                          </HStack>
-                          <HStack spacing={2}>
-                            <Button
-                              variant="outline"
-                              borderColor="gray.300"
-                              size="sm"
-                              onClick={showGamePreview}
-                              leftIcon={<Icon as={ViewIcon} />}
-                            >
-                              프리뷰
-                            </Button>
-                            <Button
-                              colorScheme="blue"
-                              bg="#004ea8"
-                              _hover={{ bg: '#003d7a' }}
-                              size="sm"
-                              onClick={() => setSendConfirmTarget('game')}
-                              isDisabled={!isNotificationSystemActive || expectedGameRecipientCount === 0}
-                              leftIcon={<Icon as={MdOutlineSend} />}
-                            >
-                              발송
-                            </Button>
-                          </HStack>
-                        </Flex>
-
-                        {/* 투표 알림 발송 */}
-                        <Flex
-                          justify="space-between"
-                          align={{ base: 'stretch', md: 'center' }}
-                          direction={{ base: 'column', md: 'row' }}
-                          gap={3}
-                          px={4}
-                          py={3}
-                          border="1px solid"
-                          borderColor="gray.200"
-                          borderRadius="md"
-                          bg="gray.50"
-                        >
-                          <HStack spacing={3} align="flex-start">
-                            <Icon as={MdOutlineHowToVote} boxSize={5} color="#004ea8" mt={0.5} />
-                            <VStack align="flex-start" spacing={0}>
-                              <Text fontSize="sm" fontWeight="bold" color="gray.800">투표 알림</Text>
-                              <Text fontSize="xs" color="gray.500">대상: {voteTargetLabel}</Text>
-                              <Text fontSize="xs" color="gray.500">예상 수신 {expectedVoteRecipientCount}명</Text>
-                            </VStack>
-                          </HStack>
-                          <HStack spacing={2}>
-                            <Button
-                              variant="outline"
-                              borderColor="gray.300"
-                              size="sm"
-                              onClick={showVotePreview}
-                              leftIcon={<Icon as={ViewIcon} />}
-                            >
-                              프리뷰
-                            </Button>
-                            <Button
-                              colorScheme="blue"
-                              bg="#004ea8"
-                              _hover={{ bg: '#003d7a' }}
-                              size="sm"
-                              onClick={() => setSendConfirmTarget('vote')}
-                              isDisabled={!isNotificationSystemActive || expectedVoteRecipientCount === 0}
-                              leftIcon={<Icon as={MdOutlineSend} />}
-                            >
-                              발송
-                            </Button>
-                          </HStack>
-                        </Flex>
-                      </VStack>
-                    </CardBody>
-                  </Card>
+                  {/* ZONE B: 수동 발송 — 대상 그룹 → 예상 수신자 → 프리뷰 → 발송 */}
+                  <AdminPanel label="DISPATCH" title="수동 발송">
+                    <VStack align="stretch" spacing={3}>
+                      {([
+                        { key: 'game', title: '경기 알림', icon: MdOutlineSportsSoccer, targetLabel: gameTargetLabel, count: expectedGameRecipientCount, onPreview: showGamePreview },
+                        { key: 'vote', title: '투표 알림', icon: MdOutlineHowToVote, targetLabel: voteTargetLabel, count: expectedVoteRecipientCount, onPreview: showVotePreview },
+                      ] as const).map(({ key, title, icon, targetLabel, count, onPreview }) => {
+                        const sendDisabled = !isNotificationSystemActive || count === 0;
+                        return (
+                          <Flex
+                            key={key}
+                            direction={{ base: 'column', md: 'row' }}
+                            align={{ base: 'stretch', md: 'center' }}
+                            gap={{ base: 3, md: 6 }}
+                            px={{ base: 4, md: 5 }}
+                            py={4}
+                            border="1px solid"
+                            borderColor="gray.200"
+                            borderRadius="md"
+                          >
+                            <HStack spacing={3} align="center" flex={1} minW={0}>
+                              <Icon as={icon} boxSize={5} color="brand.500" />
+                              <Box minW={0}>
+                                <Text fontSize="sm" fontWeight="800" color="matchday.navy">{title}</Text>
+                                <Text fontSize="xs" color="gray.500">대상 · {targetLabel}</Text>
+                              </Box>
+                            </HStack>
+                            <Flex align="center" justify="space-between" gap={{ base: 3, md: 6 }} wrap="wrap">
+                              <Box>
+                                <HStack spacing={2}>
+                                  <Text fontSize="11px" fontWeight="700" color="gray.500">예상 수신</Text>
+                                  {!sendDisabled && (
+                                    <Box as="span" px={1.5} borderRadius="sm" bg="matchday.volt" color="matchday.navy" fontSize="9px" fontWeight="800" letterSpacing="0.08em" lineHeight="1.6">READY</Box>
+                                  )}
+                                </HStack>
+                                <Flex align="baseline" gap={1}>
+                                  <Text textStyle="statNumber" fontSize="40px" color={count > 0 ? 'matchday.navy' : 'gray.300'}>{count}</Text>
+                                  <Text fontSize="sm" fontWeight="700" color="gray.500">명</Text>
+                                </Flex>
+                              </Box>
+                              <HStack spacing={2}>
+                                <Button variant="outline" colorScheme="gray" size="sm" onClick={onPreview} leftIcon={<Icon as={ViewIcon} />}>
+                                  프리뷰
+                                </Button>
+                                <Button
+                                  colorScheme="brand"
+                                  size="sm"
+                                  onClick={() => setSendConfirmTarget(key)}
+                                  isDisabled={sendDisabled}
+                                  leftIcon={<Icon as={MdOutlineSend} />}
+                                >
+                                  발송
+                                </Button>
+                              </HStack>
+                            </Flex>
+                          </Flex>
+                        );
+                      })}
+                    </VStack>
+                  </AdminPanel>
 
                   {/* 발송 확인 모달 */}
                   <Modal isOpen={sendConfirmTarget !== null} onClose={() => !isSendingNotification && setSendConfirmTarget(null)}>
@@ -4079,17 +3980,29 @@ export default function AdminPageNew() {
                       </ModalHeader>
                       {!isSendingNotification && <ModalCloseButton />}
                       <ModalBody>
-                        <VStack align="stretch" spacing={2}>
-                          <HStack justify="space-between">
-                            <Text fontSize="sm" color="gray.500">대상</Text>
-                            <Text fontSize="sm" fontWeight="bold">
-                              {sendConfirmTarget === 'game' ? gameTargetLabel : voteTargetLabel}
+                        <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="lg" px={5} py={4}>
+                          <PitchLines opacity={0.07} />
+                          <Box position="relative">
+                            <Text textStyle="scoreLabel" color="matchday.volt">
+                              {sendConfirmTarget === 'game' ? 'GAME NOTICE' : 'VOTE REMINDER'}
                             </Text>
+                            <Flex align="baseline" gap={1.5} mt={2}>
+                              <Text textStyle="statNumber" fontSize="56px">
+                                {sendConfirmTarget === 'game' ? expectedGameRecipientCount : expectedVoteRecipientCount}
+                              </Text>
+                              <Text fontSize="sm" fontWeight="700" color="whiteAlpha.700">명 예상 수신</Text>
+                            </Flex>
+                          </Box>
+                        </Box>
+                        <VStack align="stretch" spacing={2} mt={4}>
+                          <HStack justify="space-between">
+                            <Text fontSize="sm" color="gray.500">발송 종류</Text>
+                            <Text fontSize="sm" fontWeight="bold" color="matchday.navy">{sendConfirmTarget === 'game' ? '경기 알림' : '투표 알림'}</Text>
                           </HStack>
                           <HStack justify="space-between">
-                            <Text fontSize="sm" color="gray.500">예상 수신</Text>
-                            <Text fontSize="sm" fontWeight="bold">
-                              {sendConfirmTarget === 'game' ? expectedGameRecipientCount : expectedVoteRecipientCount}명
+                            <Text fontSize="sm" color="gray.500">대상</Text>
+                            <Text fontSize="sm" fontWeight="bold" color="matchday.navy">
+                              {sendConfirmTarget === 'game' ? gameTargetLabel : voteTargetLabel}
                             </Text>
                           </HStack>
                           <Text fontSize="xs" color="gray.500" pt={2}>
@@ -4102,9 +4015,7 @@ export default function AdminPageNew() {
                           취소
                         </Button>
                         <Button
-                          colorScheme="blue"
-                          bg="#004ea8"
-                          _hover={{ bg: '#003d7a' }}
+                          colorScheme="brand"
                           onClick={handleConfirmSend}
                           isLoading={isSendingNotification}
                         >
@@ -4114,36 +4025,36 @@ export default function AdminPageNew() {
                     </ModalContent>
                   </Modal>
 
-                  {/* ZONE C: 이번 세션 발송 내역 */}
-                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                    <CardBody px={5} py={4}>
-                      <VStack align="stretch" spacing={3}>
-                        <HStack spacing={2}>
-                          <Icon as={MdOutlineHistory} boxSize={4} color="gray.500" />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.700">이번 세션 발송 내역</Text>
-                        </HStack>
-                        <Text fontSize="xs" color="gray.400">새로고침하면 사라지는 임시 기록입니다.</Text>
-
-                        {notifications.length === 0 ? (
-                          <Text color="gray.500" fontSize="sm">이번 세션에서 발송한 알림이 없습니다.</Text>
-                        ) : (
-                          <VStack spacing={2} align="stretch" maxH="280px" overflowY="auto">
-                            {notifications.map((n) => (
-                              <Flex key={n.id} justify="space-between" align="center" px={4} py={2} border="1px solid" borderColor="gray.200" borderRadius="md" bg="gray.50">
-                                <VStack align="flex-start" spacing={0}>
-                                  <Text fontSize="sm" fontWeight="medium" color="gray.800">{n.title}</Text>
-                                  <Text fontSize="xs" color="gray.500">
-                                    {new Date(n.sentAt).toLocaleString('ko-KR')} · 수신 대상 {n.recipients.length}명
-                                  </Text>
-                                </VStack>
-                                <Badge colorScheme={n.status === 'SENT' ? 'green' : n.status === 'FAILED' ? 'red' : 'blue'}>{n.status}</Badge>
-                              </Flex>
-                            ))}
-                          </VStack>
-                        )}
+                  {/* ZONE C: 이번 세션 발송 내역 (브라우저 메모리 임시 기록 — 서버 감사 로그 아님) */}
+                  <AdminPanel>
+                    <PanelHeader label="LOG" title="이번 세션 발송 내역" right={<StatusBadge kind="delivery" value="임시 기록" />} />
+                    <Text fontSize="xs" color="gray.500" mt={-2} mb={4}>
+                      이 브라우저 탭에서 직접 발송한 내역만 보입니다. 새로고침하면 사라지며, 서버 발송 기록이 아닙니다.
+                    </Text>
+                    {notifications.length === 0 ? (
+                      <Text color="gray.400" fontSize="sm">이번 세션에서 발송한 알림이 없습니다.</Text>
+                    ) : (
+                      <VStack spacing={0} align="stretch" maxH="280px" overflowY="auto">
+                        {notifications.map((n, idx) => (
+                          <Flex key={n.id} gap={3} align="stretch">
+                            <Flex direction="column" align="center" pt={1.5}>
+                              <Box w="8px" h="8px" borderRadius="full" bg={n.status === 'FAILED' ? 'red.500' : n.status === 'SENT' ? 'brand.500' : 'gray.300'} flexShrink={0} />
+                              {idx < notifications.length - 1 && <Box w="1px" flex={1} bg="gray.200" mt={1} />}
+                            </Flex>
+                            <Flex flex={1} minW={0} justify="space-between" align="flex-start" gap={3} pb={4}>
+                              <Box minW={0}>
+                                <Text fontSize="sm" fontWeight="700" color="matchday.navy">{n.title}</Text>
+                                <Text fontSize="xs" color="gray.500">
+                                  {new Date(n.sentAt).toLocaleString('ko-KR')} · 수신 대상 {n.recipients.length}명
+                                </Text>
+                              </Box>
+                              <StatusBadge kind="delivery" value={n.status} />
+                            </Flex>
+                          </Flex>
+                        ))}
                       </VStack>
-                    </CardBody>
-                  </Card>
+                    )}
+                  </AdminPanel>
 
                   {/* 진단 / 보조 정보 */}
                   <VStack align="stretch" spacing={2}>
@@ -4166,14 +4077,20 @@ export default function AdminPageNew() {
 
               {/* 활동 분석 */}
               {selectedMenu === 'analytics' && hasPermission('all') && (() => {
+                const analyticsHeader = (
+                  <AdminPageHeader eyebrow="SPORTS ANALYTICS" title="활동 분석" description="회원 참여와 경기 활동 지표를 확인합니다." />
+                );
+
                 if (!activityAnalysisData) {
                   return (
-                    <VStack spacing={5} align="stretch" w="100%">
-                      <Box>
-                        <Text fontSize="2xl" fontWeight="bold" color="#004ea8">활동 분석</Text>
-                        <Text fontSize="sm" color="gray.500" mt={0.5}>경기 · 투표 · 회원 활동 현황</Text>
-                      </Box>
-                      <Text color="gray.500" fontSize="sm">분석 데이터를 불러오는 중입니다.</Text>
+                    <VStack className="fccg-matchday fccg-admin" spacing={5} align="stretch" w="100%">
+                      {analyticsHeader}
+                      <Skeleton height="141px" borderRadius="xl" />
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+                        <Skeleton height="200px" borderRadius="xl" />
+                        <Skeleton height="200px" borderRadius="xl" />
+                      </SimpleGrid>
+                      <Skeleton height="240px" borderRadius="xl" />
                     </VStack>
                   );
                 }
@@ -4182,218 +4099,170 @@ export default function AdminPageNew() {
                 const maxMonthlyGames = Math.max(1, ...monthlyStats.map(m => m.gameCount));
                 const topVote = activityMetrics.topVote.filter(m => m.voteParticipationCount > 0);
                 const topGame = activityMetrics.topGame.filter(m => m.gameParticipationCount > 0);
+                const matchCount = activityAnalysisData.gameTypeDistribution?.match ?? 0;
+                const friendlyCount = activityAnalysisData.gameTypeDistribution?.friendly ?? 0;
+                const typeTotal = matchCount + friendlyCount;
+
+                // 리더보드: 1위 행만 남색 + Volt 순위, 나머지는 흰 행
+                const renderLeaderboard = (rows: typeof topVote, getCount: (m: (typeof topVote)[number]) => number, emptyText: string) => (
+                  rows.length > 0 ? (
+                    <VStack spacing={2} align="stretch">
+                      {rows.map((member, idx) => {
+                        const isFirst = idx === 0;
+                        return (
+                          <Flex
+                            key={member.id}
+                            align="center"
+                            gap={4}
+                            px={4}
+                            py={2.5}
+                            borderRadius="md"
+                            border="1px solid"
+                            borderColor={isFirst ? 'matchday.navy' : 'gray.200'}
+                            bg={isFirst ? 'matchday.navy' : 'white'}
+                          >
+                            <Text textStyle="statNumber" fontSize="32px" color={isFirst ? 'matchday.volt' : 'gray.300'} w="44px">
+                              {String(idx + 1).padStart(2, '0')}
+                            </Text>
+                            <Text flex={1} minW={0} fontSize="sm" fontWeight="800" color={isFirst ? 'white' : 'matchday.navy'} noOfLines={1}>{member.name}</Text>
+                            <Flex align="baseline" gap={1}>
+                              <Text textStyle="statNumber" fontSize="28px" color={isFirst ? 'white' : 'matchday.navy'}>{getCount(member)}</Text>
+                              <Text fontSize="xs" fontWeight="700" color={isFirst ? 'whiteAlpha.700' : 'gray.500'}>회</Text>
+                            </Flex>
+                          </Flex>
+                        );
+                      })}
+                    </VStack>
+                  ) : (
+                    <Text fontSize="sm" color="gray.400">{emptyText}</Text>
+                  )
+                );
 
                 return (
-                <VStack spacing={5} align="stretch" w="100%">
-                  {/* 헤더 */}
+                <VStack className="fccg-matchday fccg-admin" spacing={5} align="stretch" w="100%">
+                  {analyticsHeader}
+
+                  {/* ZONE A: 운영 현황 KPI */}
                   <Box>
-                    <Text fontSize="2xl" fontWeight="bold" color="#004ea8">활동 분석</Text>
-                    <Text fontSize="sm" color="gray.500" mt={0.5}>경기 · 투표 · 회원 활동 현황</Text>
+                    <StatStrip columns={4}>
+                      <StatBlock label="GAME RATE" value={activityAnalysisData.summary?.participationRate ?? 0} unit="%" caption="이번 달 경기 참가율" />
+                      <StatBlock label="VOTE RATE" value={activityAnalysisData.summary?.voteParticipationRate ?? 0} unit="%" caption="누적 투표 참여율" />
+                      <StatBlock label="PLAYERS" value={activityAnalysisData.summary?.activeUsers ?? 0} unit="명" caption="참여 회원" />
+                      <StatBlock label="GAMES" value={activityAnalysisData.summary?.thisMonthGames ?? 0} unit="경기" caption="이번 달 확정 경기" />
+                    </StatStrip>
+                    <Text fontSize="xs" color="gray.500" mt={2} px={1}>
+                      경기 참가율: 이번 달 1회 이상 참가한 회원 비율 · 투표 참여율: 전체 기간 1회 이상 투표한 회원 비율(누적) · 참여 회원: 누적 투표 또는 이번 달 경기 참여 실적이 있는 회원
+                    </Text>
                   </Box>
 
-                  {/* ZONE A: 운영 현황 */}
-                  <SimpleGrid columns={{ base: 2, lg: 4 }} spacing={3} w="100%">
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">경기 참가율</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.participationRate ?? 0}%</Text>
-                        <Text fontSize="xs" color="gray.400" mt={1}>이번 달 1회 이상 참여 회원 비율</Text>
-                      </CardBody>
-                    </Card>
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">투표 참여율</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.voteParticipationRate ?? 0}%</Text>
-                        <Text fontSize="xs" color="gray.400" mt={1}>전체 투표 세션 중 1회 이상 참여 비율</Text>
-                      </CardBody>
-                    </Card>
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">활성 회원</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.activeUsers ?? 0}명</Text>
-                        <Text fontSize="xs" color="gray.400" mt={1}>경기·투표 참여 실적이 있는 회원</Text>
-                      </CardBody>
-                    </Card>
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <Text fontSize="xs" color="gray.500" fontWeight="medium">이번 달 경기</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="gray.800" mt={1}>{activityAnalysisData.summary?.thisMonthGames ?? 0}경기</Text>
-                        <Text fontSize="xs" color="gray.400" mt={1}>확정된 경기 기준</Text>
-                      </CardBody>
-                    </Card>
-                  </SimpleGrid>
-
-                  {/* ZONE B: 참여 흐름 */}
+                  {/* ZONE B: 랭킹 */}
                   <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3} w="100%">
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <HStack spacing={2} mb={1}>
-                          <Icon as={MdOutlineHowToVote} boxSize={4} color="#004ea8" />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.700">투표 활동</Text>
-                        </HStack>
-                        <Text fontSize="xs" color="gray.400" mb={3}>전체 투표 세션 참여 횟수 기준</Text>
-                        {topVote.length > 0 ? (
-                          <VStack spacing={1} align="stretch">
-                            {topVote.map((member, idx) => (
-                              <Flex key={member.id} justify="space-between" fontSize="sm">
-                                <Text color="gray.700">{idx + 1}. {member.name}</Text>
-                                <Text color="gray.500">{member.voteParticipationCount}회</Text>
-                              </Flex>
-                            ))}
-                          </VStack>
-                        ) : (
-                          <Text fontSize="sm" color="gray.400">투표 참여 데이터가 없습니다.</Text>
-                        )}
-                      </CardBody>
-                    </Card>
-
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <HStack spacing={2} mb={1}>
-                          <Icon as={MdOutlineSportsSoccer} boxSize={4} color="#004ea8" />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.700">경기 참여</Text>
-                        </HStack>
-                        <Text fontSize="xs" color="gray.400" mb={3}>이번 달 확정 경기 참여 횟수 기준</Text>
-                        {topGame.length > 0 ? (
-                          <VStack spacing={1} align="stretch">
-                            {topGame.map((member, idx) => (
-                              <Flex key={member.id} justify="space-between" fontSize="sm">
-                                <Text color="gray.700">{idx + 1}. {member.name}</Text>
-                                <Text color="gray.500">{member.gameParticipationCount}회</Text>
-                              </Flex>
-                            ))}
-                          </VStack>
-                        ) : (
-                          <Text fontSize="sm" color="gray.400">경기 참여 데이터가 없습니다.</Text>
-                        )}
-                      </CardBody>
-                    </Card>
+                    <AdminPanel label="RANKING" title="투표 활동 TOP 3">
+                      <Text fontSize="xs" color="gray.500" mt={-2} mb={3}>전체 투표 세션 참여 횟수 기준 (누적)</Text>
+                      {renderLeaderboard(topVote, (m) => m.voteParticipationCount, '투표 참여 데이터가 없습니다.')}
+                    </AdminPanel>
+                    <AdminPanel label="RANKING" title="경기 참여 TOP 3">
+                      <Text fontSize="xs" color="gray.500" mt={-2} mb={3}>이번 달 확정 경기 참여 횟수 기준</Text>
+                      {renderLeaderboard(topGame, (m) => m.gameParticipationCount, '경기 참여 데이터가 없습니다.')}
+                    </AdminPanel>
                   </SimpleGrid>
 
                   {/* ZONE C: 팀 활동 추이 */}
                   <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={3} w="100%">
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <HStack spacing={2} mb={3}>
-                          <Icon as={MdOutlineEventNote} boxSize={4} color="#004ea8" />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.700">월별 경기 현황</Text>
-                        </HStack>
-                        {monthlyStats.length > 0 ? (
-                          <VStack spacing={3} align="stretch">
-                            {monthlyStats.map((monthData, index) => (
-                              <Box key={index}>
-                                <Flex justify="space-between" align="center" mb={1}>
-                                  <Text fontSize="sm" fontWeight="medium" color="gray.700">{monthData.month}</Text>
-                                  <Text fontSize="sm" color="gray.500">{monthData.gameCount}경기</Text>
-                                </Flex>
-                                <Progress
-                                  value={(monthData.gameCount / maxMonthlyGames) * 100}
-                                  colorScheme="blue"
-                                  size="sm"
-                                  bg="gray.100"
-                                  borderRadius="full"
-                                />
-                              </Box>
-                            ))}
-                          </VStack>
-                        ) : (
-                          <Text color="gray.400" fontSize="sm">월별 경기 데이터가 없습니다.</Text>
-                        )}
-                      </CardBody>
-                    </Card>
-
-                    <Card bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                      <CardBody px={5} py={4}>
-                        <HStack spacing={2} mb={1}>
-                          <Icon as={MdOutlineStadium} boxSize={4} color="#004ea8" />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.700">경기 유형 구성</Text>
-                        </HStack>
-                        <Text fontSize="xs" color="gray.400" mb={3}>이번 달 확정 경기 기준</Text>
-                        <VStack spacing={2} align="stretch">
-                          <Flex justify="space-between" align="center">
-                            <Text fontSize="sm" color="gray.700">매치 경기</Text>
-                            <Badge colorScheme="blue" variant="subtle">{activityAnalysisData.gameTypeDistribution?.match ?? 0}경기</Badge>
-                          </Flex>
-                          <Flex justify="space-between" align="center">
-                            <Text fontSize="sm" color="gray.700">자체 경기</Text>
-                            <Badge colorScheme="gray" variant="subtle">{activityAnalysisData.gameTypeDistribution?.friendly ?? 0}경기</Badge>
-                          </Flex>
+                    <AdminPanel label="TREND" title="월별 경기 현황">
+                      <Text fontSize="xs" color="gray.500" mt={-2} mb={3}>최근 6개월 확정 경기 수</Text>
+                      {monthlyStats.length > 0 ? (
+                        <VStack spacing={3} align="stretch">
+                          {monthlyStats.map((monthData, index) => {
+                            const isCurrent = index === monthlyStats.length - 1;
+                            return (
+                              <Flex key={index} align="center" gap={3}>
+                                <Text fontSize="xs" fontWeight="700" color={isCurrent ? 'matchday.navy' : 'gray.500'} w="36px" flexShrink={0}>{monthData.month}</Text>
+                                <Box flex={1} h="10px" bg="gray.100" borderRadius="full" overflow="hidden">
+                                  <Box h="100%" w={`${(monthData.gameCount / maxMonthlyGames) * 100}%`} bg={isCurrent ? 'matchday.navy' : 'brand.500'} borderRadius="full" />
+                                </Box>
+                                <Text fontSize="sm" fontWeight="700" color="matchday.navy" w="44px" textAlign="right" flexShrink={0}>{monthData.gameCount}경기</Text>
+                              </Flex>
+                            );
+                          })}
                         </VStack>
-                      </CardBody>
-                    </Card>
+                      ) : (
+                        <Text color="gray.400" fontSize="sm">월별 경기 데이터가 없습니다.</Text>
+                      )}
+                    </AdminPanel>
+
+                    <AdminPanel label="MIX" title="경기 유형 구성">
+                      <Text fontSize="xs" color="gray.500" mt={-2} mb={3}>이번 달 확정 경기 기준</Text>
+                      <SimpleGrid columns={2} spacing={3}>
+                        {[
+                          { label: 'MATCH', name: '매치 경기', count: matchCount, color: 'brand.500' },
+                          { label: 'SELF', name: '자체 경기', count: friendlyCount, color: 'matchday.navy' },
+                        ].map((row) => (
+                          <Box key={row.label} border="1px solid" borderColor="gray.200" borderRadius="md" px={4} py={3}>
+                            <Text textStyle="scoreLabel" color={row.color}>{row.label}</Text>
+                            <Flex align="baseline" gap={1} mt={1}>
+                              <Text textStyle="statNumber" fontSize="40px" color="matchday.navy">{row.count}</Text>
+                              <Text fontSize="xs" fontWeight="700" color="gray.500">경기</Text>
+                            </Flex>
+                            <Text fontSize="xs" color="gray.500">{row.name}</Text>
+                          </Box>
+                        ))}
+                      </SimpleGrid>
+                      {typeTotal > 0 && (
+                        <Flex h="8px" mt={4} borderRadius="full" overflow="hidden" bg="gray.100">
+                          <Box w={`${(matchCount / typeTotal) * 100}%`} bg="brand.500" />
+                          <Box w={`${(friendlyCount / typeTotal) * 100}%`} bg="matchday.navy" />
+                        </Flex>
+                      )}
+                    </AdminPanel>
                   </SimpleGrid>
 
                   {/* ZONE D: 회원별 활동 상세 */}
-                  <Card w="100%" bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" boxShadow="none">
-                    <CardBody px={5} py={4}>
-                      <VStack align="stretch" spacing={3}>
-                        <HStack spacing={2}>
-                          <Icon as={MdOutlineGroups} boxSize={4} color="gray.500" />
-                          <Text fontSize="sm" fontWeight="bold" color="gray.700">회원별 활동 상세</Text>
-                        </HStack>
-                        <Text fontSize="xs" color="gray.400">투표(전체 기간) · 경기 참여(이번 달) 횟수 기준</Text>
+                  <AdminPanel label="SQUAD" title="회원별 활동 상세">
+                    <Flex justify="space-between" align="center" gap={3} wrap="wrap" mt={-2} mb={4}>
+                      <Text fontSize="xs" color="gray.500">투표(전체 기간) · 경기 참여(이번 달) 횟수 기준</Text>
+                      <HStack spacing={3}>
+                        <HStack spacing={1.5}><Box w="10px" h="4px" borderRadius="full" bg="brand.500" /><Text fontSize="xs" color="gray.500">투표</Text></HStack>
+                        <HStack spacing={1.5}><Box w="10px" h="4px" borderRadius="full" bg="matchday.navy" /><Text fontSize="xs" color="gray.500">경기 참여</Text></HStack>
+                      </HStack>
+                    </Flex>
 
-                        {activityMetrics.members.length > 0 ? (
-                          <VStack spacing={2} align="stretch" maxH="420px" overflowY="auto">
-                            {activityMetrics.members.map((member) => {
-                              const totalCount = member.voteParticipationCount + member.gameParticipationCount;
-                              return (
-                                <Box key={member.id} p={3} border="1px solid" borderColor="gray.200" borderRadius="md" bg="gray.50">
-                                  <Flex justify="space-between" align="center" mb={2}>
-                                    <HStack spacing={2}>
-                                      <Text fontSize="sm" fontWeight="semibold" color="gray.800">{member.name}</Text>
-                                      <Badge
-                                        size="sm"
-                                        colorScheme={
-                                          member.role === 'SUPER_ADMIN' ? 'red' :
-                                          member.role === 'ADMIN' ? 'blue' : 'gray'
-                                        }
-                                      >
-                                        {member.role === 'SUPER_ADMIN' ? '슈퍼관리자' :
-                                         member.role === 'ADMIN' ? '관리자' : '회원'}
-                                      </Badge>
-                                    </HStack>
-                                    <Text fontSize="xs" color="gray.500">총 {totalCount}회</Text>
-                                  </Flex>
+                    {activityMetrics.members.length > 0 ? (
+                      <VStack spacing={2} align="stretch" maxH="420px" overflowY="auto">
+                        {activityMetrics.members.map((member) => (
+                          <Box key={member.id} px={4} py={3} border="1px solid" borderColor="gray.200" borderRadius="md">
+                            <HStack spacing={2} mb={2}>
+                              <Text fontSize="sm" fontWeight="800" color="matchday.navy">{member.name}</Text>
+                              <StatusBadge kind="role" value={member.role} />
+                            </HStack>
 
-                                  <SimpleGrid columns={2} spacing={3}>
-                                    <Box>
-                                      <HStack justify="space-between" mb={1}>
-                                        <Text fontSize="xs" color="gray.500">투표</Text>
-                                        <Text fontSize="xs" fontWeight="semibold" color="gray.700">{member.voteParticipationCount}회</Text>
-                                      </HStack>
-                                      <Progress
-                                        value={activityMetrics.maxVote > 0 ? (member.voteParticipationCount / activityMetrics.maxVote) * 100 : 0}
-                                        size="xs"
-                                        colorScheme="blue"
-                                        bg="gray.200"
-                                        borderRadius="full"
-                                      />
-                                    </Box>
-                                    <Box>
-                                      <HStack justify="space-between" mb={1}>
-                                        <Text fontSize="xs" color="gray.500">경기 참여</Text>
-                                        <Text fontSize="xs" fontWeight="semibold" color="gray.700">{member.gameParticipationCount}회</Text>
-                                      </HStack>
-                                      <Progress
-                                        value={activityMetrics.maxGame > 0 ? (member.gameParticipationCount / activityMetrics.maxGame) * 100 : 0}
-                                        size="xs"
-                                        colorScheme="green"
-                                        bg="gray.200"
-                                        borderRadius="full"
-                                      />
-                                    </Box>
-                                  </SimpleGrid>
+                            <SimpleGrid columns={2} spacing={4}>
+                              <Box>
+                                <HStack justify="space-between" mb={1}>
+                                  <Text fontSize="xs" color="gray.500">투표</Text>
+                                  <Text fontSize="xs" fontWeight="700" color="matchday.navy">{member.voteParticipationCount}회</Text>
+                                </HStack>
+                                <Box h="4px" bg="gray.100" borderRadius="full" overflow="hidden">
+                                  <Box h="100%" w={`${activityMetrics.maxVote > 0 ? (member.voteParticipationCount / activityMetrics.maxVote) * 100 : 0}%`} bg="brand.500" borderRadius="full" />
                                 </Box>
-                              );
-                            })}
-                          </VStack>
-                        ) : (
-                          <Text color="gray.500" fontSize="sm">회원 활동 데이터가 없습니다.</Text>
-                        )}
+                              </Box>
+                              <Box>
+                                <HStack justify="space-between" mb={1}>
+                                  <Text fontSize="xs" color="gray.500">경기 참여</Text>
+                                  <Text fontSize="xs" fontWeight="700" color="matchday.navy">{member.gameParticipationCount}회</Text>
+                                </HStack>
+                                <Box h="4px" bg="gray.100" borderRadius="full" overflow="hidden">
+                                  <Box h="100%" w={`${activityMetrics.maxGame > 0 ? (member.gameParticipationCount / activityMetrics.maxGame) * 100 : 0}%`} bg="matchday.navy" borderRadius="full" />
+                                </Box>
+                              </Box>
+                            </SimpleGrid>
+                          </Box>
+                        ))}
                       </VStack>
-                    </CardBody>
-                  </Card>
+                    ) : (
+                      <AdminEmptyState icon={MdOutlineGroups} title="회원 활동 데이터가 없습니다." description="경기 참여나 투표 기록이 쌓이면 이곳에 표시됩니다." />
+                    )}
+                  </AdminPanel>
                 </VStack>
                 );
               })()}
