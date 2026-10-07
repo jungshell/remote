@@ -14,14 +14,12 @@ const fadeIn = keyframes`
 `;
 
 const gaugeFill = keyframes`
-  0% { 
-    width: 0%; 
-    background: #a78bfa;
+  0% {
+    width: 0%;
     opacity: 0.7;
   }
-  100% { 
+  100% {
     width: 100%;
-    background: #7c3aed;
     opacity: 1;
   }
 `;
@@ -40,8 +38,8 @@ const gaugePulse = keyframes`
 // 스타일 컴포넌트
 const CalendarContainer = styled.div`
   background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
   padding: 16px;
   width: 100%;
   min-width: 0;
@@ -71,8 +69,9 @@ const CalendarHeader = styled.div`
 
 const MonthYearText = styled.h2`
   font-size: 20px;
-  font-weight: bold;
-  color: #1a202c;
+  font-weight: 800;
+  color: #0A1B33;
+  letter-spacing: -0.01em;
   margin: 0;
   
   @media (max-width: 768px) {
@@ -81,23 +80,25 @@ const MonthYearText = styled.h2`
 `;
 
 const NavigationButton = styled.button`
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  color: #64748b;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0A1B33;
   cursor: pointer;
   transition: all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD};
-  
+
   @media (max-width: 768px) {
-    padding: 4px 8px;
-    font-size: 11px;
+    padding: 8px 12px;
+    font-size: 12px;
   }
-  
+
   &:hover {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
+    background: #e6f3ff;
+    border-color: #80bfff;
+    color: #003d85;
   }
   
   &:active {
@@ -134,12 +135,12 @@ const CalendarGrid = styled.div`
 const DayHeader = styled.div.withConfig({
   shouldForwardProp: (prop) => !['isSunday', 'isSaturday'].includes(prop),
 })<{ isSunday: boolean; isSaturday: boolean }>`
-  background: white;
-  color: ${props => props.isSunday ? '#c53030' : props.isSaturday ? '#2b6cb0' : '#4a5568'};
+  background: #f9fafb;
+  color: ${props => props.isSunday ? '#c53030' : props.isSaturday ? '#004ea8' : '#6b7280'};
   padding: 10px 8px;
   text-align: center;
-  font-weight: bold;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 12px;
   border-bottom: 0.5px solid #e2e8f0;
   border-right: 0.5px solid #e2e8f0;
   
@@ -188,23 +189,25 @@ const DayCell = styled.div.withConfig({
     padding: 6px;
   }
 
+  @media (max-width: 767px) {
+    padding: 6px 3px;
+  }
+
   // 투표일인 경우 다른 날짜와 같은 테두리 색상 적용
   ${props => props.hasVote && `
     border: 0.5px solid #e2e8f0;
     border-radius: 0;
   `}
   
+  ${props => props.isToday && `
+    box-shadow: inset 0 3px 0 #004ea8;
+  `}
+
   &:hover {
     background: ${props => {
-      if (props.hasVote) return '#f7fafc';
-      return props.isCurrentMonth ? '#f7fafc' : '#edf2f7';
+      if (props.hasVote) return '#f9fafb';
+      return props.isCurrentMonth ? '#f9fafb' : '#f3f4f6';
     }};
-    transform: ${props =>
-      props.hasGame ? 'translateY(-3px) scale(1.02)' : 'translateY(-1px)'};
-    box-shadow: ${props =>
-      props.hasGame
-        ? '0 6px 18px rgba(0, 78, 168, 0.22)'
-        : '0 4px 12px rgba(0, 0, 0, 0.1)'};
   }
   
   // 모든 날짜 셀의 크기를 동일하게 고정 (isCurrentMonth와 무관하게)
@@ -243,9 +246,15 @@ const DateNumber = styled.div.withConfig({
       return 'rgba(160, 174, 192, 0.8)';
     }
     if (props.isSunday) return '#e53e3e';
-    if (props.isSaturday) return '#3182ce';
-    return '#2d3748';
+    if (props.isSaturday) return '#004ea8';
+    return '#0A1B33';
   }};
+  ${props => props.isToday && `
+    background: #004ea8;
+    color: white;
+    border-radius: 999px;
+    padding: 0 6px;
+  `}
   text-align: right;
   margin-bottom: 8px;
   position: absolute;
@@ -277,58 +286,61 @@ const HolidayName = styled.span`
 `;
 
 const GameTypeBadge = styled.span<{ eventType: string }>`
+  @media (max-width: 767px) {
+    display: none;
+  }
   font-size: 11px;
   font-weight: bold;
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: 4px;
   max-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   
-  // 유형별 다른 스타일 적용 (색상 값은 designTokens.EVENT_TYPE_COLORS와 공유해서
-  // 대시보드 통계 카드의 이벤트 유형 뱃지와 항상 같은 색을 쓰도록 한다)
+  // 유형별 색: 관리자 StatusBadge(eventType)와 같은 규칙 — 매치 brand / 자체 navy / 회식 orange tint.
+  // 기준 색은 designTokens.EVENT_TYPE_COLORS (대시보드와 공유).
   ${props => {
     switch (props.eventType) {
       case '매치':
         return `
-          color: ${EVENT_TYPE_COLORS['매치']};
-          background: rgba(37, 99, 235, 0.1);
-          border: 1px solid rgba(37, 99, 235, 0.3);
+          color: white;
+          background: ${EVENT_TYPE_COLORS['매치']};
+          border: 1px solid transparent;
         `;
       case '자체':
         return `
-          color: ${EVENT_TYPE_COLORS['자체']};
-          background: rgba(5, 150, 105, 0.1);
-          border: 1px solid rgba(5, 150, 105, 0.3);
+          color: white;
+          background: ${EVENT_TYPE_COLORS['자체']};
+          border: 1px solid transparent;
         `;
       case '회식':
         return `
-          color: ${EVENT_TYPE_COLORS['회식']};
-          background: rgba(220, 38, 38, 0.1);
-          border: 1px solid rgba(220, 38, 38, 0.3);
+          color: #9C4221;
+          background: #FFFAF0;
+          border: 1px solid #FEEBC8;
         `;
       default:
         return `
           color: ${EVENT_TYPE_COLORS['기타']};
-          background: rgba(107, 114, 128, 0.1);
-          border: 1px solid rgba(107, 114, 128, 0.3);
+          background: #f3f4f6;
+          border: 1px solid transparent;
         `;
     }
   }}
 `;
 
 const GameInfoBox = styled.div`
-  background: white;
-  color: #2d3748;
-  border: 1px solid ${COLORS.BRAND_PRIMARY};
-  border-radius: 8px;
+  background: #e6f3ff;
+  color: #0A1B33;
+  border: 1px solid #b3d9ff;
+  border-left: 3px solid ${COLORS.BRAND_PRIMARY};
+  border-radius: 6px;
   padding: 5px 8px;
   margin-top: 8px;
   cursor: pointer;
   transition: all ${MOTION.DURATION.SLOW} ${MOTION.EASING.STANDARD};
   animation: ${fadeIn} 0.5s ease-out;
-  box-shadow: 0 2px 8px rgba(0, 78, 168, 0.2);
 
   // 세로 길이 조정 (더 컴팩트하게)
   min-height: 46px;
@@ -341,8 +353,7 @@ const GameInfoBox = styled.div`
   text-align: center;
 
   &:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 16px rgba(0, 78, 168, 0.3);
+    background: #b3d9ff;
     border-color: ${COLORS.BRAND_PRIMARY_DARK};
   }
 
@@ -362,6 +373,58 @@ const GameInfoBox = styled.div`
     font-size: 10px;
     border-radius: 6px;
   }
+
+  // compact: 좁은 7열 셀에서는 유형 + 시간만 (인원·장소는 상세 모달에서 확인).
+  // 유형은 점(●) 색으로 구분하므로 좌측 강조선은 1px로 줄여 글자 폭을 확보한다.
+  @media (max-width: 767px) {
+    align-items: flex-start;
+    text-align: left;
+    padding: 4px 2px 4px 3px;
+    border-left-width: 1px;
+    min-height: 0;
+    gap: 2px;
+  }
+`;
+
+// compact 전용 유형 줄: ● 매치 (데스크톱/태블릿에서는 숨김 — 셀 상단 GameTypeBadge가 대신한다)
+const GameTypeLine = styled.div<{ eventType: string }>`
+  display: none;
+
+  @media (max-width: 767px) {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #0A1B33;
+    white-space: nowrap;
+
+    &::before {
+      content: '';
+      flex-shrink: 0;
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: ${props => {
+        switch (props.eventType) {
+          case '매치': return EVENT_TYPE_COLORS['매치'];
+          case '자체': return EVENT_TYPE_COLORS['자체'];
+          case '회식': return EVENT_TYPE_COLORS['회식'];
+          default: return EVENT_TYPE_COLORS['기타'];
+        }
+      }};
+    }
+  }
+`;
+
+// 데스크톱/태블릿에서만 보이는 줄·아이콘 (compact 모드에서 숨김)
+const DesktopOnly = styled.span`
+  display: contents; // 데스크톱 레이아웃은 감싸기 전과 동일
+
+  @media (max-width: 767px) {
+    display: none !important;
+  }
 `;
 
 const GameCountBadge = styled.div`
@@ -369,7 +432,7 @@ const GameCountBadge = styled.div`
   font-weight: bold;
   margin-bottom: 3px;
   text-align: center;
-  color: #2d3748;
+  color: #0A1B33;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -385,6 +448,14 @@ const GameTimeText = styled.div`
   align-items: center;
   justify-content: center;
   gap: 3px;
+
+  @media (max-width: 767px) {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0A1B33;
+    margin-bottom: 0;
+    letter-spacing: -0.01em;
+  }
 `;
 
 const GameLocationText = styled.div`
@@ -410,11 +481,11 @@ const VoteContainer = styled.div`
 const VoteGauge = styled.div<{ percentage: number; isMax: boolean }>`
   height: 15px;
   width: 100%;
-  background: ${props => props.isMax ? '#ddd6fe' : '#ede9fe'};
+  background: ${props => props.isMax ? '#b3d9ff' : '#e6f3ff'};
   border-radius: 7px;
   overflow: hidden;
   position: relative;
-  border: 1px solid ${props => props.isMax ? '#7c3aed' : '#c4b5fd'};
+  border: 1px solid ${props => props.isMax ? '#004ea8' : '#80bfff'};
   transition: all ${MOTION.DURATION.SLOW} ${MOTION.EASING.STANDARD};
   
   &::after {
@@ -424,19 +495,18 @@ const VoteGauge = styled.div<{ percentage: number; isMax: boolean }>`
     left: 0;
     height: 100%;
     width: 0%;
-    background: ${props => props.isMax ? '#7c3aed' : '#a78bfa'};
+    background: ${props => props.isMax ? '#004ea8' : '#4da6ff'};
     border-radius: 7px;
     animation: ${props => props.percentage > 0 ? css`${gaugeFill} 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards` : 'none'};
     transition: all ${MOTION.DURATION.SLOW} ${MOTION.EASING.STANDARD};
   }
   
   &:hover {
-    border-color: #7c3aed;
-    box-shadow: 0 0 8px rgba(124, 58, 237, 0.3);
+    border-color: #004ea8;
   }
-  
+
   &:hover::after {
-    background: #7c3aed;
+    background: #004ea8;
     transform: scaleY(1.05);
   }
 `;
@@ -998,18 +1068,23 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                     }
                   }}
                 >
+                  <GameTypeLine eventType={dayInfo.gameData.eventType}>{dayInfo.gameData.eventType}</GameTypeLine>
                   {/* 공휴일이 아닌 경우에만 인원수 pill 표시 */}
                   {dayInfo.date && !isNaN(dayInfo.date.getTime()) && !dayInfo.isHoliday && (
-                    <GameCountBadge>
-                      ⚽ {dayInfo.gameData.count}명
-                    </GameCountBadge>
+                    <DesktopOnly>
+                      <GameCountBadge>
+                        ⚽ {dayInfo.gameData.count}명
+                      </GameCountBadge>
+                    </DesktopOnly>
                   )}
                   <GameTimeText>
-                    🕐 {dayInfo.gameData.time}
+                    <DesktopOnly>🕐</DesktopOnly> {dayInfo.gameData.time}
                   </GameTimeText>
-                  <GameLocationText>
-                    📍 {dayInfo.gameData.location}
-                  </GameLocationText>
+                  <DesktopOnly>
+                    <GameLocationText>
+                      📍 {dayInfo.gameData.location}
+                    </GameLocationText>
+                  </DesktopOnly>
                 </GameInfoBox>
               )}
               
@@ -1045,7 +1120,7 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                   })()}
                   placement="top"
                   hasArrow
-                  bg="purple.600"
+                  bg="matchday.navy"
                   color="white"
                   fontSize="sm"
                   borderRadius="md"
@@ -1058,7 +1133,7 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                       const hasVotes = dayInfo.voteCount > 0;
                       return (
                     <Badge 
-                      colorScheme={hasVotes ? "purple" : "gray"}
+                      colorScheme={hasVotes ? "brand" : "gray"}
                       variant="outline" 
                       borderRadius="full" 
                       px={3} 
@@ -1072,9 +1147,9 @@ const NewCalendarV2: React.FC<CalendarProps> = ({
                       fontWeight={isMaxVoteDay ? "bold" : "normal"}
                       mx="auto"
                       borderWidth="0.3px"
-                      bg={isMaxVoteDay ? "purple.600" : (hasVotes ? "purple.100" : "gray.50")}
-                      borderColor={isMaxVoteDay ? "purple.700" : (hasVotes ? "purple.300" : "gray.300")}
-                      color={isMaxVoteDay ? "white" : (hasVotes ? "purple.700" : "gray.600")}
+                      bg={isMaxVoteDay ? "brand.500" : (hasVotes ? "brand.50" : "gray.50")}
+                      borderColor={isMaxVoteDay ? "brand.600" : (hasVotes ? "brand.200" : "gray.300")}
+                      color={isMaxVoteDay ? "white" : (hasVotes ? "brand.700" : "gray.600")}
                     >
                       {dayInfo.voteCount}명
                     </Badge>

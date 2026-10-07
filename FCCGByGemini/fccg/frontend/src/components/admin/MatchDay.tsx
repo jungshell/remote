@@ -232,6 +232,33 @@ export const StatusBadge: React.FC<{ kind: StatusBadgeKind; value?: string | nul
   );
 };
 
+// 밝은 배경용 기록 타일: 한글 라벨 + statNumber 값 + 캡션. 회원 화면(선수 패널·프로필·홈 통계)에서 공통 사용.
+export const RecordTile: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  unit?: string | undefined;
+  caption?: string | undefined;
+  accent?: boolean | undefined;
+} & BoxProps> = ({ label, value, unit, caption, accent, ...rest }) => (
+  <Box
+    bg={accent ? 'brand.50' : 'white'}
+    border="1px solid"
+    borderColor={accent ? 'brand.100' : 'gray.200'}
+    borderRadius="lg"
+    px={4}
+    py={3.5}
+    minW={0}
+    {...rest}
+  >
+    <Text fontSize="xs" fontWeight="700" color={accent ? 'brand.600' : 'gray.500'} noOfLines={1}>{label}</Text>
+    <Flex align="baseline" gap={1} mt={1.5}>
+      <Text textStyle="statNumber" fontSize={{ base: '32px', md: '36px' }} color={accent ? 'brand.600' : 'matchday.navy'}>{value}</Text>
+      {unit && <Text fontSize="xs" fontWeight="700" color="gray.500">{unit}</Text>}
+    </Flex>
+    {caption && <Text fontSize="xs" color="gray.500" mt={1} lineHeight="1.4" noOfLines={2}>{caption}</Text>}
+  </Box>
+);
+
 // 빈 상태: 남색 아이콘 원 + 제목 + 설명 + 선택 액션
 export const AdminEmptyState: React.FC<{ icon: React.ElementType; title: string; description?: string; action?: React.ReactNode }> = ({ icon, title, description, action }) => (
   <Flex direction="column" align="center" textAlign="center" gap={2} px={6} py={{ base: 10, md: 14 }}>

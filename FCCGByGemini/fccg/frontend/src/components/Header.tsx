@@ -656,7 +656,7 @@ export default function Header() {
         size="sm"
       >
         <DrawerOverlay />
-        <DrawerContent bg="#F8FAFC">
+        <DrawerContent bg="#F8FAFC" className="fccg-header">
           <DrawerCloseButton
             color="#0F172A"
             _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,78,168,0.28)' }}

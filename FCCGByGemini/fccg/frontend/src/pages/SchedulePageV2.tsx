@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -39,6 +39,9 @@ import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
 import { MOBILE_CHATBOT_SAFE_RIGHT } from '../constants/designTokens';
+import { AdminPageHeader, DateBlock, LiveDot, PanelHeader, PitchLines } from '../components/admin/MatchDay';
+import { LuCalendarX, LuChevronRight, LuClock, LuMapPin, LuUsers } from 'react-icons/lu';
+import { MdOutlineSportsSoccer } from 'react-icons/md';
 import { EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { CalendarSkeleton, VoteSectionSkeleton } from '../components/common/SkeletonLoader';
 import {
@@ -266,44 +269,6 @@ export default function SchedulePageV2() {
   
   // 공휴일 데이터 상태
   const [holidays, setHolidays] = useState<Record<string, string>>({});
-  const gridContainerRef = useRef<HTMLDivElement | null>(null);
-  const [lockedCalendarWidth, setLockedCalendarWidth] = useState<number | null>(null);
-
-  useLayoutEffect(() => {
-    if (typeof window === 'undefined') return;
-    const container = gridContainerRef.current;
-    if (!container) return;
-
-    const GAP_PX = 6;
-    const SIDEBAR_WIDTH = 400;
-
-    const updateWidth = (totalWidth: number) => {
-      const calendarWidth = Math.max(totalWidth - SIDEBAR_WIDTH - GAP_PX, 1000);
-      setLockedCalendarWidth((prev) => {
-        if (prev === null || Math.abs(prev - calendarWidth) > 1) {
-          return calendarWidth;
-        }
-        return prev;
-      });
-    };
-
-    updateWidth(container.getBoundingClientRect().width);
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.target === container) {
-          updateWidth(entry.contentRect.width);
-        }
-      });
-    });
-
-    resizeObserver.observe(container);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
-  
   // 공휴일 데이터 가져오기
   useEffect(() => {
     const fetchHolidays = async () => {
@@ -2666,18 +2631,16 @@ export default function SchedulePageV2() {
     <Box
       bg="white"
       px={{ base: 3, md: 4 }}
-      pt={{ base: 0.5, md: 1 }}
+      pt={{ base: 4, md: 5 }}
       pb={{ base: 2, md: 3 }}
-      borderRadius="lg"
-      boxShadow="sm"
+      borderRadius="xl"
       border="1px solid"
       borderColor="gray.200"
       flex="1"
     >
-      <Flex align="center" gap={{ base: 0.6, md: 1 }} mb={0} mt={0}>
-        <Box as="span" fontSize={{ base: "md", md: "lg" }}>⚽</Box>
-        <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold">이번주 일정</Text>
-      </Flex>
+      <Box className="fccg-matchday" px={1}>
+        <PanelHeader label="THIS WEEK" title="이번주 일정" />
+      </Box>
       
       <VStack spacing={{ base: 0, md: 0 }} align="stretch" mb={{ base: 1, md: 1 }}>
         {updateThisWeekScheduleWithGames.map((schedule) => {
@@ -2725,18 +2688,16 @@ export default function SchedulePageV2() {
                   {schedule.date}
                 </Text>
                 {isConfirmed && (
-                <Badge 
-                  colorScheme="blue" 
-                  variant="outline" 
-                  borderRadius="full" 
-                  fontSize={{ base: "2xs", md: "xs" }} 
-                  px={{ base: 1, md: 1.5 }} 
+                <Badge
+                  variant="solid"
+                  borderRadius="sm"
+                  fontSize={{ base: "2xs", md: "xs" }}
+                  px={{ base: 1, md: 1.5 }}
                   py={{ base: 0.5, md: 0.5 }}
                   minW={{ base: "28px", md: "32px" }}
                   textAlign="center"
-                  bg="white"
-                  borderColor="blue.600"
-                  color="blue.600"
+                  bg="brand.50"
+                  color="brand.600"
                   fontWeight="bold"
                   flexShrink={0}
                 >
@@ -2812,7 +2773,7 @@ export default function SchedulePageV2() {
                 })()}
                 placement="top"
                 hasArrow
-                bg="blue.600"
+                bg="matchday.navy"
                 color="white"
                 fontSize="sm"
                 borderRadius="md"
@@ -2829,19 +2790,14 @@ export default function SchedulePageV2() {
                   py={{ base: 0.5, md: 1 }} 
                   fontSize={{ base: "2xs", md: "xs" }}
                     bg={(() => {
-                      if (isConfirmed) return "blue.600"; // 최다: 파란색 유지
-                      if (actualCount > 0) return "blue.600"; // 최다가 아닌 투표자 있음: 파란색
-                      return "gray.200"; // 투표자 없음: 회색
+                      if (isConfirmed) return "brand.500"; // 최다: brand
+                      if (actualCount > 0) return "brand.50"; // 최다가 아닌 투표자 있음: 옅은 brand
+                      return "gray.100"; // 투표자 없음: 회색
                     })()}
                     color={(() => {
-                      if (isConfirmed) return "white"; // 최다: 흰색
-                      if (actualCount > 0) return "white"; // 최다가 아닌 투표자 있음: 흰색
-                      return "gray.600"; // 투표자 없음: 회색
-                    })()}
-                    opacity={(() => {
-                      if (isConfirmed) return 1; // 최다: 불투명
-                      if (actualCount > 0) return 0.4; // 최다가 아닌 투표자 있음: 60% 투명도
-                      return 1; // 투표자 없음: 불투명
+                      if (isConfirmed) return "white";
+                      if (actualCount > 0) return "brand.700";
+                      return "gray.500";
                     })()}
                   w={{ base: "40px", md: "45px" }}
                   h={{ base: "20px", md: "22px" }}
@@ -3115,8 +3071,14 @@ export default function SchedulePageV2() {
     };
   }, [gameDetailResolved, resolveExactMapUrl]);
 
+  // NEXT MATCH: 달력과 같은 gameDataForCalendar에서 오늘(KST) 이후 가장 가까운 경기. 표시 전용.
+  const todayKey = getKstDateKey(new Date());
+  const nextMatchKey = Object.keys(gameDataForCalendar).filter((key) => key >= todayKey).sort()[0];
+  const nextMatch = nextMatchKey ? gameDataForCalendar[nextMatchKey] : undefined;
+  const nextMatchDDay = nextMatchKey ? Math.round((Date.parse(nextMatchKey) - Date.parse(todayKey)) / 86400000) : null;
+
   return (
-    <Box minH="100vh" bg="white" pt="80px">
+    <Box minH="100vh" bg="white" pt="80px" className="fccg-member">
       <style>
         {`
           /* 애니메이션 옵션들 - 원하는 것을 선택해서 주석 해제하세요 */
@@ -3167,16 +3129,74 @@ export default function SchedulePageV2() {
       <Box minH="100vh" bg="gray.50" w="100%" overflowX="hidden" boxSizing="border-box" display="flex" justifyContent="center">
         <Flex direction="column" minH="100vh" bg="gray.50" overflowX="hidden" w="100%" maxW="1400px">
         {/* 메인 컨텐츠 */}
+          {/* 페이지 헤더 + NEXT MATCH */}
+          <Box className="fccg-matchday" px={{ base: 2, md: 4 }} pt={{ base: 4, md: 6 }}>
+            <AdminPageHeader eyebrow="SCHEDULE" title="일정" description="다음 경기, 이번 주 일정, 다음 주 투표를 한 번에 확인하세요." />
+            <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="xl" mt={{ base: 4, md: 5 }}>
+              <PitchLines opacity={0.08} />
+              {nextMatch && nextMatchKey ? (
+                <Flex position="relative" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} gap={{ base: 4, md: 6 }} px={{ base: 4, md: 6 }} py={{ base: 4, md: 5 }}>
+                  <Flex align="center" gap={{ base: 4, md: 6 }} flex={1} minW={0}>
+                    <DateBlock date={new Date(`${nextMatchKey}T00:00:00`)} flexShrink={0} />
+                    <Box minW={0}>
+                      <Flex align="center" gap={2} wrap="wrap">
+                        <LiveDot />
+                        <Text textStyle="scoreLabel" color="matchday.volt">NEXT MATCH</Text>
+                        <Text textStyle="scoreLabel" color="whiteAlpha.700">{nextMatchDDay === 0 ? 'TODAY' : `D-${nextMatchDDay}`}</Text>
+                        {nextMatch.eventType && (
+                          <Box as="span" px={2} py="1px" borderRadius="sm" bg="whiteAlpha.200" fontSize="11px" fontWeight="700">{nextMatch.eventType}</Box>
+                        )}
+                      </Flex>
+                      <Text textStyle="statNumber" fontSize={{ base: '40px', md: '52px' }} mt={2}>{nextMatch.time || '시간 미정'}</Text>
+                      <Flex mt={2} gap={{ base: 3, md: 5 }} wrap="wrap" color="whiteAlpha.800" fontSize="sm">
+                        <Flex align="center" gap={1.5} minW={0}>
+                          <Icon as={LuMapPin} boxSize="14px" flexShrink={0} />
+                          <Text noOfLines={1}>{nextMatch.location || '장소 미정'}</Text>
+                        </Flex>
+                        <Flex align="center" gap={1.5}>
+                          <Icon as={LuUsers} boxSize="14px" />
+                          <Text><Box as="span" fontWeight="800" color="white">{nextMatch.count || 0}</Box>명 참석</Text>
+                        </Flex>
+                      </Flex>
+                    </Box>
+                  </Flex>
+                  <Button
+                    onClick={() => handleShowGameModal(nextMatch)}
+                    h={{ base: '48px', md: '44px' }}
+                    px={5}
+                    bg="white"
+                    color="matchday.navy"
+                    borderRadius="lg"
+                    fontSize="sm"
+                    fontWeight="800"
+                    rightIcon={<Icon as={LuChevronRight} boxSize="16px" />}
+                    _hover={{ bg: 'brand.50' }}
+                    flexShrink={0}
+                  >
+                    경기 상세
+                  </Button>
+                </Flex>
+              ) : (
+                <Flex position="relative" align="center" gap={4} px={{ base: 4, md: 6 }} py={{ base: 5, md: 6 }}>
+                  <Flex align="center" justify="center" w={11} h={11} borderRadius="full" bg="whiteAlpha.200" flexShrink={0}>
+                    <Icon as={LuCalendarX} boxSize={5} />
+                  </Flex>
+                  <Box minW={0}>
+                    <Text textStyle="scoreLabel" color="matchday.volt">NEXT MATCH</Text>
+                    <Text fontWeight="800" fontSize="lg" mt={1}>예정된 경기가 없습니다</Text>
+                    <Text fontSize="sm" color="whiteAlpha.700" mt={0.5}>다음 주 일정 투표에 참여해 경기 날짜를 정해 주세요.</Text>
+                  </Box>
+                </Flex>
+              )}
+            </Box>
+          </Box>
+
+          {/* 달력(남는 폭) + 우측 sidebar. 고정 px 폭 계산 대신 minmax로 나눠 992~1406px에서 sidebar가 잘리지 않게 한다. */}
           <Grid
-            ref={gridContainerRef}
             w="100%"
             maxW="100%"
             boxSizing="border-box"
-            templateColumns={
-              lockedCalendarWidth
-                ? { base: '1fr', lg: `${lockedCalendarWidth}px 400px` }
-                : { base: '1fr', lg: 'minmax(0, 1fr) 400px' }
-            }
+            templateColumns={{ base: '1fr', lg: 'minmax(0, 1fr) 360px', xl: 'minmax(0, 1fr) 400px' }}
             columnGap={{ base: 0, lg: 6 }}
             rowGap={{ base: 4, lg: 0 }}
             alignItems="stretch"
@@ -3254,9 +3274,8 @@ export default function SchedulePageV2() {
 
           {/* 오른쪽: 일정 정보 */}
           <Box
-            w={{ base: '100%', lg: '400px' }}
+            w={{ base: '100%', lg: '360px', xl: '400px' }}
             p={{ base: 2, md: 4 }}
-            pr={{ base: 2, md: 4, lg: 1 }}
             // 모바일에서는 전역 챗봇 버튼(우하단 고정, ChatbotWidget)이 리스트 마지막
             // 항목을 가리지 않도록 버튼 높이만큼 안전 여백을 확보한다.
             pb={{ base: '96px', md: 4 }}
@@ -3273,38 +3292,40 @@ export default function SchedulePageV2() {
                 <Box
                   bg="white"
                 px={{ base: 3, md: 4 }}
-                pt={{ base: 0.5, md: 1 }}
-                pb={{ base: 3, md: 4 }}
-                  borderRadius="lg"
-                  boxShadow="sm"
+                pt={{ base: 4, md: 5 }}
+                pb={{ base: 4, md: 5 }}
+                  borderRadius="xl"
                   border="1px solid"
                   borderColor="gray.200"
                   borderTopWidth="3px"
                   borderTopColor="brand.500"
                 >
-                <Flex justify="space-between" align="center" mb={0} mt={0}>
-                  <Flex align="center" gap={{ base: 0.6, md: 1 }}>
-                      <Box as="span" fontSize={{ base: "md", md: "lg" }}>🗳️</Box>
-                      <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold">다음주 일정투표</Text>
+                <Flex className="fccg-matchday" justify="space-between" align="flex-start" gap={3} px={1} mb={2}>
+                  <Box minW={0}>
+                    <Flex align="center" gap={2} wrap="wrap">
+                      <Text fontSize="lg" fontWeight="800" color="matchday.navy" letterSpacing="-0.01em">다음주 일정투표</Text>
                       {/* 상태 뱃지 - 제목 바로 옆에 배치 */}
                       {unifiedVoteData?.activeSession && (
-                      <Badge
-                        variant="outline"
-                        fontSize={{ base: "2xs", md: "xs" }}
-                        px={{ base: 1, md: 1.5 }}
-                        py={0.5}
-                        borderRadius="full"
-                        minW={{ base: "40px", md: "50px" }}
-                        textAlign="center"
-                        bg={isVoteClosed ? "red.50" : "purple.50"}
-                        color={isVoteClosed ? "red.600" : "purple.600"}
-                        border="1px solid"
-                        borderColor={isVoteClosed ? "red.300" : "purple.300"}
+                      <Flex
+                        as="span"
+                        align="center"
+                        gap={1.5}
+                        px={2}
+                        py="2px"
+                        borderRadius="sm"
+                        bg={isVoteClosed ? "gray.100" : "brand.500"}
+                        color={isVoteClosed ? "gray.600" : "white"}
+                        fontSize="11px"
+                        fontWeight="700"
+                        whiteSpace="nowrap"
                       >
+                        {!isVoteClosed && <LiveDot />}
                         {isVoteClosed ? "투표종료" : "투표 중"}
-                      </Badge>
+                      </Flex>
                       )}
                     </Flex>
+                    <Text textStyle="scoreLabel" fontSize="10px" color="brand.500" mt={1}>NEXT WEEK VOTE</Text>
+                  </Box>
                   {/* 투표참여율 - 오른쪽 끝에 배치 */}
                   <Tooltip
                       label={(() => {
@@ -3329,12 +3350,12 @@ export default function SchedulePageV2() {
                       fontSize="sm"
                       whiteSpace="pre-line"
                     >
-                      <Text fontSize={{ base: "xs", md: "sm" }} color="gray.600" fontWeight="medium" cursor="default">
-                        투표참여율: {(() => {
+                      <Text fontSize={{ base: "xs", md: "sm" }} color="gray.600" fontWeight="medium" cursor="default" whiteSpace="nowrap" pt={1}>
+                        투표참여율 <Box as="span" fontWeight="800" color="matchday.navy">{(() => {
                           const participationInfo = voteParticipationInfo;
                           if (!participationInfo) return '0%';
                           return `${participationInfo.participationRate}%`;
-                        })()}
+                        })()}</Box>
                       </Text>
                     </Tooltip>
                 </Flex>
@@ -3397,8 +3418,8 @@ export default function SchedulePageV2() {
                               position="relative"
                             borderRadius="lg"
                               border={selectedDays.includes(vote.date) ? '1px solid' : 'none'}
-                              borderColor={selectedDays.includes(vote.date) ? 'purple.400' : 'transparent'}
-                              bg={selectedDays.includes(vote.date) ? 'purple.50' : isHoliday ? 'red.50' : 'transparent'}
+                              borderColor={selectedDays.includes(vote.date) ? 'brand.400' : 'transparent'}
+                              bg={selectedDays.includes(vote.date) ? 'brand.50' : isHoliday ? 'red.50' : 'transparent'}
                               px={{ base: 4, md: 6 }}
                               py={0}
                               minH="auto"
@@ -3428,7 +3449,7 @@ export default function SchedulePageV2() {
                               cursor={isHoliday ? 'not-allowed' : 'pointer'}
                               opacity={isHoliday ? 0.7 : 1}
                             _hover={{
-                                bg: isHoliday ? 'red.50' : (selectedDays.includes(vote.date) ? 'purple.100' : 'gray.50'),
+                                bg: isHoliday ? 'red.50' : (selectedDays.includes(vote.date) ? 'brand.100' : 'gray.50'),
                             }}
                             transition="all 0.2s ease-in-out"
                             >
@@ -3445,7 +3466,7 @@ export default function SchedulePageV2() {
                               </Text>
                               {isMaxVote && (
                                 <Badge 
-                                  colorScheme="purple" 
+                                  colorScheme="brand" 
                                   variant="outline" 
                                     fontSize={{ base: '2xs', md: 'xs' }}
                                   px={{ base: 1, md: 1.5 }} 
@@ -3453,8 +3474,8 @@ export default function SchedulePageV2() {
                                   borderRadius="full"
                                     minW={{ base: '28px', md: '32px' }}
                                   textAlign="center"
-                                  borderColor="purple.400"
-                                  color="purple.600"
+                                  borderColor="brand.400"
+                                  color="brand.500"
                                   flexShrink={0}
                                     lineHeight={1.1}
                                 >
@@ -3483,7 +3504,7 @@ export default function SchedulePageV2() {
                               })()}
                               placement="top"
                               hasArrow
-                              bg="purple.600"
+                              bg="brand.500"
                               color="white"
                               fontSize="sm"
                               borderRadius="md"
@@ -3494,14 +3515,14 @@ export default function SchedulePageV2() {
                               textAlign="center"
                             >
                               <Badge
-                                  colorScheme="purple"
+                                  colorScheme="brand"
                                 variant="solid"
                                 borderRadius="full"
                                 px={3}
                                 py={1}
                                 fontSize="xs"
-                                  bg={isMaxVote ? 'purple.600' : 'purple.100'}
-                                  color={isMaxVote ? 'white' : 'purple.700'}
+                                  bg={isMaxVote ? 'brand.500' : 'brand.100'}
+                                  color={isMaxVote ? 'white' : 'brand.700'}
                                 w="45px"
                                 h="22px"
                                 display="flex"
@@ -3564,8 +3585,8 @@ export default function SchedulePageV2() {
                             position="relative"
                           borderRadius="lg"
                             border={selectedDays.includes(dateString) ? '1px solid' : 'none'}
-                            borderColor={selectedDays.includes(dateString) ? 'purple.400' : 'transparent'}
-                            bg={selectedDays.includes(dateString) ? 'purple.50' : isDisabled ? 'red.50' : 'transparent'}
+                            borderColor={selectedDays.includes(dateString) ? 'brand.400' : 'transparent'}
+                            bg={selectedDays.includes(dateString) ? 'brand.50' : isDisabled ? 'red.50' : 'transparent'}
                             px={{ base: 4, md: 6 }}
                             py={0}
                             minH="auto"
@@ -3594,7 +3615,7 @@ export default function SchedulePageV2() {
                             cursor={isDisabled ? 'not-allowed' : 'pointer'}
                             opacity={isDisabled ? 0.7 : 1}
                           _hover={{
-                              bg: isDisabled ? 'red.50' : (selectedDays.includes(dateString) ? 'purple.100' : 'gray.50'),
+                              bg: isDisabled ? 'red.50' : (selectedDays.includes(dateString) ? 'brand.100' : 'gray.50'),
                           }}
                           transition="all 0.2s ease-in-out"
                           >
@@ -3611,7 +3632,7 @@ export default function SchedulePageV2() {
                             </Text>
                             {isMaxVote && !isDisabled && (
                               <Badge 
-                                colorScheme="purple" 
+                                colorScheme="brand" 
                                 variant="outline" 
                                   fontSize={{ base: '2xs', md: 'xs' }}
                                 px={{ base: 1, md: 1.5 }} 
@@ -3619,8 +3640,8 @@ export default function SchedulePageV2() {
                                 borderRadius="full"
                                   minW={{ base: '28px', md: '32px' }}
                                 textAlign="center"
-                                borderColor="purple.400"
-                                color="purple.600"
+                                borderColor="brand.400"
+                                color="brand.500"
                                 flexShrink={0}
                                   lineHeight={1.1}
                               >
@@ -3657,7 +3678,7 @@ export default function SchedulePageV2() {
                             })()}
                             placement="top"
                             hasArrow
-                            bg="purple.600"
+                            bg="brand.500"
                             color="white"
                             fontSize="sm"
                             borderRadius="md"
@@ -3667,14 +3688,14 @@ export default function SchedulePageV2() {
                             whiteSpace="normal"
                           >
                             <Badge
-                                colorScheme="purple"
+                                colorScheme="brand"
                               variant="solid"
                               borderRadius="full"
                               px={3}
                               py={1}
                               fontSize="xs"
-                                bg={isMaxVote ? 'purple.600' : 'purple.100'}
-                                color={isMaxVote ? 'white' : 'purple.700'}
+                                bg={isMaxVote ? 'brand.500' : 'brand.100'}
+                                color={isMaxVote ? 'white' : 'brand.700'}
                               w="45px"
                               h="22px"
                               display="flex"
@@ -3700,8 +3721,8 @@ export default function SchedulePageV2() {
                   position="relative"
                     borderRadius="lg"
                     border={selectedDays.includes('불참') ? "1px solid" : "none"}
-                    borderColor={selectedDays.includes('불참') ? "purple.400" : "transparent"}
-                    bg={selectedDays.includes('불참') ? "purple.50" : "transparent"}
+                    borderColor={selectedDays.includes('불참') ? "brand.400" : "transparent"}
+                    bg={selectedDays.includes('불참') ? "brand.50" : "transparent"}
                   px={{ base: 4, md: 6 }}
                   py={0}
                   minH="auto"
@@ -3719,7 +3740,7 @@ export default function SchedulePageV2() {
                     }}
                   cursor="pointer"
                     _hover={{
-                      bg: selectedDays.includes('불참') ? "purple.100" : "gray.50",
+                      bg: selectedDays.includes('불참') ? "brand.100" : "gray.50",
                     }}
                     transition="all 0.2s ease-in-out"
                 >
@@ -3810,7 +3831,7 @@ export default function SchedulePageV2() {
                 {/* 버튼들 */}
                 <VStack spacing={{ base: 2, md: 3 }} align="stretch">
                   {/* 투표마감, 투표현황, 투표하기를 한 줄에 배치 */}
-                  <Flex gap={{ base: 1, md: 2 }} align="center" direction={{ base: 'column', sm: 'row' }} wrap="nowrap">
+                  <Flex gap={2} align="stretch" direction="column" wrap="nowrap" mt={3}>
                     {/* 투표마감 시간 - 마감 시 숨김 */}
                   {!isVoteClosed && (unifiedVoteData?.activeSession || voteResults?.voteSession) && (
                       <Text
@@ -3818,8 +3839,7 @@ export default function SchedulePageV2() {
                         color={getVoteDeadlineColor(voteDeadlineInfo.remainingHours)}
                         fontWeight="medium"
                         flex="1"
-                        textAlign={{ base: "center", sm: "left" }}
-                        mb={{ base: 1, sm: 0 }}
+                        px={1}
                         whiteSpace="nowrap"
                       >
                         투표마감: {voteDeadlineInfo.text}
@@ -3827,36 +3847,36 @@ export default function SchedulePageV2() {
                     )}
                     
                     <Grid
-                      gap={{ base: 1, md: 2 }}
-                      w={{ base: "100%", sm: "auto" }}
-                      // 모바일에서는 전역 ChatbotWidget(우하단 고정)이 스크롤 위치와 무관하게
-                      // 이 버튼 열과 같은 우측 컬럼에 떠 있으므로, 챗봇 폭만큼 오른쪽 여백을
-                      // 미리 확보해 겹치지 않게 한다. desktop(md 이상)은 변경 없음.
-                      pr={{ base: MOBILE_CHATBOT_SAFE_RIGHT, md: 0 }}
+                      gap={2}
+                      w="100%"
+                      // 전역 ChatbotWidget(우하단 고정)이 스크롤 위치와 무관하게 이 버튼 열과 같은
+                      // 우측 컬럼에 떠 있으므로, 챗봇 폭만큼 오른쪽 여백을 모든 폭에서 확보해 겹치지 않게 한다.
+                      pr={MOBILE_CHATBOT_SAFE_RIGHT}
                       templateColumns={
                         isAdmin
-                          ? { base: "minmax(0,1fr) minmax(0,1fr) 24px", md: "minmax(0,1fr) minmax(0,1fr) 28px" }
+                          ? "minmax(0,1fr) minmax(0,1fr) 40px"
                           : "minmax(0,1fr) minmax(0,1fr)"
                       }
                       alignItems="center"
                     >
                       <Button
-                        size={{ base: "xs", md: "sm" }}
+                        size="md"
                         variant="outline"
                         border="1px solid"
-                        borderColor="purple.300"
-                        color="purple.600"
+                        borderColor="brand.200"
+                        color="brand.500"
                         bg="white"
                         onClick={handleShowVoteStatus}
-                        fontSize={{ base: "2xs", md: "xs" }}
-                        px={{ base: 1, md: 2 }}
-                        h={{ base: "20px", md: "22px" }}
+                        fontSize="sm"
+                        px={2}
+                        h={{ base: "44px", md: "40px" }}
                         w="100%"
                         _hover={{
-                          bg: "purple.50",
+                          bg: "brand.50",
                           transform: "translateY(-1px)",
                           boxShadow: "md"
                         }}
+                        borderRadius="lg"
                         transition="all 0.2s ease-in-out"
                       >
                         투표현황
@@ -3864,17 +3884,17 @@ export default function SchedulePageV2() {
                       
                       {(!isVoteClosed && hasUserVoted()) ? (
                         <Button
-                          size={{ base: "xs", md: "sm" }}
-                          bg="#FF6B35"
+                          size="md"
+                          bg="orange.500"
                           color="white"
                           onClick={handleRevote}
-                          fontSize={{ base: "2xs", md: "xs" }}
-                          px={{ base: 1, md: 2 }}
-                          h={{ base: "20px", md: "22px" }}
+                          fontSize="sm"
+                          px={2}
+                          h={{ base: "44px", md: "40px" }}
                           isDisabled={isVoteClosed}
                           w="100%"
                           _hover={{
-                            bg: "#E55A2B",
+                            bg: "orange.600",
                             transform: "translateY(-1px)",
                             boxShadow: "md"
                           }}
@@ -3884,17 +3904,17 @@ export default function SchedulePageV2() {
                         </Button>
                       ) : (
                         <Button
-                          size={{ base: "xs", md: "sm" }}
-                          bg={isVoteClosed || !user ? "gray.400" : "purple.600"}
+                          size="md"
+                          bg={isVoteClosed || !user ? "gray.400" : "brand.500"}
                           color="white"
                           onClick={handleVoteButtonClick}
-                          fontSize={{ base: "2xs", md: "xs" }}
-                          px={{ base: 1, md: 2 }}
-                          h={{ base: "20px", md: "22px" }}
+                          fontSize="sm"
+                          px={2}
+                          h={{ base: "44px", md: "40px" }}
                           isDisabled={isVoteClosed || !user}
                           w="100%"
                           _hover={{
-                            bg: isVoteClosed || !user ? "gray.400" : (selectedDays.length > 0 ? "purple.700" : "purple.600"),
+                            bg: isVoteClosed || !user ? "gray.400" : (selectedDays.length > 0 ? "brand.700" : "brand.500"),
                             transform: isVoteClosed || !user ? "none" : (selectedDays.length > 0 ? "translateY(-1px)" : "none"),
                             boxShadow: isVoteClosed || !user ? "none" : (selectedDays.length > 0 ? "md" : "none")
                           }}
@@ -3905,15 +3925,15 @@ export default function SchedulePageV2() {
                       )}
                       {isAdmin && (
                         <Button
-                          size={{ base: "xs", md: "sm" }}
+                          size="md"
                           bg="#FEE500"
                           color="#004ea8"
                           onClick={openVoteShareStudio}
                           fontWeight="bold"
                           fontSize={{ base: "xs", md: "sm" }}
-                          w={{ base: "24px", md: "28px" }}
-                          minW={{ base: "24px", md: "28px" }}
-                          h={{ base: "20px", md: "22px" }}
+                          w="40px"
+                          minW="40px"
+                          h={{ base: "44px", md: "40px" }}
                           px={0}
                           justifySelf="center"
                           alignSelf="center"
@@ -3943,15 +3963,18 @@ export default function SchedulePageV2() {
         aria-describedby="vote-status-modal-description"
       >
         <ModalOverlay />
-        <ModalContent mx={{ base: 2, md: "auto" }} my={{ base: 2, md: "auto" }}>
-          <ModalHeader fontSize={{ base: "lg", md: "xl" }} id="vote-status-modal-title">
-            📊 투표 현황 [
-            <Text as="span" color="purple.600" fontWeight="bold">
-              {(nextWeekVoteData.length > 0 ? nextWeekVoteData[0]?.date : getScheduleData.nextWeekVoteData[0]?.date)} ~ {(nextWeekVoteData.length > 0 ? nextWeekVoteData[4]?.date : getScheduleData.nextWeekVoteData[4]?.date)}
-            </Text>
-            ]
+        <ModalContent className="fccg-member" mx={{ base: 2, md: "auto" }} my={{ base: 2, md: "auto" }} borderRadius="xl" overflow="hidden">
+          <ModalHeader className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" pt={5} pb={4} id="vote-status-modal-title">
+            <PitchLines opacity={0.08} />
+            <Box position="relative" pr={8}>
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">VOTE STATUS</Text>
+              <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="800" mt={1}>투표 현황</Text>
+              <Text fontSize="sm" color="whiteAlpha.800" fontWeight="600" mt={0.5}>
+                {(nextWeekVoteData.length > 0 ? nextWeekVoteData[0]?.date : getScheduleData.nextWeekVoteData[0]?.date)} ~ {(nextWeekVoteData.length > 0 ? nextWeekVoteData[4]?.date : getScheduleData.nextWeekVoteData[4]?.date)}
+              </Text>
+            </Box>
           </ModalHeader>
-          <ModalCloseButton aria-label="투표 현황 모달 닫기" />
+          <ModalCloseButton color="white" top={4} aria-label="투표 현황 모달 닫기" />
           <ModalBody id="vote-status-modal-description">
             {voteResults ? (
               <VStack spacing={{ base: 3, md: 4 }} align="stretch">
@@ -3982,7 +4005,7 @@ export default function SchedulePageV2() {
                     })()}
                     placement="top"
                     hasArrow
-                    bg="purple.600"
+                    bg="brand.500"
                     color="white"
                     fontSize="sm"
                     borderRadius="md"
@@ -3991,7 +4014,7 @@ export default function SchedulePageV2() {
                   >
                     <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="medium"  textAlign={{ base: "center", sm: "left" }}>
                       투표 참여자: 
-                      <Badge bg="purple.600" color="white" fontSize={{ base: "xs", md: "sm" }} px={1} py={0.5} borderRadius="md" ml={1}>
+                      <Badge bg="brand.500" color="white" fontSize={{ base: "xs", md: "sm" }} px={1} py={0.5} borderRadius="md" ml={1}>
                         {(() => {
                           // 통합 API에서 투표 참여자 수 가져오기
                           if (unifiedVoteData?.activeSession?.totalParticipants) {
@@ -4125,10 +4148,10 @@ export default function SchedulePageV2() {
                         px={2}
                         py="0.5px"
                         border={isMaxVote ? "1px solid" : "0 0 1px 0 solid"}
-                        borderColor={isMaxVote ? "purple.600" : "gray.200"}
-                        bg={isMaxVote ? "purple.50" : "transparent"}
+                        borderColor={isMaxVote ? "brand.500" : "gray.200"}
+                        bg={isMaxVote ? "brand.50" : "transparent"}
                         borderRadius="md"
-                        _hover={{ bg: isMaxVote ? "purple.100" : "gray.50" }}
+                        _hover={{ bg: isMaxVote ? "brand.100" : "gray.50" }}
                       >
                         <Text 
                           fontSize={{ base: "xs", md: "sm" }} 
@@ -4140,7 +4163,7 @@ export default function SchedulePageV2() {
                           {vote.date}
                         </Text>
                         <Badge 
-                          bg={isMaxVote ? "purple.600" : (voteCount === 0 ? "gray.200" : "purple.300")}
+                          bg={isMaxVote ? "brand.500" : (voteCount === 0 ? "gray.200" : "brand.200")}
                           color={isMaxVote ? "white" : (voteCount === 0 ? "gray.600" : "white")}
                           variant="solid" 
                           borderRadius="full" 
@@ -4162,9 +4185,9 @@ export default function SchedulePageV2() {
                           {isMaxVote && (
                             <Badge 
                               bg="transparent"
-                              color="purple.600"
+                              color="brand.500"
                               border="1px solid"
-                              borderColor="purple.600"
+                              borderColor="brand.500"
                               borderRadius="md"
                               fontSize="2xs"
                               px={1}
@@ -4359,7 +4382,7 @@ export default function SchedulePageV2() {
                     label="투표에 참여한 회원 수"
                     placement="top"
                     hasArrow
-                    bg="purple.600"
+                    bg="brand.500"
                     color="white"
                     fontSize="sm"
                     borderRadius="md"
@@ -4368,7 +4391,7 @@ export default function SchedulePageV2() {
                   >
                     <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="medium" textAlign={{ base: "center", sm: "left" }}>
                       투표 참여자: 
-                      <Badge bg="purple.600" color="white" fontSize={{ base: "xs", md: "sm" }} px={1} py={0.5} borderRadius="md" ml={1}>
+                      <Badge bg="brand.500" color="white" fontSize={{ base: "xs", md: "sm" }} px={1} py={0.5} borderRadius="md" ml={1}>
                         {(() => {
                           if (!voteResults || !(voteResults as any).voteSession || !(voteResults as any).voteSession.votes) return '0명';
                           
@@ -4580,17 +4603,21 @@ export default function SchedulePageV2() {
         aria-describedby="game-detail-modal-description"
       >
         <ModalOverlay />
-        <ModalContent maxW="380px">
-          <ModalHeader fontSize="md" pb={2} id="game-detail-modal-title">
-            📅 일정 상세정보
+        <ModalContent className="fccg-member" maxW="380px" borderRadius="xl" overflow="hidden">
+          <ModalHeader className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" pt={5} pb={4} id="game-detail-modal-title">
+            <PitchLines opacity={0.08} />
+            <Box position="relative">
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">MATCH DETAIL</Text>
+              <Text fontSize="lg" fontWeight="800" mt={1}>일정 상세정보</Text>
+            </Box>
           </ModalHeader>
-          <ModalCloseButton size="sm" aria-label="경기 상세정보 모달 닫기" />
-          <ModalBody pb={4} id="game-detail-modal-description">
+          <ModalCloseButton size="sm" color="white" top={4} aria-label="경기 상세정보 모달 닫기" />
+          <ModalBody pt={4} pb={4} id="game-detail-modal-description">
             {gameDetailResolved ? (
               <VStack spacing={1.5} align="stretch">
                 {/* 유형 */}
                 <Flex align="center" gap={2}>
-                  <Box as="span" fontSize="md">⚽</Box>
+                  <Icon as={MdOutlineSportsSoccer} boxSize="16px" color="brand.500" flexShrink={0} />
                   <Text fontSize="sm" fontWeight="medium">
                     유형: {(() => {
                       const eventType = gameDetailResolved.eventType || '자체';
@@ -4604,7 +4631,7 @@ export default function SchedulePageV2() {
 
                 {/* 일시 */}
                 <Flex align="center" gap={2} mt="-18.9px">
-                  <Box as="span" fontSize="md">🕐</Box>
+                  <Icon as={LuClock} boxSize="16px" color="brand.500" flexShrink={0} />
                   <Text fontSize="sm" fontWeight="medium">
                     일시: {(() => {
                       if (gameDetailResolved.date && gameDetailResolved.time) {
@@ -4629,7 +4656,7 @@ export default function SchedulePageV2() {
                 <Flex align="center" justify="space-between" mt="-18.9px">
                   <Flex align="flex-start" gap={2} direction="column" flex={1}>
                     <Flex align="center" gap={2}>
-                      <Box as="span" fontSize="md">📍</Box>
+                      <Icon as={LuMapPin} boxSize="16px" color="brand.500" flexShrink={0} />
                       <Text fontSize="sm" fontWeight="medium">
                         장소: {gameDetailResolved.location || '장소 미정'}
                       </Text>
@@ -4644,12 +4671,13 @@ export default function SchedulePageV2() {
                   <HStack spacing={1} align="center">
                     <Button
                       size="xs"
-                      height="22px"
-                      minW="36px"
-                      fontSize="10px"
-                      px={2}
+                      height="32px"
+                      minW="44px"
+                      fontSize="12px"
+                      px={3}
                       bg="gray.100"
-                      color="gray.700"
+                      color="matchday.navy"
+                      borderRadius="md"
                       onClick={handleCopyGameDetails}
                       transition="transform 0.15s ease"
                       _hover={{ transform: 'scale(1.06)' }}
@@ -4662,9 +4690,9 @@ export default function SchedulePageV2() {
                       href={exactMapUrl || buildKakaoMapSearchUrlFromGame(gameDetailResolved)}
                       isExternal
                       size="xs"
-                      height="22px"
-                      minW="28px"
-                      fontSize="10px"
+                      height="32px"
+                      minW="40px"
+                      fontSize="12px"
                       p={0}
                       bg="yellow.400"
                       color="blue.700"
@@ -4681,7 +4709,7 @@ export default function SchedulePageV2() {
 
                 {/* 참석자 정보 */}
                 <Flex align="center" gap={2} mt="-18.9px">
-                  <Box as="span" fontSize="md">👥</Box>
+                  <Icon as={LuUsers} boxSize="16px" color="brand.500" flexShrink={0} />
                   <Text fontSize="sm" fontWeight="medium">
                     참석자 : {(() => {
                       const rawMemberNames = Array.isArray(gameDetailResolved.memberNames) ? 
@@ -4751,8 +4779,8 @@ export default function SchedulePageV2() {
 
                       const parts = [] as Array<{ text: string; color: string }>;
                       if (memberCount > 0) parts.push({ text: `회원 ${memberCount}명`, color: '#004ea8' });
-                      if (mercenaryCount > 0) parts.push({ text: `용병 ${mercenaryCount}명`, color: '#000000' });
-                      if (otherCount > 0) parts.push({ text: `기타 ${otherCount}명`, color: '#ff6b35' });
+                      if (mercenaryCount > 0) parts.push({ text: `용병 ${mercenaryCount}명`, color: '#0A1B33' });
+                      if (otherCount > 0) parts.push({ text: `기타 ${otherCount}명`, color: '#C05621' });
 
                       return parts.length > 0 ? (
                         <span>
@@ -4814,13 +4842,13 @@ export default function SchedulePageV2() {
                         <Badge
                           key={index}
                           bg={
-                            participant.type === 'member' ? '#004ea8' : 
-                            participant.type === 'mercenary' ? '#000000' : 
-                            '#ff6b35'
+                            participant.type === 'member' ? 'brand.500' :
+                            participant.type === 'mercenary' ? 'matchday.navy' :
+                            'orange.500'
                           }
                           color="white"
                           variant="solid"
-                          borderRadius="full"
+                          borderRadius="sm"
                           px={2}
                           py={0.5}
                           fontSize="xs"

@@ -8,6 +8,7 @@ import {
   type NextMatchState,
 } from '../components/dashboard/NextMatchStatusCard';
 import { Card } from '../components/common';
+import { LiveDot, PitchLines } from '../components/admin/MatchDay';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
@@ -18,7 +19,7 @@ import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
 import { getApiBaseUrl } from '../config/api';
 import { ensureApiBaseUrl } from '../constants';
-import { Z_INDEX, COLORS, GRADIENTS, EVENT_TYPE_COLORS, MOTION } from '../constants/designTokens';
+import { Z_INDEX, EVENT_TYPE_COLORS, MOTION, MOBILE_CHATBOT_SAFE_RIGHT } from '../constants/designTokens';
 
 const getKstDateKey = (dateLike: string | Date) => {
   const date = new Date(dateLike);
@@ -2098,16 +2099,16 @@ export default function MainDashboard() {
     const confirmedParticipantCount = confirmedMemberNames.length + nonMemberCount;
     const isCurrentUserConfirmed = Boolean(user?.name && confirmedMemberNames.includes(user.name));
     const guestTagStyles = [
-      { bg: '#7C3AED', color: 'white' },
-      { bg: '#EA580C', color: 'white' },
-      { bg: '#0F766E', color: 'white' },
-      { bg: '#BE185D', color: 'white' },
+      { bg: 'orange.400', color: 'white' },
+      { bg: 'teal.500', color: 'white' },
+      { bg: 'pink.500', color: 'white' },
+      { bg: 'gray.500', color: 'white' },
     ];
     const participantBadges = [
       ...confirmedMemberNames.map((name) => ({
         key: `member-${name}`,
         label: name,
-        bg: '#075CB4',
+        bg: 'brand.500',
         color: 'white',
       })),
       ...guestGroups.map((group, index) => ({
@@ -2170,8 +2171,9 @@ export default function MainDashboard() {
 
   return (
     <Box
+      className="fccg-member"
       minH="100vh"
-      bg="#f7f9fb"
+      bg="gray.50"
       w="100%"
       pt={20}
       overflowX="hidden"
@@ -2219,7 +2221,7 @@ export default function MainDashboard() {
           pb={0}
         >
           {welcomeMessage && (
-            <Text fontSize={{ base: 'sm', md: 'md' }} color="#1E3A5F" fontWeight="800">
+            <Text fontSize={{ base: 'sm', md: 'md' }} color="matchday.navy" fontWeight="800">
               {welcomeMessage}
             </Text>
           )}
@@ -2262,41 +2264,27 @@ export default function MainDashboard() {
           position="relative"
           overflow="hidden"
           p={{ base: 5, md: 5, lg: 6 }}
-          borderRadius="2xl"
-          boxShadow={nextMatchDisplay?.isGameDay
-            ? '0 18px 34px rgba(3, 27, 56, 0.18)'
-            : '0 10px 26px rgba(3, 27, 56, 0.14)'}
+          borderRadius="xl"
+          border="1px solid"
+          borderColor={nextMatchDisplay?.isGameDay ? 'matchday.volt' : 'transparent'}
           h={{ base: 'auto', md: '520px' }}
           minH={{ base: '330px', md: '520px' }}
           alignSelf={{ base: 'auto', md: 'flex-start' }}
           maxW={{ base: '100%', md: '430px' }}
           color="white"
-          bg={nextMatchDisplay?.isGameDay
-            ? GRADIENTS.NEXT_MATCH_MATCHDAY
-            : GRADIENTS.NEXT_MATCH_DEFAULT}
+          bg="matchday.navy"
           display="flex"
           flexDirection="column"
           justifyContent="flex-start"
-          _before={{
-            content: '""',
-            position: 'absolute',
-            inset: 0,
-            opacity: 0.18,
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px)',
-            backgroundSize: '44px 44px',
-            pointerEvents: 'none',
-          }}
         >
+          <PitchLines opacity={0.08} />
           <HStack w="full" justify="space-between" align="center" position="relative" zIndex={1}>
-            <Text
-              fontSize="xs"
-              fontWeight="900"
-              letterSpacing="0.22em"
-              color="#7CEBFF"
-            >
-              {nextMatchDisplay?.isGameDay ? 'MATCHDAY' : 'NEXT MATCH'}
-            </Text>
+            <HStack spacing={2}>
+              <LiveDot />
+              <Text textStyle="scoreLabel" color="matchday.volt">
+                {nextMatchDisplay?.isGameDay ? 'MATCHDAY' : 'NEXT MATCH'}
+              </Text>
+            </HStack>
             {!nextMatchDisplay && <NextMatchPill state={nextMatchState} />}
           </HStack>
 
@@ -2314,16 +2302,15 @@ export default function MainDashboard() {
               <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full">
                 <HStack w="full" justify="space-between">
                 <Badge
-                  bg="rgba(255,255,255,0.14)"
+                  bg="whiteAlpha.200"
                   color="white"
-                  border="1px solid rgba(255,255,255,0.24)"
-                  borderRadius="full"
-                  px={3}
+                  borderRadius="sm"
+                  px={2.5}
                   py={1}
                 >
                   {nextMatchDisplay.eventType}
                 </Badge>
-                <Badge bg={COLORS.WARNING} color={COLORS.TEXT_PRIMARY} borderRadius="full" px={3} py={1} fontWeight="900">
+                <Badge bg="matchday.volt" color="matchday.navy" borderRadius="sm" px={2.5} py={1} fontWeight="800">
                   {nextMatchDisplay.isGameDay ? nextMatchDisplay.gameDayCountdown : nextMatchDisplay.badge}
                 </Badge>
                 </HStack>
@@ -2334,9 +2321,9 @@ export default function MainDashboard() {
                 )}
                 <Text
                 fontSize={{ base: '2xl', lg: '3xl' }}
-                fontWeight="900"
-                letterSpacing="-0.045em"
-                lineHeight="1.08"
+                fontWeight="800"
+                letterSpacing="-0.02em"
+                lineHeight="1.15"
                 whiteSpace="nowrap"
                 >
                   {nextMatchDisplay.isGameDay ? `오늘 · ${nextMatchDisplay.timeLabel}` : nextMatchDisplay.dateTimeLabel}
@@ -2344,7 +2331,7 @@ export default function MainDashboard() {
               </VStack>
               <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full">
                 <Box w="full">
-                <Text fontSize="xs" color="rgba(255,255,255,0.68)" fontWeight="700">
+                <Text fontSize="xs" color="whiteAlpha.600" fontWeight="700">
                   장소
                 </Text>
                 <Text mt={1} fontSize="lg" fontWeight="800" lineHeight="1.35">
@@ -2356,7 +2343,9 @@ export default function MainDashboard() {
                     href={nextMatchDisplay.mapUrl}
                     target="_blank"
                     rel="noreferrer"
-                    size="xs"
+                    size="sm"
+                    h="32px"
+                    borderRadius="md"
                     bg="#FEE500"
                     color="#3C1E1E"
                     fontWeight="800"
@@ -2369,7 +2358,9 @@ export default function MainDashboard() {
                     href={nextMatchDisplay.naverMapUrl}
                     target="_blank"
                     rel="noreferrer"
-                    size="xs"
+                    size="sm"
+                    h="32px"
+                    borderRadius="md"
                     bg="#03C75A"
                     color="white"
                     fontWeight="800"
@@ -2381,10 +2372,10 @@ export default function MainDashboard() {
                 </Box>
                 <Box w="full">
                 <HStack w="full" justify="space-between" align="center">
-                  <Text fontSize="xs" color="rgba(255,255,255,0.68)" fontWeight="700">
+                  <Text fontSize="xs" color="whiteAlpha.600" fontWeight="700">
                     참석인원
                   </Text>
-                  <Text fontSize="xs" color="#D9FAFF" fontWeight="800">
+                  <Text fontSize="xs" color="white" fontWeight="800">
                     참가인원 : {nextMatchDisplay.confirmedParticipantCount}명
                   </Text>
                 </HStack>
@@ -2396,7 +2387,7 @@ export default function MainDashboard() {
                           size="sm"
                           px={2.5}
                           py={1}
-                          borderRadius="full"
+                          borderRadius="sm"
                           bg={participant.bg}
                           color={participant.color}
                           fontWeight="800"
@@ -2541,11 +2532,13 @@ export default function MainDashboard() {
       )}
 
       {/* 하단 통계 카드 */}
+      {/* 통계 카드는 모두 버튼이라, 우하단 고정 챗봇 폭만큼 우측 여백을 둬 스크롤 중에도 겹치지 않게 한다 */}
       <SimpleGrid
         columns={{ base: 2, lg: 4 }}
         spacing={4}
         mb={{ base: 6, lg: 4 }}
-        px={{ base: 4, md: 5, lg: 6 }}
+        pl={{ base: 4, md: 5, lg: 6 }}
+        pr={MOBILE_CHATBOT_SAFE_RIGHT}
         w="full"
         maxW="1400px"
         mx="auto"
@@ -2556,22 +2549,24 @@ export default function MainDashboard() {
             {bottomInfoData.map((info, idx) => (
               <Card
                 key={idx}
-                p={4}
+                p={{ base: 4, md: 5 }}
                 minH="119px"
-                borderRadius="lg"
-                boxShadow="sm"
-                textAlign="center"
+                borderRadius="xl"
+                boxShadow="none"
+                border="1px solid"
+                borderColor="gray.200"
+                textAlign="left"
                 display="flex"
                 flexDirection="column"
-                alignItems="center"
+                alignItems="stretch"
                 justifyContent="center"
               >
-                <Stack direction="row" align="center" justify="center" spacing={1.5} mb={0} color="gray.600">
+                <Stack direction="row" align="center" justify="flex-start" spacing={1.5} mb={0} color="gray.500">
                   <Icon as={info.icon} boxSize={5} />
                   <Text m={0} fontWeight="600" fontSize="sm" lineHeight={1.2}>{info.title}</Text>
                 </Stack>
-                <Flex align="center" justify="center" mt={2}>
-                  <Spinner size="md" color="blue.500" mr={2} />
+                <Flex align="center" justify="flex-start" mt={2}>
+                  <Spinner size="md" color="brand.500" mr={2} />
                   <Text m={0} color="gray.500" lineHeight={1.2}>로딩 중...</Text>
                 </Flex>
               </Card>
@@ -2586,16 +2581,19 @@ export default function MainDashboard() {
                 clickable
                 key={idx}
                 aria-label={`${info.title} 상세 보기`}
-                p={4}
+                p={{ base: 4, md: 5 }}
                 minH="119px"
-                borderRadius="lg"
-                boxShadow="sm"
-                textAlign="center"
+                borderRadius="xl"
+                boxShadow="none"
+                border="1px solid"
+                borderColor="gray.200"
+                textAlign="left"
                 display="flex"
                 flexDirection="column"
-                alignItems="center"
+                alignItems="stretch"
                 justifyContent="center"
-                _focusVisible={{ outline: '3px solid', outlineColor: 'blue.300', outlineOffset: '2px' }}
+                _hover={{ borderColor: 'brand.300', bg: 'white' }}
+                _focusVisible={{ outline: '3px solid', outlineColor: 'brand.300', outlineOffset: '2px' }}
                 onClick={() => {
                   if (info.action === 'members') {
                     setModalIdx(0);
@@ -2709,28 +2707,31 @@ export default function MainDashboard() {
                     })()}
                   </Box>
                 )}
-                <VStack spacing={0} align="center" justify="center">
+                <VStack spacing={0} align="flex-start" justify="center">
                   {/* eyebrow / category: 아이콘+제목은 뉴트럴 톤의 작은 라벨로,
                       숫자(value)보다 절대 무겁게 보이지 않도록 한다 */}
-                  <HStack align="center" justify="center" spacing={1.5} color="gray.600">
-                    <Icon as={info.icon} boxSize={5} />
-                    <Text m={0} fontWeight="600" fontSize="sm" lineHeight={1.2}>{info.title}</Text>
+                  <HStack align="center" justify="flex-start" spacing={1.5} color="gray.500">
+                    <Icon as={info.icon} boxSize={4} />
+                    <Text m={0} fontWeight="700" fontSize="sm" lineHeight={1.2}>{info.title}</Text>
                   </HStack>
-                  {/* main value: 카드의 핵심 정보, neutral strong color 유지(Phase 2B-1) */}
-                  <Text
-                    m={0}
-                    color={COLORS.TEXT_PRIMARY}
-                    fontSize="2xl"
-                    fontWeight="800"
-                    mt={2}
-                    lineHeight={1.1}
-                  >
-                    {info.value}
-                  </Text>
+                  {/* main value: Match Day statNumber. 표시용으로 숫자와 단위만 나눈다 ("9명" → 9 + 명) */}
+                  {(() => {
+                    const valueMatch = String(info.value).match(/^([\d.,]+)\s*(.*)$/);
+                    return (
+                      <Flex align="baseline" gap={1} mt={2}>
+                        <Text m={0} textStyle="statNumber" fontSize={{ base: '36px', md: '40px' }} color="matchday.navy">
+                          {valueMatch ? valueMatch[1] : info.value}
+                        </Text>
+                        {valueMatch?.[2] && (
+                          <Text m={0} fontSize="sm" fontWeight="700" color="gray.500">{valueMatch[2]}</Text>
+                        )}
+                      </Flex>
+                    );
+                  })()}
                   {/* supporting information: 값보다 아래, 가장 약한 톤 */}
                   <Text
                     m={0}
-                    color="#64748B"
+                    color="gray.500"
                     fontSize="xs"
                     fontWeight="500"
                     lineHeight={1.15}
@@ -2753,20 +2754,20 @@ export default function MainDashboard() {
         scrollBehavior="inside"
       >
         <ModalOverlay />
-        <ModalContent maxW={modalIdx === 2 ? '760px' : modalIdx === 4 ? '620px' : '380px'}>
-          <ModalCloseButton />
+        <ModalContent className="fccg-member" borderRadius="xl" maxW={modalIdx === 2 ? '760px' : modalIdx === 4 ? '620px' : '380px'}>
+          <ModalCloseButton top={4} />
           <ModalBody px={modalIdx === 0 ? 7 : 6} pt={5} pb={6}>
             {typeof modalIdx === 'number' && [0, 2, 4].includes(modalIdx) && (
-              <Flex align="center" justify="center" gap={2} mb={4} color="gray.600">
+              <Flex align="center" gap={2.5} mb={5} pr={8} color="brand.500">
                 <Icon
                   as={modalIdx === 0
                     ? bottomInfoData[0].icon
                     : modalIdx === 2
                       ? bottomInfoData[1].icon
                       : bottomInfoData[2].icon}
-                  boxSize={6}
+                  boxSize={5}
                 />
-                <Text fontSize="lg" fontWeight="bold" lineHeight={1.2} color={COLORS.TEXT_PRIMARY}>
+                <Text fontSize="lg" fontWeight="800" lineHeight={1.2} color="matchday.navy" letterSpacing="-0.01em">
                   {modalIdx === 0
                     ? bottomInfoData[0].title
                     : modalIdx === 2
@@ -2786,20 +2787,16 @@ export default function MainDashboard() {
                       .map((m) => (
                         <Box 
                           key={m.id} 
-                          px={3} 
-                          py={1} 
-                          borderRadius="full" 
-                          bg="#004ea8" 
-                          color="white" 
-                          fontWeight="medium" 
-                          fontSize="xs" 
+                          px={3}
+                          py={1}
+                          borderRadius="sm"
+                          bg="brand.50"
+                          color="brand.700"
+                          border="1px solid"
+                          borderColor="brand.100"
+                          fontWeight="700"
+                          fontSize="xs"
                           display="inline-block"
-                          boxShadow="0 1px 3px rgba(0,0,0,0.1)"
-                          _hover={{ 
-                            transform: 'translateY(-1px)', 
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                            transition: `all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`
-                          }}
                         >
                           {m.name}
                         </Box>

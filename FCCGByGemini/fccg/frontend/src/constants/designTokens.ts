@@ -53,10 +53,11 @@ export const GRADIENTS = {
 
 // 경기 유형별 색상 — 대시보드 통계 카드(MainDashboard)와 일정 페이지 캘린더(NewCalendarV2)에서
 // 동일한 값을 각자 하드코딩하던 것을 하나로 합쳤다. 두 곳 모두 이 값을 참조한다.
+// Match Day 규칙(관리자 StatusBadge eventType)과 같다: 매치 brand / 자체 navy / 회식 orange.
 export const EVENT_TYPE_COLORS: Record<string, string> = {
-  '매치': '#2563eb',
-  '자체': '#059669',
-  '회식': '#dc2626',
+  '매치': '#004ea8',
+  '자체': '#0A1B33',
+  '회식': '#C05621',
   '기타': '#6b7280',
 };
 

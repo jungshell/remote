@@ -1,236 +1,88 @@
-import {
-  Avatar,
-  Badge,
-  Box,
-  Button,
-  Divider,
-  HStack,
-  Icon,
-  SimpleGrid,
-  Text,
-  VStack,
-} from '@chakra-ui/react';
-import {
-  MdOutlineBarChart,
-  MdOutlineInsights,
-  MdOutlinePerson,
-  MdOutlineEdit,
-} from 'react-icons/md';
+import { Box, Button, Flex, HStack, Icon, SimpleGrid, Text, VStack } from '@chakra-ui/react';
+import { MdOutlineEdit, MdOutlineEmail } from 'react-icons/md';
 import type { User } from '../../store/auth';
-import { GRADIENTS } from '../../constants/designTokens';
+import { PanelHeader, RecordTile } from '../admin/MatchDay';
+import PlayerIdentity, { getPlayerRecord } from './PlayerIdentity';
 
 type PlayerPassportPanelProps = {
   user: User;
   onEditProfile: () => void;
 };
 
-const roleLabel: Record<string, string> = {
-  SUPER_ADMIN: '총괄관리자',
-  ADMIN: '관리자',
-  MEMBER: '회원',
-};
-
-const formatJoinedDate = (value?: string) => {
-  if (!value) return '가입일 정보 없음';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '가입일 정보 없음';
-  return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}. 가입`;
-};
-
 export default function PlayerPassportPanel({
   user,
   onEditProfile,
 }: PlayerPassportPanelProps) {
-  const gameParticipated = user.gameDetails?.participated ?? 0;
-  const gameTotal = user.gameDetails?.total ?? 0;
-  const voteParticipated = user.voteDetails?.participated ?? 0;
-  const voteTotal = user.voteDetails?.total ?? 0;
-  const attendanceRate =
-    gameTotal > 0 ? Math.round((gameParticipated / gameTotal) * 100) : null;
-  const voteRate =
-    voteTotal > 0 ? Math.round((voteParticipated / voteTotal) * 100) : null;
-  const voteSessions = [...(user.voteDetails?.sessions || [])].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-  let consecutiveVotes = 0;
-  for (const session of voteSessions) {
-    if (!session.userParticipated) break;
-    consecutiveVotes += 1;
-  }
-  const latestVote = voteSessions[0] || null;
-
-  const statItems = [
-    {
-      label: '경기 출석',
-      value: attendanceRate === null ? '기록 없음' : `${attendanceRate}%`,
-      detail: gameTotal > 0 ? `${gameParticipated}/${gameTotal}경기` : '참여 기록이 쌓이면 표시됩니다',
-    },
-    {
-      label: '투표 참여',
-      value: voteRate === null ? '기록 없음' : `${voteRate}%`,
-      detail: voteTotal > 0 ? `${voteParticipated}/${voteTotal}회` : '투표 기록이 쌓이면 표시됩니다',
-    },
-  ];
-  const activityItems = [
-    { label: '참석 경기', value: `${gameParticipated}회` },
-    { label: '투표 참여', value: `${voteParticipated}회` },
-    { label: '연속 투표', value: `${consecutiveVotes}회` },
-  ];
+  const { gameParticipated, gameTotal, voteParticipated, voteTotal, attendanceRate, voteRate, consecutiveVotes, latestVote } = getPlayerRecord(user);
 
   return (
-    <VStack align="stretch" spacing={6} color="gray.900">
-      <Box
-        background={GRADIENTS.NEXT_MATCH_DEFAULT}
-        borderRadius="lg"
-        px={5}
-        py={6}
-        color="white"
-        boxShadow="md"
-      >
-        <HStack spacing={4} align="center">
-          <Avatar
-            name={user.name}
-            src={user.avatarUrl}
-            size="lg"
-            bg="white"
-            color="brand.500"
-            fontWeight="900"
-            border="3px solid rgba(255,255,255,0.72)"
-          />
-          <VStack align="start" spacing={1} minW={0}>
-            <Badge
-              bg="rgba(255,255,255,0.18)"
-              color="white"
-              borderRadius="full"
-              px={2.5}
-              py={1}
-              fontSize="xs"
-            >
-              PLAYER PASSPORT
-            </Badge>
-            <Text fontSize="2xl" fontWeight="900" noOfLines={1}>
-              {user.name}
-            </Text>
-            <Text color="rgba(255,255,255,0.86)" fontSize="sm">
-              {roleLabel[user.role] || '회원'} · {formatJoinedDate(user.createdAt)}
-            </Text>
-          </VStack>
-        </HStack>
-      </Box>
+    <VStack className="fccg-matchday fccg-member" align="stretch" spacing={6} color="gray.900">
+      <PlayerIdentity user={user} eyebrow="PLAYER PASSPORT" />
 
       <Box>
-        <HStack spacing={1.5} mb={3}>
-          <Icon as={MdOutlineBarChart} boxSize="14px" color="gray.500" />
-          <Text fontSize="sm" fontWeight="800" color="gray.700">
-            MY RECORD
-          </Text>
-        </HStack>
+        <PanelHeader label="MY RECORD" title="내 기록" />
         <SimpleGrid columns={2} spacing={3}>
-          {statItems.map((item) => (
-            <Box
-              key={item.label}
-              bg="brand.50"
-              border="1px solid"
-              borderColor="brand.100"
-              borderRadius="lg"
-              px={4}
-              py={4}
-              minH="132px"
-            >
-              <Text color="gray.700" fontSize="sm" fontWeight="700">
-                {item.label}
-              </Text>
-              <Text
-                mt={2}
-                color="brand.600"
-                fontSize={item.value === '기록 없음' ? 'lg' : '3xl'}
-                fontWeight="900"
-                letterSpacing="-0.03em"
-              >
-                {item.value}
-              </Text>
-              <Text mt={1} color="gray.600" fontSize="xs" lineHeight="1.45">
-                {item.detail}
-              </Text>
-            </Box>
-          ))}
+          <RecordTile
+            accent
+            label="경기 출석"
+            value={attendanceRate === null ? '—' : attendanceRate}
+            unit={attendanceRate === null ? undefined : '%'}
+            caption={gameTotal > 0 ? `${gameParticipated}/${gameTotal}경기` : '참여 기록이 쌓이면 표시됩니다'}
+          />
+          <RecordTile
+            accent
+            label="투표 참여"
+            value={voteRate === null ? '—' : voteRate}
+            unit={voteRate === null ? undefined : '%'}
+            caption={voteTotal > 0 ? `${voteParticipated}/${voteTotal}회` : '투표 기록이 쌓이면 표시됩니다'}
+          />
         </SimpleGrid>
       </Box>
 
       <Box>
-        <HStack spacing={1.5} mb={3}>
-          <Icon as={MdOutlineInsights} boxSize="14px" color="gray.500" />
-          <Text fontSize="sm" fontWeight="800" color="gray.700">
-            ACTIVITY SNAPSHOT
-          </Text>
-        </HStack>
+        <PanelHeader label="ACTIVITY" title="활동 요약" />
         <SimpleGrid columns={3} spacing={2}>
-          {activityItems.map((item) => (
-            <Box
-              key={item.label}
-              bg="white"
-              border="1px solid"
-              borderColor="gray.300"
-              borderRadius="lg"
-              py={3}
-              px={2}
-              textAlign="center"
-            >
-              <Text color="gray.500" fontSize="xs" fontWeight="700">
-                {item.label}
-              </Text>
-              <Text mt={1} color="gray.900" fontSize="lg" fontWeight="900">
-                {item.value}
-              </Text>
-            </Box>
-          ))}
+          <RecordTile label="참석 경기" value={gameParticipated} unit="회" px={3} />
+          <RecordTile label="투표 참여" value={voteParticipated} unit="회" px={3} />
+          <RecordTile label="연속 투표" value={consecutiveVotes} unit="회" px={3} />
         </SimpleGrid>
-        <HStack
+        <Flex
           mt={3}
-          bg={latestVote?.userParticipated ? 'green.50' : 'orange.50'}
+          bg="white"
           border="1px solid"
-          borderColor={latestVote?.userParticipated ? 'green.200' : 'orange.200'}
+          borderColor="gray.200"
           borderRadius="lg"
           px={4}
           py={3}
           justify="space-between"
+          align="center"
         >
-          <Text color="gray.600" fontSize="sm" fontWeight="700">
-            최근 투표
-          </Text>
-          <Badge
-            bg={latestVote?.userParticipated ? 'green.600' : 'orange.600'}
-            color="white"
-            borderRadius="full"
-            px={2.5}
-            py={1}
-          >
-            {!latestVote
-              ? '기록 없음'
+          <Text color="gray.600" fontSize="sm" fontWeight="700">최근 투표</Text>
+          {(() => {
+            const tone = !latestVote
+              ? { label: '기록 없음', bg: 'gray.100', color: 'gray.600', border: 'transparent' }
               : latestVote.userParticipated
-                ? '참여 완료'
-                : '미참여'}
-          </Badge>
-        </HStack>
+                ? { label: '참여 완료', bg: 'green.50', color: 'green.700', border: 'green.100' }
+                : { label: '미참여', bg: 'orange.50', color: 'orange.700', border: 'orange.100' };
+            return (
+              <Box as="span" px={2} py="2px" borderRadius="sm" bg={tone.bg} color={tone.color} border="1px solid" borderColor={tone.border} fontSize="11px" fontWeight="700">
+                {tone.label}
+              </Box>
+            );
+          })()}
+        </Flex>
       </Box>
 
-      <Divider borderColor="gray.300" />
-
-      <Box>
-        <HStack spacing={1.5} mb={2}>
-          <Icon as={MdOutlinePerson} boxSize="14px" color="gray.500" />
-          <Text fontSize="sm" fontWeight="800" color="gray.700">
-            ACCOUNT
-          </Text>
-        </HStack>
-        <Text fontSize="sm" color="gray.600" wordBreak="break-all">
-          {user.email}
-        </Text>
-      </Box>
+      <HStack spacing={2} color="gray.500" px={1}>
+        <Icon as={MdOutlineEmail} boxSize="14px" flexShrink={0} />
+        <Text fontSize="sm" wordBreak="break-all">{user.email}</Text>
+      </HStack>
 
       <Button
+        h="48px"
         bg="brand.500"
         color="white"
+        borderRadius="lg"
         _hover={{ bg: 'brand.600' }}
         _focusVisible={{ boxShadow: '0 0 0 3px rgba(0,78,168,0.28)' }}
         leftIcon={<Icon as={MdOutlineEdit} boxSize="16px" />}

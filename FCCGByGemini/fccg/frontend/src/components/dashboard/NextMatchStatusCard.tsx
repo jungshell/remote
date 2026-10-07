@@ -62,9 +62,9 @@ type PillCfg = {
 const PILL: Record<NextMatchState, PillCfg> = {
   VOTE_REQUIRED: {
     label: '투표중',
-    color: '#7CEBFF',
-    bg: 'rgba(124,235,255,0.14)',
-    border: 'rgba(124,235,255,0.38)',
+    color: '#D7FF3A',
+    bg: 'rgba(215,255,58,0.12)',
+    border: 'rgba(215,255,58,0.36)',
     pulse: true,
     Icon: MdHowToVote,
   },
@@ -78,9 +78,9 @@ const PILL: Record<NextMatchState, PillCfg> = {
   },
   ANON_VOTE: {
     label: '투표중',
-    color: '#7CEBFF',
-    bg: 'rgba(124,235,255,0.14)',
-    border: 'rgba(124,235,255,0.38)',
+    color: '#D7FF3A',
+    bg: 'rgba(215,255,58,0.12)',
+    border: 'rgba(215,255,58,0.36)',
     pulse: true,
     Icon: MdHowToVote,
   },
@@ -224,17 +224,15 @@ function VoteProgressBar({
   }, [pct]);
 
   const isVoted = state === 'VOTED';
-  const barBg = isVoted ? '#4ADE80' : 'linear-gradient(90deg, #60C5FF 0%, #7CEBFF 100%)';
-  const pctColor = isVoted ? '#86EFAC' : '#7CEBFF';
+  const barBg = isVoted ? '#4ADE80' : '#D7FF3A';
+  const pctColor = isVoted ? '#86EFAC' : '#D7FF3A';
 
   return (
     <Box w="full">
       {/* Large animated % with label */}
       <Text
-        fontSize="2xl"
-        fontWeight="900"
-        letterSpacing="-0.04em"
-        lineHeight="1"
+        textStyle="statNumber"
+        fontSize="32px"
         color={pctColor}
         mb={1}
       >
@@ -331,9 +329,9 @@ export function NextMatchStatusCard({
       {/* Title */}
       <Text
         fontSize={{ base: '2xl', lg: '3xl' }}
-        fontWeight="900"
-        letterSpacing="-0.04em"
-        lineHeight="1.12"
+        fontWeight="800"
+        letterSpacing="-0.02em"
+        lineHeight="1.15"
         color="white"
       >
         {content.title1}
@@ -362,12 +360,12 @@ export function NextMatchStatusCard({
             <Box
               px={2}
               py="2px"
-              borderRadius="full"
-              border="1px solid rgba(124,235,255,0.45)"
-              bg="rgba(124,235,255,0.08)"
+              borderRadius="sm"
+              border="1px solid transparent"
+              bg="matchday.volt"
               fontSize="10px"
               fontWeight="800"
-              color="#7CEBFF"
+              color="matchday.navy"
               letterSpacing="0.05em"
               lineHeight="1.6"
             >
@@ -402,22 +400,16 @@ export function NextMatchStatusCard({
             variant="unstyled"
             display="inline-flex"
             alignItems="center"
-            px={4}
-            py={2}
-            h="auto"
-            bg="rgba(255,255,255,0.09)"
-            color="white"
+            px={5}
+            h="44px"
+            bg="white"
+            color="matchday.navy"
             borderRadius="lg"
-            border="1px solid rgba(255,255,255,0.18)"
-            fontWeight="700"
+            fontWeight="800"
             fontSize="sm"
             onClick={handleCta}
-            transition="all 0.2s ease"
-            _hover={{
-              bg: 'rgba(255,255,255,0.15)',
-              transform: 'translateY(-2px)',
-              boxShadow: '0 6px 16px rgba(0,0,0,0.22)',
-            }}
+            transition="background-color 0.2s ease"
+            _hover={{ bg: 'brand.50' }}
             sx={{
               '& .arrow': { display: 'inline-block', transition: 'transform 0.2s ease', marginLeft: '4px' },
               '&:hover .arrow': { transform: 'translateX(3px)' },
