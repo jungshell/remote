@@ -232,6 +232,18 @@ export const MOTION = {
 // 오른쪽 여백을 확보하면, 세로 스크롤 오프셋과 상관없이 챗봇과 절대 겹치지 않는다.
 export const MOBILE_CHATBOT_SAFE_RIGHT = '72px';
 
+// 관리자 Shell 치수 — Header(고정), 관리자 모바일 title bar, 데스크톱 사이드바, 챗봇 위치가 같은 값을 공유한다.
+// 챗봇은 관리자 화면에서 콘텐츠 영역 밖(데스크톱: 사이드바 하단 칸 / 모바일: title bar 우측 dock)에만 놓여
+// 페이지별 여백 없이도 어떤 버튼과도 겹치지 않는다.
+export const ADMIN_SHELL = {
+  HEADER_H: 80, // Header.tsx 고정 높이
+  SIDEBAR_W: 280,
+  SIDEBAR_CHATBOT_SLOT_H: 80, // 사이드바 하단, 원형 챗봇 버튼 전용 칸
+  MOBILE_BAR_H: 64, // 관리자 모바일 title bar
+  DOCK_W: 38,
+  DOCK_H: 46,
+} as const;
+
 // 반응형 브레이크포인트
 export const BREAKPOINTS = {
   SM: '30em',

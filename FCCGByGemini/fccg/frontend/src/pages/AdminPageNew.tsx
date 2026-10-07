@@ -46,10 +46,9 @@ import {
   DrawerHeader,
   DrawerCloseButton,
   DrawerBody,
-  useBreakpointValue,
-  IconButton
+  useBreakpointValue
 } from '@chakra-ui/react';
-import { ViewIcon, SettingsIcon, HamburgerIcon } from '@chakra-ui/icons';
+import { ViewIcon, SettingsIcon } from '@chakra-ui/icons';
 import {
   MdOutlineDashboard,
   MdOutlineGroups,
@@ -65,10 +64,10 @@ import {
 import { GameCardSkeleton } from '../components/common/SkeletonLoader';
 import {
   LuArrowRight, LuBan, LuBellRing, LuCalendarPlus, LuCircleCheck, LuCircleX, LuHistory, LuLogIn, LuLogOut,
-  LuMapPin, LuMegaphone, LuPencil, LuTriangleAlert, LuUserCheck, LuUserCog, LuUsers, LuVote
+  LuMapPin, LuMegaphone, LuPanelLeft, LuPencil, LuTriangleAlert, LuUserCheck, LuUserCog, LuUsers, LuVote
 } from 'react-icons/lu';
 import { AdminEmptyState, AdminPageHeader, AdminPanel, CggShieldTemp, DateBlock, EASE_EXPO_OUT, LiveDot, PanelHeader, PitchLines, StatBlock, StatStrip, StatusBadge } from '../components/admin/MatchDay';
-import { GRADIENTS } from '../constants/designTokens';
+import { ADMIN_SHELL, GRADIENTS } from '../constants/designTokens';
 import { normalizeEventType } from '../utils/eventTypeNormalizer';
 import { getValidToken, getMemberStats, type Game } from '../api/auth';
 import MemberManagement from '../components/MemberManagement';
@@ -2960,21 +2959,21 @@ export default function AdminPageNew() {
 
   const commonMenuButtonProps = (menu: string) => ({
     w: '100%',
-    h: '40px',
+    h: '44px',
     px: 3,
+    iconSpacing: 3,
     justifyContent: 'flex-start' as const,
     variant: 'ghost' as const,
     fontSize: 'sm',
-    fontWeight: selectedMenu === menu ? 'semibold' : 'medium',
-    bg: selectedMenu === menu ? 'blue.50' : 'transparent',
-    color: selectedMenu === menu ? '#004ea8' : 'gray.700',
-    border: '1px solid',
-    borderColor: selectedMenu === menu ? '#004ea8' : 'transparent',
-    borderRadius: 'lg',
-    transition: 'all 0.15s ease',
+    fontWeight: selectedMenu === menu ? '800' : '600',
+    bg: selectedMenu === menu ? 'brand.50' : 'transparent',
+    color: selectedMenu === menu ? 'brand.700' : 'gray.600',
+    borderRadius: 'md',
+    boxShadow: selectedMenu === menu ? 'inset 3px 0 0 var(--chakra-colors-brand-500)' : 'none',
+    transition: 'background-color 0.15s ease, color 0.15s ease',
     _hover: {
-      bg: selectedMenu === menu ? 'blue.50' : 'gray.50',
-      borderColor: selectedMenu === menu ? '#004ea8' : 'gray.200'
+      bg: selectedMenu === menu ? 'brand.50' : 'gray.50',
+      color: selectedMenu === menu ? 'brand.700' : 'matchday.navy'
     }
   });
 
@@ -3069,41 +3068,47 @@ export default function AdminPageNew() {
 
     return (
       <VStack spacing={0} align="stretch">
-        <Box p={6} borderBottom="1px" borderColor="gray.200">
-          <Text fontSize="2xl" fontWeight="bold" color="#004ea8">
-            관리자 페이지
-          </Text>
-        </Box>
-        <VStack spacing={1} p={4} flex={1} align="stretch">
-          <Button {...commonMenuButtonProps('dashboard')} onClick={() => handleClick('dashboard')} leftIcon={<Icon as={MdOutlineDashboard} boxSize={4.5} />}>
+        {!onNavigate && (
+          <Box px={6} pt={6} pb={5} borderBottom="1px" borderColor="gray.200">
+            <Flex align="center" gap={2}>
+              <Box w="16px" h="3px" bg="brand.500" borderRadius="full" />
+              <Text textStyle="scoreLabel" color="brand.500">ADMIN CONSOLE</Text>
+            </Flex>
+            <Text fontSize="xl" fontWeight="800" color="matchday.navy" letterSpacing="-0.01em" mt={1.5}>
+              관리자 페이지
+            </Text>
+          </Box>
+        )}
+        <VStack spacing={1} p={3} flex={1} align="stretch">
+          <Button {...commonMenuButtonProps('dashboard')} onClick={() => handleClick('dashboard')} leftIcon={<Icon as={MdOutlineDashboard} boxSize={5} />}>
             대시보드
           </Button>
           {hasPermission('member_management') && (
-            <Button {...commonMenuButtonProps('users')} onClick={() => handleClick('users')} leftIcon={<Icon as={MdOutlineGroups} boxSize={4.5} />}>
+            <Button {...commonMenuButtonProps('users')} onClick={() => handleClick('users')} leftIcon={<Icon as={MdOutlineGroups} boxSize={5} />}>
               회원 관리
             </Button>
           )}
-          <Button {...commonMenuButtonProps('vote-results')} onClick={() => handleClick('vote-results')} leftIcon={<Icon as={MdOutlineHowToVote} boxSize={4.5} />}>
+          <Button {...commonMenuButtonProps('vote-results')} onClick={() => handleClick('vote-results')} leftIcon={<Icon as={MdOutlineHowToVote} boxSize={5} />}>
             투표 결과
           </Button>
-          <Button {...commonMenuButtonProps('vote-sessions')} onClick={() => handleClick('vote-sessions')} leftIcon={<Icon as={MdOutlineEventNote} boxSize={4.5} />}>
+          <Button {...commonMenuButtonProps('vote-sessions')} onClick={() => handleClick('vote-sessions')} leftIcon={<Icon as={MdOutlineEventNote} boxSize={5} />}>
             투표 세션 관리
           </Button>
           {hasPermission('game_management') && (
-            <Button {...commonMenuButtonProps('games')} onClick={() => handleClick('games')} leftIcon={<Icon as={MdOutlineSportsSoccer} boxSize={4.5} />}>
+            <Button {...commonMenuButtonProps('games')} onClick={() => handleClick('games')} leftIcon={<Icon as={MdOutlineSportsSoccer} boxSize={5} />}>
               경기 관리
             </Button>
           )}
           {/* 메뉴 노출 조건은 아래 selectedMenu content guard와 동일하게 유지한다 */}
           {hasPermission('all') && (
             <>
-              <Button {...commonMenuButtonProps('notifications')} onClick={() => handleClick('notifications')} leftIcon={<Icon as={MdOutlineNotifications} boxSize={4.5} />}>
+              <Button {...commonMenuButtonProps('notifications')} onClick={() => handleClick('notifications')} leftIcon={<Icon as={MdOutlineNotifications} boxSize={5} />}>
                 알림 관리
               </Button>
-              <Button {...commonMenuButtonProps('analytics')} onClick={() => handleClick('analytics')} leftIcon={<Icon as={MdOutlineInsights} boxSize={4.5} />}>
+              <Button {...commonMenuButtonProps('analytics')} onClick={() => handleClick('analytics')} leftIcon={<Icon as={MdOutlineInsights} boxSize={5} />}>
                 활동 분석
               </Button>
-              <Button {...commonMenuButtonProps('football')} onClick={() => handleClick('football')} leftIcon={<Icon as={MdOutlineStadium} boxSize={4.5} />}>
+              <Button {...commonMenuButtonProps('football')} onClick={() => handleClick('football')} leftIcon={<Icon as={MdOutlineStadium} boxSize={5} />}>
                 풋살 현황판
               </Button>
             </>
@@ -3111,10 +3116,14 @@ export default function AdminPageNew() {
         </VStack>
         <Box px={3} py={3} borderTop="1px" borderColor="gray.200">
           <Box
-            bg="gray.50"
+            as="button"
+            type="button"
+            w="100%"
+            textAlign="left"
+            bg="white"
             px={3}
-            py={2}
-            borderRadius="lg"
+            py={2.5}
+            borderRadius="md"
             border="1px solid"
             borderColor="gray.200"
             cursor="pointer"
@@ -3122,22 +3131,22 @@ export default function AdminPageNew() {
               onNavigate?.();
               adminManual.onOpen();
             }}
-            _hover={{ bg: 'gray.100', borderColor: 'gray.300' }}
-            transition="all 0.15s ease"
+            _hover={{ borderColor: 'brand.300', bg: 'brand.50' }}
+            transition="background-color 0.15s ease, border-color 0.15s ease"
           >
-            <HStack spacing={2} align="center">
-              <Icon as={MdOutlineMenuBook} boxSize={4} color="#004ea8" />
-              <VStack align="start" spacing={0} flex={1}>
-                <Text fontSize="xs" fontWeight="semibold" color="gray.700" lineHeight="1.2">
+            <HStack spacing={3} align="center">
+              <Flex align="center" justify="center" w={8} h={8} borderRadius="md" bg="matchday.navy" flexShrink={0}>
+                <Icon as={MdOutlineMenuBook} boxSize={4} color="white" />
+              </Flex>
+              <VStack align="start" spacing={0} flex={1} minW={0}>
+                <Text fontSize="xs" fontWeight="800" color="matchday.navy" lineHeight="1.3">
                   관리자 가이드
                 </Text>
-                <Text fontSize="10px" color="gray.500" lineHeight="1.1" mt="1px" noOfLines={1}>
+                <Text fontSize="11px" color="gray.500" lineHeight="1.3" noOfLines={1}>
                   {getMenuDescription(selectedMenu)}
                 </Text>
               </VStack>
-              <Text fontSize="10px" color="gray.400">
-                →
-              </Text>
+              <Text fontSize="sm" color="gray.400" aria-hidden="true">›</Text>
             </HStack>
           </Box>
         </Box>
@@ -3146,73 +3155,107 @@ export default function AdminPageNew() {
   };
 
   return (
-    <Box minH="100vh" bg="gray.50" pt={isMobile ? 16 : 20}>
+    <Box minH="100vh" bg="gray.50" pt={`${ADMIN_SHELL.HEADER_H + (isMobile ? ADMIN_SHELL.MOBILE_BAR_H : 0)}px`}>
       {isMobile && (
         <>
+          {/* 모바일 title bar: 우측 끝 DOCK_W 영역은 챗봇 edge dock 자리(ChatbotWidget이 같은 높이에 고정).
+              앱 래퍼의 overflow-x: hidden 때문에 sticky가 동작하지 않아 fixed + 상단 여백으로 고정한다. */}
           <Flex
-            position="sticky"
-            top="80px"
-            zIndex={5}
+            className="fccg-matchday fccg-admin"
+            position="fixed"
+            top={`${ADMIN_SHELL.HEADER_H}px`}
+            left={0}
+            right={0}
+            zIndex={20}
+            h={`${ADMIN_SHELL.MOBILE_BAR_H}px`}
             bg="white"
-            px={4}
-            py={3}
+            pl={{ base: 4, md: 6 }}
+            pr={`${ADMIN_SHELL.DOCK_W + 12}px`}
             borderBottom="1px solid"
             borderColor="gray.200"
             boxShadow="sm"
             align="center"
             justify="space-between"
+            gap={3}
           >
-            <Text fontSize="lg" fontWeight="bold" color="#004ea8">
-              관리자 페이지
-            </Text>
-            <IconButton
+            <Box minW={0}>
+              <Text textStyle="scoreLabel" fontSize="10px" color="brand.500">ADMIN CONSOLE</Text>
+              <Text fontSize="md" fontWeight="800" color="matchday.navy" lineHeight="1.2" noOfLines={1}>
+                관리자 페이지
+              </Text>
+            </Box>
+            {/* 전역 헤더의 햄버거(사이트 메뉴)와 구분되도록 panel 아이콘 사용. 390: 아이콘만 / md 이상: 라벨 포함 */}
+            <Button
               aria-label="관리자 메뉴 열기"
-              icon={<HamburgerIcon />}
+              leftIcon={<Icon as={LuPanelLeft} boxSize={5} />}
+              iconSpacing={{ base: 0, md: 2 }}
               variant="outline"
+              size="md"
+              minW="40px"
+              px={{ base: 0, md: 3 }}
+              border="1px solid"
               borderColor="gray.200"
-              borderRadius="lg"
+              borderRadius="md"
+              color="matchday.navy"
+              fontSize="sm"
+              fontWeight="700"
+              flexShrink={0}
+              _hover={{ bg: 'brand.50', borderColor: 'brand.300', color: 'brand.700' }}
               onClick={mobileSidebar.onOpen}
-            />
+            >
+              <Box as="span" display={{ base: 'none', md: 'inline' }}>관리자 메뉴</Box>
+            </Button>
           </Flex>
           <Drawer placement="left" onClose={mobileSidebar.onClose} isOpen={mobileSidebar.isOpen} size="xs">
             <DrawerOverlay />
-            <DrawerContent bg="white">
+            <DrawerContent bg="white" className="fccg-matchday fccg-admin">
               <DrawerCloseButton />
-              <DrawerHeader fontSize="md" fontWeight="bold" color="#004ea8" borderBottom="1px solid" borderColor="gray.200">
-                관리자 메뉴
+              <DrawerHeader borderBottom="1px solid" borderColor="gray.200">
+                <Flex align="center" gap={2}>
+                  <Box w="16px" h="3px" bg="brand.500" borderRadius="full" />
+                  <Text textStyle="scoreLabel" color="brand.500">ADMIN CONSOLE</Text>
+                </Flex>
+                <Text fontSize="lg" fontWeight="800" color="matchday.navy" mt={1}>관리자 메뉴</Text>
               </DrawerHeader>
               <DrawerBody p={0}>{renderSidebarContent(mobileSidebar.onClose)}</DrawerBody>
             </DrawerContent>
           </Drawer>
         </>
       )}
-      <Flex minH="calc(100vh - 80px)">
+      <Flex minH={`calc(100vh - ${ADMIN_SHELL.HEADER_H}px)`}>
         {!isMobile && (
-          <Box
-            w="280px"
+          <Flex
+            className="fccg-matchday fccg-admin"
+            direction="column"
+            w={`${ADMIN_SHELL.SIDEBAR_W}px`}
             bg="white"
             borderRight="1px"
             borderColor="gray.200"
             position="fixed"
-            top={20}
+            top={`${ADMIN_SHELL.HEADER_H}px`}
             left={0}
-            h="calc(100vh - 80px)"
-            overflowY="auto"
+            h={`calc(100vh - ${ADMIN_SHELL.HEADER_H}px)`}
             zIndex={10}
           >
-            {renderSidebarContent()}
-          </Box>
+            <Box flex={1} minH={0} overflowY="auto">
+              {renderSidebarContent()}
+            </Box>
+            {/* 원형 챗봇 버튼 전용 칸 (ChatbotWidget이 이 위치에 고정) — 메뉴가 스크롤돼도 겹치지 않는다 */}
+            <Box h={`${ADMIN_SHELL.SIDEBAR_CHATBOT_SLOT_H}px`} flexShrink={0} borderTop="1px" borderColor="gray.200" bg="gray.50" />
+          </Flex>
         )}
 
-        {/* 메인 콘텐츠 */}
+        {/* 메인 콘텐츠 — 모든 관리자 화면 공통 여백·최대 폭 */}
         <Box
           flex={1}
-          ml={isMobile ? 0 : '280px'}
-          p={{ base: 4, md: 6, lg: 8 }}
-          pt={{ base: 4, md: 6, lg: 8 }}
-          w={isMobile ? '100%' : 'calc(100vw - 280px)'}
+          ml={isMobile ? 0 : `${ADMIN_SHELL.SIDEBAR_W}px`}
+          px={{ base: 4, md: 6, lg: 8 }}
+          pt={{ base: 5, md: 6, lg: 8 }}
+          pb={{ base: 10, lg: 12 }}
+          w={isMobile ? '100%' : `calc(100vw - ${ADMIN_SHELL.SIDEBAR_W}px)`}
           minW="0"
-          maxW={isMobile ? '100%' : 'calc(100vw - 280px)'}
+          maxW={isMobile ? '100%' : `calc(100vw - ${ADMIN_SHELL.SIDEBAR_W}px)`}
+          sx={{ '& > *': { maxW: '1280px', mx: 'auto' } }}
         >
           {loading ? (
             <VStack spacing={4} align="stretch" w="100%">
@@ -3327,7 +3370,7 @@ export default function AdminPageNew() {
                 };
 
                 return (
-                <VStack className="fccg-matchday" spacing={5} align="stretch" w="100%" pb={{ base: '88px', md: 0 }}>
+                <VStack className="fccg-matchday" spacing={5} align="stretch" w="100%">
                   {/* HERO: Match Day Command Center + 스코어보드 */}
                   <Box position="relative" overflow="hidden" bg="matchday.navy" borderRadius="xl" color="white">
                     <PitchLines />

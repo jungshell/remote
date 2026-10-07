@@ -36,7 +36,8 @@ export default function Header() {
   const memberManual = useDisclosure();
   const mobileNav = useDisclosure();
   const playerPassport = useDisclosure();
-  const isMobile = useBreakpointValue({ base: true, md: false });
+  // 데스크톱 nav는 lg(992px)부터. 그보다 좁으면(태블릿 포함) 햄버거 메뉴를 쓴다 — 800px 전후 로고/nav/계정 영역 충돌 방지.
+  const isMobile = useBreakpointValue({ base: true, lg: false });
   const navItems: NavItem[] = [
     { label: '일정', path: '/schedule-v2', icon: CalendarIcon },
     { label: '사진', path: '/gallery/photos', icon: AttachmentIcon },
@@ -287,7 +288,7 @@ export default function Header() {
 
   return (
     <>
-      <Flex as="nav" align="center" justify="space-between" px={{ base: 3, md: 4, lg: 6 }} py={2} bg="white" boxShadow="sm" w="100%" position="fixed" top={0} left={0} right={0} zIndex={Z_INDEX.HEADER} maxW="100vw" overflow="hidden" boxSizing="border-box">
+      <Flex as="nav" className="fccg-header" align="center" justify="space-between" px={{ base: 3, md: 4, lg: 6 }} h="80px" bg="white" boxShadow="sm" w="100%" position="fixed" top={0} left={0} right={0} zIndex={Z_INDEX.HEADER} maxW="100vw" overflow="hidden" boxSizing="border-box">
         <HStack spacing={3} flexShrink={1} minW={0} pl={{ base: 2, md: 4, lg: 6 }}>
           <Text
             fontSize={{ base: 'lg', md: 'xl' }}
@@ -309,35 +310,49 @@ export default function Header() {
             FC CHAL-GGYEO
           </Text>
         </HStack>
-        <HStack spacing={2} flexShrink={1} minW={0} display={{ base: 'none', md: 'flex' }}>
+        {/* 데스크톱 top nav: 박스형 버튼이 아닌 텍스트 중심 한 줄 nav. active는 brand 텍스트 + 하단 2px indicator */}
+        <HStack spacing={1} flexShrink={1} minW={0} display={{ base: 'none', lg: 'flex' }}>
           {availableNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
-          <Button
+              <Button
                 key={item.label}
                 variant="ghost"
+                h="40px"
+                px={3}
+                iconSpacing={2}
                 bg="transparent"
-                color={isActive ? 'brand.600' : 'gray.500'}
-                fontWeight={isActive ? '700' : '500'}
+                border="0"
                 borderRadius="md"
-                borderBottom="2px solid"
-                borderBottomColor={isActive ? 'brand.500' : 'transparent'}
-            _hover={{
-                  bg: 'gray.50',
-                  color: 'brand.600',
-            }}
-                transition={`color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}, border-color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}, background-color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}`}
-                leftIcon={<Icon />}
+                position="relative"
+                fontSize="sm"
+                color={isActive ? 'brand.600' : 'gray.600'}
+                fontWeight={isActive ? '700' : '500'}
+                aria-current={isActive ? 'page' : undefined}
+                _after={{
+                  content: '""',
+                  position: 'absolute',
+                  left: 3,
+                  right: 3,
+                  bottom: 0,
+                  h: '2px',
+                  borderRadius: 'full',
+                  bg: isActive ? 'brand.500' : 'transparent',
+                }}
+                _hover={{ bg: 'brand.50', color: 'brand.600' }}
+                _active={{ bg: 'brand.50' }}
+                transition={`color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}, background-color ${MOTION.DURATION.FAST} ${MOTION.EASING.STANDARD}`}
+                leftIcon={<Icon boxSize="16px" opacity={isActive ? 1 : 0.75} />}
                 onClick={() => handleNavigate(item.path)}
-            flexShrink={1}
-          >
+                flexShrink={0}
+              >
                 {item.label}
-          </Button>
+              </Button>
             );
           })}
         </HStack>
-        <HStack spacing={2} flexShrink={0} minW="fit-content" pr={{ base: 2, md: 6, lg: 8 }} display={{ base: 'none', md: 'flex' }}>
+        <HStack spacing={2} flexShrink={0} minW="fit-content" pr={{ base: 2, md: 6, lg: 8 }} display={{ base: 'none', lg: 'flex' }}>
           {!user ? (
             <>
               <AppButton size="sm" variant="primary" onClick={onOpen} whiteSpace="nowrap">로그인</AppButton>
@@ -355,10 +370,10 @@ export default function Header() {
             </>
           ) : (
             <>
-              <HStack align="center" spacing={2} flexShrink={1} minW={0} display={{ base: 'none', md: 'flex' }}>
-                {/* 투표율과 참여율 표시 (user가 있으면 항상 표시) */}
+              <HStack align="center" spacing={2} flexShrink={1} minW={0} display={{ base: 'none', lg: 'flex' }}>
+                {/* 투표율과 참여율 표시 — 공간이 충분한 xl(1280px) 이상에서만 (그 아래는 햄버거 메뉴/패스포트에서 확인) */}
                 {user && (
-                  <>
+                  <HStack spacing={2} display={{ base: 'none', xl: 'flex' }}>
                     <Tooltip
                       label={isLoading ? '로딩 중...' : `${user?.voteDetails?.participated || 0}/${user?.voteDetails?.total || 0} 투표참여`}
                       placement="bottom"
@@ -441,7 +456,7 @@ export default function Header() {
                     </Tooltip>
                     {/* 투표율/참여율(정보)과 아바타/이름(계정) 영역을 시각적으로 구분 */}
                     <Box w="1px" h="28px" bg="gray.200" flexShrink={0} />
-                  </>
+                  </HStack>
                 )}
                 <HStack align="center" spacing={2} flexShrink={0}>
                   <Box
@@ -504,7 +519,7 @@ export default function Header() {
             </>
           )}
         </HStack>
-        <HStack spacing={2} display={{ base: 'flex', md: 'none' }}>
+        <HStack spacing={2} display={{ base: 'flex', lg: 'none' }}>
           {!user ? (
             <AppButton size="xs" variant="primary" onClick={onOpen}>로그인</AppButton>
           ) : (
@@ -515,9 +530,10 @@ export default function Header() {
             icon={<InfoIcon />}
             size="md"
             variant="outline"
+            borderWidth="1px"
             color="gray.600"
-            borderColor="gray.300"
-            _hover={{ bg: 'gray.50', color: 'brand.600' }}
+            borderColor="gray.200"
+            _hover={{ bg: 'brand.50', borderColor: 'brand.300', color: 'brand.600' }}
             onClick={memberManual.onOpen}
             borderRadius="full"
           />
@@ -526,9 +542,10 @@ export default function Header() {
             icon={<HamburgerIcon />}
             size="md"
             variant="outline"
+            borderWidth="1px"
             color="gray.600"
-            borderColor="gray.300"
-            _hover={{ bg: 'gray.50', color: 'brand.600' }}
+            borderColor="gray.200"
+            _hover={{ bg: 'brand.50', borderColor: 'brand.300', color: 'brand.600' }}
             onClick={mobileNav.onOpen}
           />
         </HStack>
@@ -536,7 +553,7 @@ export default function Header() {
       <ManualModal isOpen={memberManual.isOpen} onClose={memberManual.onClose} variant="member" />
       <Drawer placement="right" onClose={mobileNav.onClose} isOpen={mobileNav.isOpen}>
         <DrawerOverlay />
-        <DrawerContent>
+        <DrawerContent className="fccg-header">
           <DrawerCloseButton />
           <DrawerHeader>메뉴</DrawerHeader>
           <DrawerBody display="flex" flexDirection="column">

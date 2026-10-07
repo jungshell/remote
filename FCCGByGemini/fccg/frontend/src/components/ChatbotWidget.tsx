@@ -15,7 +15,7 @@ import {
 import { useLocation } from 'react-router-dom';
 import { ChatIcon, CloseIcon } from '@chakra-ui/icons';
 import { askChatbot } from '../api/auth';
-import { Z_INDEX } from '../constants/designTokens';
+import { ADMIN_SHELL, Z_INDEX } from '../constants/designTokens';
 
 type Message = {
   from: 'bot' | 'user';
@@ -28,7 +28,11 @@ export default function ChatbotWidget() {
   // 열기/닫기 동작(setIsOpen 토글)은 기존 버튼과 동일.
   const { pathname } = useLocation();
   const isBelowLg = useBreakpointValue({ base: true, lg: false }, { ssr: false });
-  const isAdminDock = pathname.startsWith('/admin') && !!isBelowLg;
+  const isAdmin = pathname.startsWith('/admin');
+  // 관리자 화면은 챗봇을 콘텐츠 영역 밖 Shell에만 둔다 (ADMIN_SHELL 참고).
+  // lg 미만: 고정 title bar 높이에 맞춘 우측 edge dock / lg 이상: 사이드바 하단 전용 칸의 원형 버튼.
+  const isAdminDock = isAdmin && !!isBelowLg;
+  const isAdminSidebarFab = isAdmin && !isBelowLg;
   const [messages, setMessages] = useState<Message[]>([
     {
       from: 'bot',
@@ -88,8 +92,11 @@ export default function ChatbotWidget() {
   return (
     <Box
       position="fixed"
-      bottom={isAdminDock ? 'calc(24px + env(safe-area-inset-bottom, 0px))' : { base: 'calc(16px + env(safe-area-inset-bottom, 0px))', md: 6 }}
-      right={isAdminDock ? 'env(safe-area-inset-right, 0px)' : { base: 'calc(16px + env(safe-area-inset-right, 0px))', md: 6 }}
+      {...(isAdminDock
+        ? { top: `${ADMIN_SHELL.HEADER_H + (ADMIN_SHELL.MOBILE_BAR_H - ADMIN_SHELL.DOCK_H) / 2}px`, right: 'env(safe-area-inset-right, 0px)' }
+        : isAdminSidebarFab
+          ? { bottom: `${(ADMIN_SHELL.SIDEBAR_CHATBOT_SLOT_H - 48) / 2}px`, left: `${(ADMIN_SHELL.SIDEBAR_W - 48) / 2}px` }
+          : { bottom: { base: 'calc(16px + env(safe-area-inset-bottom, 0px))', md: 6 }, right: { base: 'calc(16px + env(safe-area-inset-right, 0px))', md: 6 } })}
       zIndex={Z_INDEX.CHATBOT}
     >
       {isAdminDock ? (
@@ -102,9 +109,9 @@ export default function ChatbotWidget() {
             </HStack>
           }
           colorScheme="brand"
-          minW="38px"
-          w="38px"
-          h="46px"
+          minW={`${ADMIN_SHELL.DOCK_W}px`}
+          w={`${ADMIN_SHELL.DOCK_W}px`}
+          h={`${ADMIN_SHELL.DOCK_H}px`}
           pl={1}
           borderLeftRadius="xl"
           borderRightRadius={0}
@@ -125,8 +132,11 @@ export default function ChatbotWidget() {
       )}
       <Box
         position="absolute"
-        bottom="calc(100% + 12px)"
-        right={isAdminDock ? 2 : 0}
+        {...(isAdminDock
+          ? { top: 'calc(100% + 12px)', right: 2 }
+          : isAdminSidebarFab
+            ? { bottom: 'calc(100% + 12px)', left: 0 }
+            : { bottom: 'calc(100% + 12px)', right: 0 })}
         zIndex={Z_INDEX.CHATBOT}
       >
         <Collapse in={isOpen} animateOpacity unmountOnExit>
