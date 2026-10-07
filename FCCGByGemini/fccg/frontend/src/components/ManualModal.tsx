@@ -61,7 +61,7 @@ import {
   TabPanel
 } from '@chakra-ui/react';
 import { Card } from './common';
-import { GRADIENTS } from '../constants/designTokens';
+import { PitchLines } from './admin/MatchDay';
 
 type ManualModalProps = {
   isOpen: boolean;
@@ -196,30 +196,34 @@ export default function ManualModal({ isOpen, onClose, variant }: ManualModalPro
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="2xl" scrollBehavior="inside">
       <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
-      <ModalContent bg="white" _dark={{ bg: 'gray.800' }} borderRadius="lg" boxShadow="lg">
+      <ModalContent className="fccg-member" bg="white" _dark={{ bg: 'gray.800' }} borderRadius="xl" overflow="hidden" boxShadow="lg" mx={{ base: 3, md: 'auto' }}>
         <ModalHeader
-          background={GRADIENTS.NEXT_MATCH_DEFAULT}
+          className="fccg-matchday"
+          position="relative"
+          overflow="hidden"
+          flexShrink={0}
+          bg="matchday.navy"
           color="white"
-          roundedTop="lg"
           py={3.5}
           px={5}
         >
-          <HStack spacing={3} align="center">
+          <PitchLines opacity={0.08} />
+          <HStack spacing={3} align="center" position="relative" pr={8}>
             <Flex boxSize="40px" align="center" justify="center" bg="whiteAlpha.200" borderRadius="md" flexShrink={0}>
               <Icon as={MdOutlineSportsSoccer} boxSize="20px" color="white" />
             </Flex>
             <VStack align="start" spacing={0}>
-              <Text fontSize="lg" fontWeight="bold" lineHeight="1.2">
-                {title}
-              </Text>
-              <Text fontSize="xs" opacity={0.85} lineHeight="1.2">
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">
                 FC CHAL-GGYEO
+              </Text>
+              <Text fontSize="lg" fontWeight="800" lineHeight="1.3" mt={1}>
+                {title}
               </Text>
             </VStack>
             {chip}
           </HStack>
         </ModalHeader>
-        <ModalCloseButton color="white" _hover={{ bg: 'whiteAlpha.300' }} size="sm" />
+        <ModalCloseButton color="white" _hover={{ bg: 'whiteAlpha.300' }} size="md" top={4} />
         <ModalBody p={4}>
           {variant === 'member' ? (
             <VStack align="stretch" spacing={3}>

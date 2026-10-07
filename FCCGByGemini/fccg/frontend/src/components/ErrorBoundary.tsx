@@ -77,9 +77,9 @@ class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <Container maxW="container.md" py={10}>
+        <Container maxW="container.md" pt="112px" pb={10} className="fccg-matchday fccg-member">
           <VStack spacing={6} align="center">
-            <Alert status="error" borderRadius="md">
+            <Alert status="error" borderRadius="xl">
               <AlertIcon />
               <Box>
                 <Heading size="md" mb={2}>오류가 발생했습니다</Heading>
@@ -89,9 +89,10 @@ class ErrorBoundary extends Component<Props, State> {
               </Box>
             </Alert>
 
-            <Box textAlign="center">
-              <Heading size="lg" color="red.500" mb={4}>
-                😕 문제가 발생했습니다
+            <Box textAlign="center" bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" px={{ base: 5, md: 10 }} py={8} w="full">
+              <Text textStyle="scoreLabel" color="brand.500">SOMETHING WENT WRONG</Text>
+              <Heading size="lg" color="matchday.navy" mt={2} mb={3}>
+                문제가 발생했습니다
               </Heading>
               <Text color="gray.600" mb={6}>
                 죄송합니다. 페이지를 새로고침하거나 홈으로 돌아가서 다시 시도해주세요.
@@ -99,20 +100,24 @@ class ErrorBoundary extends Component<Props, State> {
 
               <VStack spacing={3}>
                 <Button
-                  colorScheme="blue"
+                  colorScheme="brand"
                   onClick={this.handleRetry}
-                  size="lg"
-                  w="200px"
+                  h="48px"
+                  borderRadius="lg"
+                  w="220px"
                 >
-                  🔄 다시 시도
+                  다시 시도
                 </Button>
                 <Button
                   variant="outline"
                   onClick={this.handleGoHome}
-                  size="lg"
-                  w="200px"
+                  h="44px"
+                  borderRadius="lg"
+                  borderColor="gray.200"
+                  color="brand.600"
+                  w="220px"
                 >
-                  🏠 홈으로 돌아가기
+                  홈으로 돌아가기
                 </Button>
               </VStack>
             </Box>

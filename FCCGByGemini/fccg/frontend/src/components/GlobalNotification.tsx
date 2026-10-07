@@ -58,11 +58,12 @@ const GlobalNotification: React.FC = () => {
   return (
     <Box
       position="fixed"
-      top="20px"
-      right="20px"
+      top="92px"
+      right={{ base: 3, md: 5 }}
+      left={{ base: 3, md: 'auto' }}
       zIndex={Z_INDEX.NOTIFICATION}
-      maxW="400px"
-      w="100%"
+      maxW={{ base: 'none', md: '400px' }}
+      w={{ base: 'auto', md: '100%' }}
     >
       {notifications.map((notification) => (
         <Slide key={notification.id} in={true} direction="right">
@@ -72,7 +73,7 @@ const GlobalNotification: React.FC = () => {
             bg={bgColor}
             borderColor={borderColor}
             mb={2}
-            borderRadius="md"
+            borderRadius="lg"
             boxShadow="lg"
           >
             <AlertIcon />

@@ -92,15 +92,17 @@ const InAppNotification: React.FC<InAppNotificationProps> = ({ notification, onC
     <SlideFade in={isVisible} offsetY="20px">
       <Box
         position="fixed"
-        top="20px"
-        right="20px"
+        top="92px"
+        right={{ base: 3, md: 5 }}
         zIndex={Z_INDEX.NOTIFICATION}
         w="400px"
-        maxW="90vw"
+        maxW="calc(100vw - 24px)"
         bg="white"
         border="1px solid"
         borderColor="gray.200"
-        borderRadius="lg"
+        borderLeft="3px solid"
+        borderLeftColor="brand.500"
+        borderRadius="xl"
         boxShadow="lg"
         p={4}
         _hover={{ boxShadow: 'xl' }}
@@ -134,7 +136,7 @@ const InAppNotification: React.FC<InAppNotificationProps> = ({ notification, onC
           </HStack>
 
           <VStack spacing={2} align="stretch">
-            <Text fontSize="md" fontWeight="bold" color="gray.800">
+            <Text fontSize="md" fontWeight="800" color="matchday.navy">
               {notification.title}
             </Text>
             <Text fontSize="sm" color="gray.600" lineHeight="1.4">

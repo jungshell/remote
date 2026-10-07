@@ -49,13 +49,15 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
     <SlideFade in={isInstallable} offsetY="20px">
       <Box
         position="fixed"
-        bottom={4}
+        bottom={{ base: 'calc(80px + env(safe-area-inset-bottom, 0px))', md: 24 }}
         left={4}
         right={4}
         bg={bgColor}
         border="1px solid"
         borderColor={borderColor}
-        borderRadius="lg"
+        borderRadius="xl"
+        borderTop="3px solid"
+        borderTopColor="brand.500"
         boxShadow="lg"
         p={4}
         zIndex={Z_INDEX.FLOATING_WIDGET}
@@ -66,7 +68,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
           {/* 헤더 */}
           <HStack justify="space-between" align="center">
             <HStack spacing={2}>
-              <Icon as={DownloadIcon} color="blue.500" />
+              <Icon as={DownloadIcon} color="brand.500" />
               <Text fontWeight="bold" color={textColor}>
                 FC CG 앱 설치
               </Text>
@@ -98,12 +100,12 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
               {isOnline ? '온라인' : '오프라인'}
             </Badge>
             {isServiceWorkerReady && (
-              <Badge colorScheme="blue" variant="subtle" fontSize="xs">
+              <Badge colorScheme="brand" variant="subtle" fontSize="xs">
                 오프라인 지원
               </Badge>
             )}
             {isPushSupported && (
-              <Badge colorScheme="purple" variant="subtle" fontSize="xs">
+              <Badge bg="gray.100" color="matchday.navy" variant="subtle" fontSize="xs">
                 푸시 알림
               </Badge>
             )}
@@ -112,8 +114,11 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({
           {/* 액션 버튼들 */}
           <VStack spacing={2}>
             <Button
-              colorScheme="blue"
-              size="sm"
+              colorScheme="brand"
+              size="md"
+              h="44px"
+              borderRadius="lg"
+              fontWeight="800"
               width="full"
               onClick={installApp}
               leftIcon={<DownloadIcon />}
@@ -193,7 +198,7 @@ export const PWAStatus: React.FC = () => {
   return (
     <Box
       position="fixed"
-      top={4}
+      top="92px"
       right={4}
       bg={bgColor}
       border="1px solid"
@@ -213,13 +218,13 @@ export const PWAStatus: React.FC = () => {
         </Badge>
         
         {isServiceWorkerReady && (
-          <Badge colorScheme="blue" variant="subtle" fontSize="xs">
+          <Badge colorScheme="brand" variant="subtle" fontSize="xs">
             SW
           </Badge>
         )}
         
         {isPushSupported && (
-          <Badge colorScheme="purple" variant="subtle" fontSize="xs">
+          <Badge bg="gray.100" color="matchday.navy" variant="subtle" fontSize="xs">
             푸시
           </Badge>
         )}

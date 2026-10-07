@@ -5,7 +5,6 @@ import {
   Button,
   FormControl,
   FormLabel,
-  Heading,
   Input,
   InputGroup,
   InputRightElement,
@@ -29,6 +28,8 @@ import {
 import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
 import { login } from '../api/auth';
+import AuthShell from '../components/auth/AuthShell';
+import { MatchDayModalHeader } from '../components/admin/MatchDay';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface LoginProps {
@@ -193,66 +194,57 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
   };
 
   return (
-    <Box
-      bgGradient="linear(to-br, #004ea8, #1f2937)"
-      borderRadius="xl"
-      p={0}
-      px={8}
-      py={8}
-      position="relative"
-      minH={onSwitch ? undefined : '100vh'}
-      display={onSwitch ? undefined : 'flex'}
-      alignItems={onSwitch ? undefined : 'center'}
-      justifyContent={onSwitch ? undefined : 'center'}
-    >
-      {onSwitch && (
-        <ModalCloseButton
-          color="white"
-          position="absolute"
-          top="1rem"
-          right="1rem"
-          zIndex={100}
-          size="lg"
-          bg="rgba(0,0,0,0.25)"
-          _hover={{ bg: 'rgba(0,0,0,0.35)' }}
-          _focus={{ boxShadow: 'none' }}
-          borderRadius="full"
-          m={0}
-          transform="none"
-          onClick={onSwitch}
-        />
-      )}
-      <Box bg="white" borderRadius="xl" p={8} boxShadow="lg" w="full" maxW="sm" minW={320}>
-        <Heading mb={6} color="brand.500" fontFamily="'Pretendard Variable', Pretendard, sans-serif" fontWeight="bold" textAlign="center">로그인</Heading>
+    <>
+      <AuthShell
+        title="로그인"
+        description="회원 계정으로 일정 투표와 기록을 확인하세요"
+        inModal={!!onSwitch}
+        topRight={onSwitch && (
+          <ModalCloseButton
+            color="white"
+            position="absolute"
+            top={3}
+            right={3}
+            zIndex={2}
+            size="md"
+            bg="whiteAlpha.200"
+            _hover={{ bg: 'whiteAlpha.300' }}
+            borderRadius="full"
+            m={0}
+            transform="none"
+            onClick={onSwitch}
+          />
+        )}
+      >
         <form onSubmit={handleLogin}>
           <VStack spacing={4}>
             <FormControl id="email" isRequired>
               <FormLabel>이메일</FormLabel>
-              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="이메일을 입력하세요" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="이메일을 입력하세요" h="48px" rounded="lg" bg="gray.50" borderColor="gray.200" _hover={{ borderColor: 'gray.300' }} _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)', bg: 'white' }} />
             </FormControl>
             <FormControl id="password" isRequired>
               <FormLabel>비밀번호</FormLabel>
               <InputGroup>
-                <Input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="비밀번호를 입력하세요" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
-                <InputRightElement>
-                  <IconButton aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} icon={showPw ? <ViewOffIcon /> : <ViewIcon />} variant="ghost" size="sm" bg="brand.500" color="white" _hover={{ bg: 'brand.600' }} onClick={() => setShowPw(v => !v)} />
+                <Input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="비밀번호를 입력하세요" h="48px" rounded="lg" bg="gray.50" borderColor="gray.200" _hover={{ borderColor: 'gray.300' }} _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)', bg: 'white' }} />
+                <InputRightElement h="48px" w="48px">
+                  <IconButton aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'} icon={showPw ? <ViewOffIcon /> : <ViewIcon />} variant="ghost" size="sm" color="gray.500" _hover={{ bg: 'gray.100', color: 'matchday.navy' }} onClick={() => setShowPw(v => !v)} />
                 </InputRightElement>
               </InputGroup>
             </FormControl>
-            <Button type="submit" colorScheme="brand" bg="brand.500" _hover={{ bg: 'brand.600' }} w="full" rounded="lg" isLoading={loading} fontWeight="bold">로그인</Button>
+            <Button type="submit" colorScheme="brand" bg="brand.500" _hover={{ bg: 'brand.600' }} w="full" h="48px" rounded="lg" isLoading={loading} fontWeight="800" mt={2}>로그인</Button>
             {onSwitch && (
               <Button
                 variant="outline"
-                color="#004ea8"
-                borderColor="#004ea8"
+                color="brand.600"
+                borderColor="gray.200"
                 borderWidth={1}
                 borderStyle="solid"
                 rounded="lg"
                 w="full"
-                mt={2}
-                fontWeight="bold"
+                h="44px"
+                fontWeight="700"
                 bg="white"
-                _hover={{ bg: '#e6f0fa' }}
+                _hover={{ bg: 'brand.50', borderColor: 'brand.200' }}
                 onClick={onSwitch}
               >
                 회원가입
@@ -260,16 +252,16 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
             )}
           </VStack>
         </form>
-      </Box>
+      </AuthShell>
       
       {/* 회원 상태 경고 모달 */}
       <Modal isOpen={isWarningModalOpen} onClose={handleWarningClose} size="md">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            {statusWarning?.title || '상태 경고'}
+        <ModalContent className="fccg-member" mx={4} borderRadius="xl" overflow="hidden">
+          <ModalHeader p={0}>
+            <MatchDayModalHeader label="ACCOUNT NOTICE" title={statusWarning?.title || '상태 경고'} />
           </ModalHeader>
-          <ModalBody>
+          <ModalBody pt={5}>
             <Alert 
               status={statusWarning?.severity === 'error' ? 'error' : 'warning'} 
               variant="subtle"
@@ -289,7 +281,7 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
             </Alert>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" mr={3} onClick={handleWarningClose}>
+            <Button colorScheme="brand" h="44px" px={6} borderRadius="lg" onClick={handleWarningClose}>
               확인
             </Button>
           </ModalFooter>
@@ -299,9 +291,11 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
       {/* 비활성 계정 차단 모달 */}
       <Modal isOpen={isInactiveModalOpen} onClose={onInactiveModalClose} size="md" isCentered>
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>{blockedInfo?.label || '비활성'} 계정 안내</ModalHeader>
-          <ModalBody>
+        <ModalContent className="fccg-member" mx={4} borderRadius="xl" overflow="hidden">
+          <ModalHeader p={0}>
+            <MatchDayModalHeader label="ACCOUNT NOTICE" title={`${blockedInfo?.label || '비활성'} 계정 안내`} />
+          </ModalHeader>
+          <ModalBody pt={5}>
             <VStack align="stretch" spacing={4}>
               <Alert status="warning" variant="left-accent" borderRadius="md">
                 <AlertIcon />
@@ -328,13 +322,13 @@ const Login: FC<LoginProps> = ({ onSwitch, onClose }) => {
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" onClick={onInactiveModalClose}>
+            <Button colorScheme="brand" h="44px" px={6} borderRadius="lg" onClick={onInactiveModalClose}>
               확인
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Box>
+    </>
   );
 };
 

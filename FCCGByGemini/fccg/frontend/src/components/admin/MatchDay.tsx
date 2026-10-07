@@ -232,6 +232,21 @@ export const StatusBadge: React.FC<{ kind: StatusBadgeKind; value?: string | nul
   );
 };
 
+// 모달/패널 헤더: 남색 + 경기장 라인 + Volt 모노 라벨 + 제목 (닫기 버튼 자리만큼 우측 여백)
+export const MatchDayModalHeader: React.FC<{ label: string; title: React.ReactNode; subtitle?: React.ReactNode; right?: React.ReactNode } & BoxProps> = ({ label, title, subtitle, right, ...rest }) => (
+  <Box className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" px={{ base: 5, md: 6 }} pt={4} pb={3.5} {...rest}>
+    <PitchLines opacity={0.08} />
+    <Flex position="relative" align="center" gap={3} pr={8}>
+      <Box minW={0} flex={1}>
+        <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">{label}</Text>
+        <Text fontSize="md" fontWeight="800" mt={1} lineHeight="1.3">{title}</Text>
+        {subtitle && <Text fontSize="xs" color="whiteAlpha.700" mt={0.5}>{subtitle}</Text>}
+      </Box>
+      {right}
+    </Flex>
+  </Box>
+);
+
 // 밝은 배경용 기록 타일: 한글 라벨 + statNumber 값 + 캡션. 회원 화면(선수 패널·프로필·홈 통계)에서 공통 사용.
 export const RecordTile: React.FC<{
   label: string;

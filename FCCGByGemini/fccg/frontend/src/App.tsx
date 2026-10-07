@@ -16,9 +16,11 @@ const AdminPage = React.lazy(() => import('./pages/AdminPageNew'));
 const Login = React.lazy(() => import('./pages/Login'));
 const Signup = React.lazy(() => import('./pages/Signup'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
+// 페이지 지연 로딩 중: 회원 화면과 같은 밝은 배경 + brand spinner (앱 루트 그라데이션이 비치지 않게)
 const RouteFallback = () => (
-  <Center minH="220px">
-    <Spinner size="lg" color="blue.500" />
+  <Center minH="100vh" pt="80px" bg="gray.50" flexDirection="column" gap={3}>
+    <Spinner size="lg" thickness="3px" color="brand.500" emptyColor="gray.200" />
+    <Box fontSize="sm" fontWeight="600" color="gray.500">불러오는 중...</Box>
   </Center>
 );
 

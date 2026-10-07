@@ -674,17 +674,18 @@ export default function Header() {
       {/* 로그인/회원가입 모달 */}
       <Modal isOpen={isOpen} onClose={() => { setShowSignup(false); onClose(); }} isCentered size="sm">
         <ModalOverlay />
+        {/* 로그인/회원가입 카드(AuthShell)가 자체 배경·radius를 가지므로 모달 틀은 투명, 높이는 내용에 맞춘다 */}
         <ModalContent
           p={0}
-          borderRadius="lg"
-          minH="auto"
-          maxH="400px"
-          height="auto"
-          mx="auto"
+          borderRadius="xl"
+          overflow="hidden"
+          bg="transparent"
+          boxShadow="xl"
+          mx={4}
           my="auto"
           position="relative"
         >
-          <ModalBody p={0} pt={0} pb={1} px={0} display="flex" alignItems="center" justifyContent="center" height="400px" minHeight="400px">
+          <ModalBody p={0} display="flex" alignItems="center" justifyContent="center">
             <Suspense fallback={<Box color="gray.500">불러오는 중...</Box>}>
               {showSignup ? (
                 <Signup onSwitch={() => setShowSignup(false)} onClose={() => { setShowSignup(false); onClose(); }} />

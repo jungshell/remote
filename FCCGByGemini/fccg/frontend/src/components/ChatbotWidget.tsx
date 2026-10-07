@@ -16,6 +16,7 @@ import { useLocation } from 'react-router-dom';
 import { ChatIcon, CloseIcon } from '@chakra-ui/icons';
 import { askChatbot } from '../api/auth';
 import { ADMIN_SHELL, Z_INDEX } from '../constants/designTokens';
+import { MatchDayModalHeader } from './admin/MatchDay';
 
 type Message = {
   from: 'bot' | 'user';
@@ -141,16 +142,18 @@ export default function ChatbotWidget() {
       >
         <Collapse in={isOpen} animateOpacity unmountOnExit>
           <Box
+            className="fccg-member"
             w={{ base: '80vw', md: '360px' }}
             maxW="360px"
             bg={bg}
             borderRadius="xl"
+            border="1px solid"
+            borderColor="gray.200"
             boxShadow="2xl"
-            p={4}
+            overflow="hidden"
           >
-            <Text fontWeight="bold" mb={3}>
-              FC CHAL-GGYO 도우미
-            </Text>
+            <MatchDayModalHeader label="FCCG ASSISTANT" title="FC CHAL-GGYEO 도우미" subtitle="이용법 · 일정 · 투표 질문" px={4} />
+            <Box p={4}>
             <VStack
               spacing={3}
               align="stretch"
@@ -172,11 +175,15 @@ export default function ChatbotWidget() {
                 <Box
                   key={`${msg.from}-${idx}`}
                   alignSelf={msg.from === 'user' ? 'flex-end' : 'flex-start'}
-                  bg={msg.from === 'user' ? 'brand.500' : 'gray.100'}
-                  color={msg.from === 'user' ? 'white' : 'gray.800'}
+                  bg={msg.from === 'user' ? 'brand.500' : 'gray.50'}
+                  color={msg.from === 'user' ? 'white' : 'matchday.navy'}
+                  border="1px solid"
+                  borderColor={msg.from === 'user' ? 'brand.500' : 'gray.200'}
                   px={3}
                   py={2}
                   borderRadius="lg"
+                  borderBottomRightRadius={msg.from === 'user' ? 'sm' : 'lg'}
+                  borderBottomLeftRadius={msg.from === 'user' ? 'lg' : 'sm'}
                   maxW="80%"
                   whiteSpace="pre-line"
                   fontSize="sm"
@@ -201,9 +208,15 @@ export default function ChatbotWidget() {
               resize="none"
               rows={3}
               mb={2}
+              borderRadius="lg"
+              borderColor="gray.200"
+              _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
             />
             <Button
               w="full"
+              h="44px"
+              borderRadius="lg"
+              fontWeight="800"
               colorScheme="brand"
               bg={buttonColor}
               onClick={handleSend}
@@ -211,6 +224,7 @@ export default function ChatbotWidget() {
             >
               보내기
             </Button>
+            </Box>
           </Box>
         </Collapse>
       </Box>

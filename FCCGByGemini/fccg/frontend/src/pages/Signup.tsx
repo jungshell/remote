@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { FC } from 'react';
-import { Box, Button, FormLabel, Input, Heading, VStack, useToast, ModalCloseButton, FormControl } from '@chakra-ui/react';
+import { Button, FormLabel, Input, VStack, useToast, ModalCloseButton, FormControl } from '@chakra-ui/react';
 import { useAuthStore } from '../store/auth';
 import { register } from '../api/auth';
+import AuthShell from '../components/auth/AuthShell';
 import { useNavigate } from 'react-router-dom';
 
 interface SignupProps {
@@ -107,70 +108,59 @@ const Signup: FC<SignupProps> = ({ onSwitch, onClose }) => {
   };
 
   return (
-    <Box
-      bgGradient="linear(to-br, #004ea8, #1f2937)"
-      borderRadius="xl"
-      p={0}
-      px={8}
-      py={8}
-      minHeight={onSwitch ? '320px' : '100vh'}
-      alignSelf="center"
-      position="relative"
-      display={onSwitch ? undefined : 'flex'}
-      alignItems={onSwitch ? undefined : 'center'}
-      justifyContent={onSwitch ? undefined : 'center'}
-    >
-      {onSwitch && (
+    <AuthShell
+      title="회원가입"
+      description="FC CHAL-GGYEO 팀원으로 함께해요"
+      inModal={!!onSwitch}
+      topRight={onSwitch && (
         <ModalCloseButton
           color="white"
           position="absolute"
-          top="1rem"
-          right="1rem"
-          zIndex={100}
-          size="lg"
-          bg="rgba(0,0,0,0.25)"
-          _hover={{ bg: 'rgba(0,0,0,0.35)' }}
-          _focus={{ boxShadow: 'none' }}
+          top={3}
+          right={3}
+          zIndex={2}
+          size="md"
+          bg="whiteAlpha.200"
+          _hover={{ bg: 'whiteAlpha.300' }}
           borderRadius="full"
           m={0}
           transform="none"
           onClick={onSwitch}
         />
       )}
-      <Box bg="white" borderRadius="xl" p={8} boxShadow="lg" w="full" maxW="sm" minW={320}>
-        <Heading mb={6} color="brand.500" fontFamily="'Pretendard Variable', Pretendard, sans-serif" fontWeight="bold" textAlign="center">회원가입</Heading>
+    >
         <form onSubmit={handleSignup}>
           <VStack spacing={4}>
             <FormControl id="email" isRequired>
               <FormLabel>이메일</FormLabel>
-              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="이메일을 입력하세요" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
+              <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="이메일을 입력하세요" h="48px" rounded="lg" bg="gray.50" borderColor="gray.200" _hover={{ borderColor: 'gray.300' }} _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)', bg: 'white' }} />
             </FormControl>
             <FormControl id="password" isRequired>
               <FormLabel>비밀번호</FormLabel>
-              <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="비밀번호를 입력하세요" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
+              <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="비밀번호를 입력하세요" h="48px" rounded="lg" bg="gray.50" borderColor="gray.200" _hover={{ borderColor: 'gray.300' }} _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)', bg: 'white' }} />
             </FormControl>
             <FormControl id="name" isRequired>
               <FormLabel>이름</FormLabel>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="이름을 입력하세요" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="이름을 입력하세요" h="48px" rounded="lg" bg="gray.50" borderColor="gray.200" _hover={{ borderColor: 'gray.300' }} _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)', bg: 'white' }} />
             </FormControl>
             <FormControl id="phone">
               <FormLabel>휴대폰 번호</FormLabel>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="휴대폰 번호 (선택)" rounded="lg" bg="gray.50" _dark={{ bg: '#374151' }} />
+              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="휴대폰 번호 (선택)" h="48px" rounded="lg" bg="gray.50" borderColor="gray.200" _hover={{ borderColor: 'gray.300' }} _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)', bg: 'white' }} />
             </FormControl>
-            <Button type="submit" colorScheme="brand" bg="brand.500" _hover={{ bg: 'brand.600' }} w="full" rounded="lg" isLoading={loading} fontWeight="bold">회원가입</Button>
+            <Button type="submit" colorScheme="brand" bg="brand.500" _hover={{ bg: 'brand.600' }} w="full" h="48px" rounded="lg" isLoading={loading} fontWeight="800" mt={2}>회원가입</Button>
             {onSwitch && (
               <Button
                 variant="outline"
-                color="#004ea8"
-                borderColor="#004ea8"
+                color="brand.600"
+                borderColor="gray.200"
                 borderWidth={1}
                 borderStyle="solid"
                 rounded="lg"
                 w="full"
-                mt={2}
-                fontWeight="bold"
+                h="44px"
+                fontWeight="700"
                 bg="white"
-                _hover={{ bg: '#e6f0fa' }}
+                _hover={{ bg: 'brand.50', borderColor: 'brand.200' }}
                 onClick={onSwitch}
               >
                 이미 계정이 있으신가요? 로그인
@@ -178,8 +168,7 @@ const Signup: FC<SignupProps> = ({ onSwitch, onClose }) => {
             )}
           </VStack>
         </form>
-      </Box>
-    </Box>
+    </AuthShell>
   );
 };
 
