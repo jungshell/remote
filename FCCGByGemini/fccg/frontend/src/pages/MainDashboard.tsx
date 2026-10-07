@@ -9,6 +9,7 @@ import {
 } from '../components/dashboard/NextMatchStatusCard';
 import { Card } from '../components/common';
 import { LiveDot, PitchLines } from '../components/admin/MatchDay';
+import { VideoPoster } from '../components/media/MediaUI';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
@@ -1261,6 +1262,8 @@ export default function MainDashboard() {
   // 유튜브 IFrame Player는 외부 라이브러리로 동작하며, 최신화 fetch만 사용합니다.
 
   const [videoIdx, setVideoIdx] = useState<number>(0);
+  // 재생이 시작된(또는 사용자가 poster를 누른) 영상 id — 그 전에는 썸네일 poster를 먼저 보여준다 (표시 전용)
+  const [revealedVideoId, setRevealedVideoId] = useState<string | null>(null);
   const currentVideo = youtubeVideos[videoIdx] || fallbackVideos[0] || { id: 'AAftIIK3MOg', title: '기본 영상' };
   
   // 삭제된/비공개 영상 감지 시 다음 영상으로 단순 이동
@@ -2418,32 +2421,48 @@ export default function MainDashboard() {
           )}
 
         </Box>
-        {/* 유튜브 슬라이드 */}
-        <Box
+        {/* 유튜브 하이라이트 */}
+        <Flex
+          className="fccg-matchday"
           flex={2}
+          minW={0}
+          direction="column"
           bg="white"
-          p={4}
-          borderRadius="lg"
-          boxShadow="md"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          minH={{ base: '180px', md: '300px', lg: '400px' }}
-          position="relative"
-          overflow="hidden"
+          p={{ base: 4, md: 5 }}
+          borderRadius="xl"
+          border="1px solid"
+          borderColor="gray.200"
+          alignSelf={{ base: 'auto', md: 'flex-start' }}
+          h={{ base: 'auto', md: '520px' }}
         >
-          <IconButton icon={<ChevronLeftIcon />} aria-label="이전" position="absolute" left={2} top="50%" transform="translateY(-50%)" onClick={handlePrev} zIndex={2} bg="white" color="gray.600" boxShadow="sm" _hover={{ bg: "gray.100", color: "gray.700" }}/>
+          <Flex align="flex-end" justify="space-between" gap={3} mb={{ base: 3, md: 4 }} flexShrink={0}>
+            <Box minW={0}>
+              <Text fontSize="lg" fontWeight="800" color="matchday.navy" letterSpacing="-0.01em">경기 하이라이트</Text>
+              <Text textStyle="scoreLabel" fontSize="10px" color="brand.500" mt={1}>FCCG HIGHLIGHTS</Text>
+            </Box>
+            <Button
+              size="sm"
+              variant="ghost"
+              color="brand.600"
+              fontWeight="700"
+              rightIcon={<ChevronRightIcon />}
+              onClick={() => navigate('/gallery/videos')}
+              flexShrink={0}
+              display={{ base: 'none', md: 'inline-flex' }}
+            >
+              전체 영상
+            </Button>
+          </Flex>
           <Box
             key={currentVideo.id}
             w="100%"
-            h="100%"
             position="relative"
             borderRadius="lg"
             overflow="hidden"
-            boxShadow="sm"
-            bg="black"
-            aspectRatio={{ base: '16/9', md: '16/9' }}
-            minH={{ base: '180px', md: '300px' }}
+            bg="matchday.navy"
+            aspectRatio={{ base: '16/9', md: 'auto' }}
+            flex={{ base: 'none', md: 1 }}
+            minH={0}
             maxW="100%"
             display="block"
             boxSizing="border-box"
@@ -2455,10 +2474,6 @@ export default function MainDashboard() {
               },
             }}
           >
-            {/* 영상 제목 왼쪽 위에 예쁘게 노출 */}
-            <Box position="absolute" top={3} left={3} bg="rgba(0,0,0,0.55)" color="white" px={4} py={2} borderRadius="lg" fontWeight="bold" fontSize="md" zIndex={3} boxShadow="md" maxW="80%" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
-              {currentVideo.title}
-            </Box>
             <YouTube
               key={currentVideo.id}
               videoId={currentVideo.id}
@@ -2483,8 +2498,7 @@ export default function MainDashboard() {
                 inset: 0,
                 width: '100%',
                 height: '100%',
-                borderRadius: 12,
-                background: 'black',
+                background: '#0A1B33',
               }}
               className="yt-iframe"
               onReady={(e: any) => {
@@ -2503,6 +2517,7 @@ export default function MainDashboard() {
                 window.setTimeout(() => applyYoutubeBestQuality(e.target), 500);
                 window.setTimeout(() => applyYoutubeBestQuality(e.target), 1500);
               }}
+              onPlay={() => setRevealedVideoId(currentVideo.id)}
               onEnd={() => handleNext()}
               onError={handleVideoError}
               onStateChange={(event: any) => {
@@ -2518,9 +2533,59 @@ export default function MainDashboard() {
                 }
               }}
             />
+            {/* 재생 전 poster: 썸네일 + 재생 표시. 재생이 시작되거나 누르면 아래 플레이어가 드러난다 */}
+            {revealedVideoId !== currentVideo.id && (
+              <VideoPoster
+                videoId={currentVideo.id}
+                zIndex={2}
+                cursor="pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`${currentVideo.title} 영상 보기`}
+                onClick={() => setRevealedVideoId(currentVideo.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRevealedVideoId(currentVideo.id); } }}
+              />
+            )}
           </Box>
-          <IconButton icon={<ChevronRightIcon />} aria-label="다음" position="absolute" right={2} top="50%" transform="translateY(-50%)" onClick={handleNext} zIndex={2} bg="white" color="gray.600" boxShadow="sm" _hover={{ bg: "gray.100", color: "gray.700" }}/>
-        </Box>
+          <Box mt={{ base: 3, md: 3 }} flexShrink={0}>
+            <Text fontSize={{ base: 'sm', md: 'md' }} fontWeight="800" color="matchday.navy" noOfLines={1}>
+              {currentVideo.title}
+            </Text>
+            <Flex align="center" justify="center" gap={3} mt={{ base: 3, md: 2 }}>
+              <IconButton
+                icon={<ChevronLeftIcon boxSize={5} />}
+                aria-label="이전"
+                onClick={handlePrev}
+                w="44px"
+                h="44px"
+                minW="44px"
+                borderRadius="full"
+                bg="white"
+                color="matchday.navy"
+                border="1px solid"
+                borderColor="gray.200"
+                _hover={{ bg: 'brand.50', borderColor: 'brand.200' }}
+              />
+              <Text textStyle="scoreLabel" color="gray.500" minW="48px" textAlign="center">
+                {String(Math.min(videoIdx, Math.max(youtubeVideos.length - 1, 0)) + 1).padStart(2, '0')} / {String(Math.max(youtubeVideos.length, 1)).padStart(2, '0')}
+              </Text>
+              <IconButton
+                icon={<ChevronRightIcon boxSize={5} />}
+                aria-label="다음"
+                onClick={handleNext}
+                w="44px"
+                h="44px"
+                minW="44px"
+                borderRadius="full"
+                bg="white"
+                color="matchday.navy"
+                border="1px solid"
+                borderColor="gray.200"
+                _hover={{ bg: 'brand.50', borderColor: 'brand.200' }}
+              />
+            </Flex>
+          </Box>
+        </Flex>
       </Flex>
 
       {/* 에러 상태 */}

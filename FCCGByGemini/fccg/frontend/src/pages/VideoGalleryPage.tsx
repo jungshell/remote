@@ -21,8 +21,10 @@ import {
   Divider,
   Textarea,
   Select,
-  Tooltip
+  AspectRatio
 } from '@chakra-ui/react';
+import { AdminEmptyState, AdminPageHeader, PitchLines } from '../components/admin/MatchDay';
+import { MediaCard, MediaStat, PlayOverlay, VideoPoster } from '../components/media/MediaUI';
 import {
   useState,
   useEffect,
@@ -49,7 +51,6 @@ import {
 import { useAuthStore } from '../store/auth';
 import { getApiUrl } from '../config/api';
 import { useDesktopPagedLayout } from '../hooks/useDesktopPagedLayout';
-import { MOTION } from '../constants/designTokens';
 
 // YouTube API 설정
 const YT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
@@ -100,6 +101,8 @@ export default function VideoGalleryPage() {
   const isDesktopPaged = useDesktopPagedLayout();
   const [items, setItems] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  // 상세 모달 iframe 로드가 끝난 영상 id — 그 전에는 poster + 로딩 문구를 보여준다 (표시 전용)
+  const [loadedEmbedId, setLoadedEmbedId] = useState<string | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingCommentIndex, setEditingCommentIndex] = useState<number | null>(null);
   const [editCommentText, setEditCommentText] = useState('');
@@ -474,123 +477,69 @@ export default function VideoGalleryPage() {
 
   return (
     <Box
+      className="fccg-member"
       minH="100vh"
-      bg="#f7f9fb"
+      bg="gray.50"
       w="100%"
-      pt="18mm"
-      overflowY={isDesktopPaged ? 'hidden' : 'visible'}
+      pt="80px"
+      // 데스크톱 한 화면 페이지 모드: 높이를 고정하되 넘치면 안쪽에서 스크롤 (잘림 방지)
+      overflowY={isDesktopPaged ? 'auto' : 'visible'}
       h={isDesktopPaged ? '100vh' : 'auto'}
     >
-      {/* 상단 컨트롤 영역 */}
-      <Box px={{ base: 2, md: 4, lg: 6 }} pt={10} pb={4} w="100%" maxW="1400px" mx="auto">
-        <Flex direction={{ base: 'column', md: 'row' }} gap={4} align={{ base: 'stretch', md: 'center' }} justify="space-between" mb={1.5}>
-          {/* 필터 탭 */}
-          <HStack spacing={2} flexWrap="wrap">
-            
-          </HStack>
-
-          {/* 정렬 및 업로드 */}
-          <HStack spacing={2}>
-            <Select size="sm" value={sort} onChange={(e) => setSort(e.target.value)} w="100px">
+      {/* 페이지 헤더 + 정렬 */}
+      <Box className="fccg-matchday" px={{ base: 4, md: 4, lg: 6 }} pt={{ base: 5, md: 6 }} pb={{ base: 4, md: 5 }} w="100%" maxW="1400px" mx="auto">
+        <AdminPageHeader
+          eyebrow="VIDEO"
+          title="동영상"
+          description="FC CHAL-GGYEO 경기 영상과 하이라이트"
+          right={
+            <Select size="sm" value={sort} onChange={(e) => setSort(e.target.value)} w="120px" bg="white" borderRadius="md" aria-label="동영상 정렬">
               <option value="latest">최신순</option>
               <option value="oldest">오래된순</option>
               <option value="likes">좋아요순</option>
               <option value="comments">댓글순</option>
             </Select>
-
-          </HStack>
-        </Flex>
+          }
+        />
       </Box>
 
       {/* 갤러리 그리드 */}
-      <Box px={{ base: 2, md: 4, lg: 6 }} pb={10} w="100%" maxW="1400px" mx="auto">
+      <Box px={{ base: 4, md: 4, lg: 6 }} pb={10} w="100%" maxW="1400px" mx="auto">
         {sortedItems.length === 0 && (
-          <Box bg="white" borderRadius="lg" border="1px solid" borderColor="gray.200" p={8} textAlign="center">
-            <Icon as={MdOutlineVideoLibrary} boxSize="32px" color="gray.400" mb={2} />
-            <Text color="gray.700" fontWeight="semibold" mb={2}>
-              표시할 동영상이 없습니다
-            </Text>
-            <Text color="gray.500" fontSize="sm">
-              {!YT_API_KEY
+          <Box className="fccg-matchday" bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200">
+            <AdminEmptyState
+              icon={MdOutlineVideoLibrary}
+              title="표시할 동영상이 없습니다"
+              description={!YT_API_KEY
                 ? 'VITE_YOUTUBE_API_KEY가 없어 YouTube 재생목록을 불러오지 못했습니다. frontend/.env.local을 확인한 뒤 개발 서버를 재시작하세요.'
                 : 'YouTube 재생목록을 불러오는 중이거나, 동기화에 실패했습니다. 잠시 후 새로고침해 주세요.'}
-            </Text>
+            />
           </Box>
         )}
-        <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
+        <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 5 }}>
           {visibleItems.map((item) => (
-            <Box
+            <MediaCard
               key={item.id}
-              bg="white"
-              borderRadius="lg"
-              border="1px solid"
-              borderColor="gray.200"
-              boxShadow="sm"
-              overflow="hidden"
-              position="relative"
-              _hover={{ boxShadow: 'md', transform: 'translateY(-2px)' }}
-              transition={`all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`}
-              cursor="pointer"
               onClick={() => handleItemClick(item)}
+              media={<Image className="fccg-media-img" src={item.thumbnail} alt={item.label} w="100%" h="100%" objectFit="cover" />}
+              overlay={<PlayOverlay />}
             >
-              {/* 썸네일/라벨/뱃지 */}
-              <Box position="relative">
-                <Image 
-                  src={item.thumbnail} 
-                  alt={item.label} 
-                  w="100%" 
-                  h="200px" 
-                  objectFit="cover" 
-                />
-              </Box>
-
-              {/* 정보 영역 */}
-              <Box px={4} pt={0} pb={0}>
-                <VStack align="start" spacing={0} w="full">
-                  {/* 1행+2행 묶음: 간격 최소화 */}
-                  <VStack align="start" spacing={0} w="full" mt="-2">
-                    {/* 1행: 유튜브 제목 / 우측 유튜브 좋아요·댓글·조회수 */}
-                    <Flex w="full" align="center" gap={2}>
-                      <Text fontSize="sm" fontWeight="bold" noOfLines={2} flex={1} minW={0}>
-                        {item.title || '제목 없음'}
-                      </Text>
-                      <HStack spacing={3} ml="auto" flexShrink={0}>
-                        <Tooltip label={`유튜브 좋아요 ${item.likes}개`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
-                          <HStack spacing={1} cursor="default">
-                            <AiFillHeart color="#e53e3e" size={16} />
-                            <Text fontSize="sm" color="gray.600">{item.likes}</Text>
-                          </HStack>
-                        </Tooltip>
-                        <Tooltip label={`유튜브 댓글 ${item.youtubeCommentCount ?? item.comments}개`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
-                          <HStack spacing={1} cursor="default">
-                            <Icon as={MdOutlineChatBubbleOutline} boxSize="14px" color="gray.500" />
-                            <Text fontSize="sm" color="gray.600">{item.youtubeCommentCount ?? item.comments}</Text>
-                          </HStack>
-                        </Tooltip>
-                        <Tooltip label={`유튜브 조회수 ${formatVideoViewCount(item.viewCount || 0)}회`} fontSize="10px" bg="gray.800" color="white" borderRadius="md" px={2} py={1}>
-                          <HStack spacing={1} cursor="default">
-                            <Icon as={MdOutlineBolt} boxSize="14px" color="gray.500" />
-                            <Text fontSize="sm" color="gray.600">
-                              {formatVideoViewCount(item.viewCount || 0)}
-                            </Text>
-                          </HStack>
-                        </Tooltip>
-                      </HStack>
-                    </Flex>
-                  </VStack>
-
-                  {/* 3행: 업로드 날짜+요일 / 우측 상대시간 — 반드시 ISO publishedAt 사용 */}
-                  <Flex w="full" align="center" mt="-3" mb="0.5">
-                    <Text fontSize="xs" color="gray.500">
-                      {formatVideoUploadLabel(item.publishedAt)}
-                    </Text>
-                    <Text fontSize="xs" color="gray.500" ml="auto">
-                      {formatVideoRelativeTime(item.publishedAt)}
-                    </Text>
-                  </Flex>
-                </VStack>
-              </Box>
-            </Box>
+              {/* 제목 → 메타(업로드일 · 상대시간) → 유튜브 통계 */}
+              <Text fontSize="sm" fontWeight="800" color="matchday.navy" lineHeight="1.35" noOfLines={2} minH="2.7em">
+                {item.title || '제목 없음'}
+              </Text>
+              <Flex align="center" justify="space-between" gap={2} mt={1.5}>
+                <Text fontSize="xs" color="gray.500" noOfLines={1} minW={0}>
+                  {formatVideoUploadLabel(item.publishedAt)}
+                </Text>
+                <Text fontSize="xs" color="gray.400" flexShrink={0}>{formatVideoRelativeTime(item.publishedAt)}</Text>
+              </Flex>
+              <HStack spacing={3} mt={2.5} pt={2.5} borderTop="1px solid" borderColor="gray.100">
+                <MediaStat icon={AiFillHeart} iconColor="red.400" value={item.likes} label={`유튜브 좋아요 ${item.likes}개`} />
+                <MediaStat icon={MdOutlineChatBubbleOutline} value={item.youtubeCommentCount ?? item.comments} label={`유튜브 댓글 ${item.youtubeCommentCount ?? item.comments}개`} />
+                <MediaStat icon={MdOutlineBolt} value={formatVideoViewCount(item.viewCount || 0)} label={`유튜브 조회수 ${formatVideoViewCount(item.viewCount || 0)}회`} />
+              </HStack>
+            </MediaCard>
           ))}
         </SimpleGrid>
         {isDesktopPaged && totalPages > 1 && (
@@ -637,28 +586,39 @@ export default function VideoGalleryPage() {
       {/* 상세 모달 */}
       <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} size="3xl">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader borderBottom="1px solid" borderColor="gray.100" py={3}>
-            <HStack spacing={2}>
-              <Icon as={MdOutlineVideoLibrary} boxSize="18px" color="brand.600" />
-              <Text fontSize="md" fontWeight="bold">동영상 상세보기</Text>
-            </HStack>
+        <ModalContent className="fccg-member" mx={{ base: 3, md: 'auto' }} borderRadius="xl" overflow="hidden">
+          <ModalHeader className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" pt={4} pb={3.5}>
+            <PitchLines opacity={0.08} />
+            <Box position="relative" pr={8}>
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">VIDEO</Text>
+              <Text fontSize="md" fontWeight="800" mt={1}>동영상 상세보기</Text>
+            </Box>
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color="white" top={3.5} />
           <ModalBody pb={6}>
             {selectedItem && (
               <VStack spacing={4}>
-                <Box position="relative" w="full">
-                  <Box
-                    as="iframe"
-                    src={`https://www.youtube.com/embed/${selectedItem.videoId}?autoplay=1&controls=1&modestbranding=1&rel=0`}
-                    w="100%"
-                    h="450px"
-                    borderRadius="md"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </Box>
+                <AspectRatio ratio={16 / 9} w="full" mt={4} borderRadius="lg" overflow="hidden" bg="matchday.navy">
+                  <Box>
+                    {loadedEmbedId !== selectedItem.videoId && (
+                      <VideoPoster videoId={selectedItem.videoId} status="영상을 불러오는 중..." />
+                    )}
+                    <Box
+                      as="iframe"
+                      src={`https://www.youtube.com/embed/${selectedItem.videoId}?autoplay=1&controls=1&modestbranding=1&rel=0`}
+                      position="absolute"
+                      inset={0}
+                      w="100%"
+                      h="100%"
+                      border="0"
+                      opacity={loadedEmbedId === selectedItem.videoId ? 1 : 0}
+                      transition="opacity .3s ease"
+                      onLoad={() => setLoadedEmbedId(selectedItem.videoId)}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </Box>
+                </AspectRatio>
 
                 <VStack spacing={0} w="full" mt="-4">
                   {/* 1행: 왼쪽 제목, 오른쪽 좋아요/댓글 */}
@@ -674,7 +634,7 @@ export default function VideoGalleryPage() {
                         }}
                         title="유튜브에서 좋아요"
                       >
-                        <AiFillHeart color="#e53e3e" size={16} />
+                        <Icon as={AiFillHeart} boxSize="16px" color="red.400" />
                         <Text fontSize="sm">{selectedItem.likes}</Text>
                       </HStack>
                       <Text fontSize="sm" color="gray.400">·</Text>

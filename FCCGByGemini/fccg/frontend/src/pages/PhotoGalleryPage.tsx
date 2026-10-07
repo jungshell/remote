@@ -23,10 +23,7 @@ import {
   Textarea,
   FormControl,
   FormLabel,
-  Center,
-  Tooltip,
-  Card,
-  CardBody
+  Tooltip
 } from '@chakra-ui/react';
 import { AiFillHeart } from 'react-icons/ai';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
@@ -48,7 +45,8 @@ import { useAuthStore } from '../store/auth';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
 import { useDesktopPagedLayout } from '../hooks/useDesktopPagedLayout';
-import { MOTION } from '../constants/designTokens';
+import { AdminEmptyState, AdminPageHeader, PitchLines, StatusBadge } from '../components/admin/MatchDay';
+import { MediaCard, MediaChip, MediaStat } from '../components/media/MediaUI';
 
 // 타입 정의
 interface InstagramPost {
@@ -1475,247 +1473,158 @@ export default function PhotoGalleryPage() {
 
   return (
     <Box
+      className="fccg-member"
       minH="100vh"
-      bg="#f7f9fb"
+      bg="gray.50"
       w="100%"
-      pt="18mm"
-      overflowY={isDesktopPaged ? 'hidden' : 'visible'}
+      pt="80px"
+      // 데스크톱 한 화면 페이지 모드: 높이를 고정하되 넘치면 안쪽에서 스크롤 (잘림 방지)
+      overflowY={isDesktopPaged ? 'auto' : 'visible'}
       h={isDesktopPaged ? '100vh' : 'auto'}
     >
-      {/* 상단 컨트롤 영역 - 동영상 페이지와 동일한 여백 */}
-      <Box px={{ base: 2, md: 4, lg: 6 }} pt={10} pb={4} w="100%" maxW="1400px" mx="auto">
-        <Flex justify="flex-end" align="center" mb={1.5}>
-          <HStack spacing={3}>
-          <Select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            size="sm"
-            w="150px"
-          >
-            <option value="upload">업로드순</option>
-            <option value="event">행사날짜순</option>
-            <option value="likes">좋아요순</option>
-            <option value="comments">댓글순</option>
-          </Select>
-          {user && (
-            <IconButton
-              aria-label="사진 업로드"
-              icon={<AddIcon />}
-              bg="brand.500"
-              color="white"
-              _hover={{ bg: "brand.600" }}
-              onClick={() => setIsUploadModalOpen(true)}
-              size="sm"
-            />
-          )}
-          </HStack>
-        </Flex>
+      {/* 페이지 헤더 + 정렬/업로드 */}
+      <Box className="fccg-matchday" px={{ base: 4, md: 4, lg: 6 }} pt={{ base: 5, md: 6 }} pb={{ base: 4, md: 5 }} w="100%" maxW="1400px" mx="auto">
+        <AdminPageHeader
+          eyebrow="PHOTO"
+          title="사진"
+          description="경기와 모임의 순간을 함께 모아요"
+          right={
+            <>
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                size="sm"
+                w="130px"
+                bg="white"
+                borderRadius="md"
+                aria-label="사진 정렬"
+              >
+                <option value="upload">업로드순</option>
+                <option value="event">행사날짜순</option>
+                <option value="likes">좋아요순</option>
+                <option value="comments">댓글순</option>
+              </Select>
+              {user && (
+                <Button
+                  aria-label="사진 업로드"
+                  leftIcon={<AddIcon boxSize="10px" />}
+                  bg="brand.500"
+                  color="white"
+                  _hover={{ bg: "brand.600" }}
+                  onClick={() => setIsUploadModalOpen(true)}
+                  size="sm"
+                  borderRadius="md"
+                >
+                  업로드
+                </Button>
+              )}
+            </>
+          }
+        />
       </Box>
 
       {/* 포스트 그리드 */}
       {isInitialLoad ? (
-        <Center py={20}>
-          <VStack spacing={3}>
-            <Icon as={MdOutlinePhotoLibrary} boxSize="32px" color="gray.400" />
-            <Text fontSize="md" color="gray.500">사진을 불러오는 중...</Text>
-          </VStack>
-        </Center>
+        <Box px={{ base: 4, md: 4, lg: 6 }} w="100%" maxW="1400px" mx="auto">
+          <Box className="fccg-matchday" bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200">
+            <AdminEmptyState icon={MdOutlinePhotoLibrary} title="사진을 불러오는 중..." />
+          </Box>
+        </Box>
       ) : sortedPosts.length === 0 ? (
-        <Center py={20}>
-          <VStack spacing={3}>
-            <Icon as={MdOutlinePhotoLibrary} boxSize="32px" color="gray.400" />
-            <Text fontSize="md" fontWeight="semibold" color="gray.700">아직 업로드된 사진이 없습니다</Text>
-            <Text fontSize="sm" color="gray.500">팀 사진과 매치 순간을 공유해 보세요.</Text>
-            {user && (
-              <Button
-                mt={1}
-                bg="brand.500"
-                color="white"
-                _hover={{ bg: "brand.600" }}
-                onClick={() => setIsUploadModalOpen(true)}
-              >
-                첫 번째 사진 업로드하기
-              </Button>
-            )}
-          </VStack>
-        </Center>
+        <Box px={{ base: 4, md: 4, lg: 6 }} w="100%" maxW="1400px" mx="auto">
+          <Box className="fccg-matchday" bg="white" borderRadius="xl" border="1px solid" borderColor="gray.200">
+            <AdminEmptyState
+              icon={MdOutlinePhotoLibrary}
+              title="아직 업로드된 사진이 없습니다"
+              description="팀 사진과 매치 순간을 공유해 보세요."
+              action={user ? (
+                <Button
+                  bg="brand.500"
+                  color="white"
+                  _hover={{ bg: "brand.600" }}
+                  onClick={() => setIsUploadModalOpen(true)}
+                >
+                  첫 번째 사진 업로드하기
+                </Button>
+              ) : undefined}
+            />
+          </Box>
+        </Box>
       ) : (
-        <Box px={{ base: 2, md: 4, lg: 6 }} pb={10} w="100%" maxW="1400px" mx="auto">
-          <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
+        <Box px={{ base: 4, md: 4, lg: 6 }} pb={10} w="100%" maxW="1400px" mx="auto">
+          <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 5 }}>
           {visiblePosts.map((post) => {
             const currentIndex = hoveredImageIndex[post.id] || 0;
             const images = post.multiplePhotos && post.multiplePhotos.length > 0 ? post.multiplePhotos : [post.src];
             const currentImage = images[currentIndex];
             return (
-              <Card
+              <MediaCard
                 key={post.id}
-                w="100%"
-                overflow="hidden"
-                borderRadius="lg"
-                bg="white"
-                border="1px solid"
-                borderColor="gray.200"
-                shadow="sm"
-                cursor="pointer"
-                role="group"
-                transition={`all ${MOTION.DURATION.NORMAL} ${MOTION.EASING.STANDARD}`}
-                _hover={{ shadow: 'md', transform: 'translateY(-2px)' }}
+                ratio={16 / 10}
                 onClick={() => handleOpenPost(post)}
-              >
-                <CardBody p={0}>
-                  {/* 이미지 영역 */}
-                  <Box
-                    position="relative"
-                    onMouseLeave={() => setHoveredImageIndex(prev => ({ ...prev, [post.id]: 0 }))}
-                    onMouseMove={(e) => {
-                      if (images.length > 1) {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const x = e.clientX - rect.left;
-                        const width = rect.width;
-                        const index = Math.floor((x / width) * images.length);
-                        const safeIndex = Math.max(0, Math.min(images.length - 1, index));
-                        if (safeIndex !== (hoveredImageIndex[post.id] || 0)) {
-                          setHoveredImageIndex(prev => ({ ...prev, [post.id]: safeIndex }));
-                        }
+                mediaProps={{
+                  onMouseLeave: () => setHoveredImageIndex(prev => ({ ...prev, [post.id]: 0 })),
+                  onMouseMove: (e) => {
+                    if (images.length > 1) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = e.clientX - rect.left;
+                      const width = rect.width;
+                      const index = Math.floor((x / width) * images.length);
+                      const safeIndex = Math.max(0, Math.min(images.length - 1, index));
+                      if (safeIndex !== (hoveredImageIndex[post.id] || 0)) {
+                        setHoveredImageIndex(prev => ({ ...prev, [post.id]: safeIndex }));
                       }
+                    }
+                  },
+                }}
+                media={
+                  <Image
+                    className="fccg-media-img"
+                    src={currentImage}
+                    alt={post.caption}
+                    w="100%"
+                    h="100%"
+                    objectFit="cover"
+                    onError={(e: any) => {
+                      console.error('❌ 이미지 로드 실패:', currentImage, e);
+                      e.target.style.display = 'none';
                     }}
-                  >
-                    <Box>
-                      <Image
-                        src={currentImage}
-                        alt={post.caption}
-                        w="100%"
-                        h="200px"
-                        objectFit="cover"
-                        onError={(e: any) => {
-                          console.error('❌ 이미지 로드 실패:', currentImage, e);
-                          e.target.style.display = 'none';
-                        }}
-                        onLoad={() => {
-                          console.log('✅ 이미지 로드 성공:', currentImage);
-                        }}
-                        fallbackSrc="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='16' fill='%23999'%3E이미지를 불러올 수 없습니다%3C/text%3E%3C/svg%3E"
-                      />
+                    onLoad={() => {
+                      console.log('✅ 이미지 로드 성공:', currentImage);
+                    }}
+                    fallbackSrc="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect width='400' height='400' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='16' fill='%23999'%3E이미지를 불러올 수 없습니다%3C/text%3E%3C/svg%3E"
+                  />
+                }
+                overlay={
+                  <>
+                    {/* 이벤트 타입 배지 (StatusBadge eventType 규칙) */}
+                    <Box position="absolute" top={2.5} left={2.5}>
+                      <StatusBadge kind="eventType" value={post.eventType?.includes('ì') || post.eventType?.includes('자체') ? '자체' : post.eventType} />
                     </Box>
-                    
                     {/* 다중 이미지 표시 */}
                     {images.length > 1 && (
-                      <Box
-                        position="absolute"
-                        top={2}
-                        right={2}
-                        bg="blackAlpha.700"
-                        color="white"
-                        px={2}
-                        py={1}
-                        borderRadius="full"
-                        fontSize="sm"
-                        fontWeight="bold"
-                      >
-                        {images.length}장
-                      </Box>
+                      <MediaChip top={2.5} right={2.5}>{images.length}장</MediaChip>
                     )}
-                    
-                    {/* 이벤트 타입 배지 */}
-                    <Badge
-                      position="absolute"
-                      top={2}
-                      left={2}
-                      bg={post.eventType === '매치' ? 'blue.500' : 
-                           (post.eventType === '자체' || post.eventType?.includes('ì') || post.eventType?.includes('자체')) ? 'green.500' : 
-                           post.eventType === '회식' ? 'red.500' : 'gray.500'}
-                      color="white"
-                      variant="solid"
-                      fontSize="xs"
-                      fontWeight="bold"
-                      px={2}
-                      py={1}
-                      borderRadius="md"
-                    >
-                      {post.eventType?.includes('ì') || post.eventType?.includes('자체') ? '자체' : post.eventType}
-                    </Badge>
-
-                  </Box>
-
-                  {/* 포스트 정보 */}
-                  <Box px={4} pt={0} pb={0}>
-                    {/* 외부 스택 간격: 정성인과 업로드 사이 간격을 날짜-정성인 간격과 동일하게 */}
-                      <VStack align="start" spacing={0} w="full">
-                      {/* 1행+2행 묶음: 간격 최소화 */}
-                      <VStack align="start" spacing={0} w="full" mt="-2">
-                        {/* 1행: 행사일(요일 포함) / 우측 좋아요·댓글 수 */}
-                        <Flex w="full" align="center">
-                          <Text fontSize="sm" fontWeight="bold">
-                            {`${formatKoDate(post.eventDate)} (${getWeekdayKo(post.eventDate)})`}
-                          </Text>
-                          <HStack spacing={4} ml="auto">
-                            <Tooltip
-                              label={`좋아요 ${post.likes}개`}
-                              fontSize="10px"
-                              placement="top"
-                              bg="gray.800"
-                              color="white"
-                              borderRadius="md"
-                              px={2}
-                              py={1}
-                            >
-                              <HStack spacing={1} cursor="default">
-                                <AiFillHeart color="#e53e3e" size={16} />
-                                <Text fontSize="sm" color="gray.600">{post.likes}</Text>
-                              </HStack>
-                            </Tooltip>
-                            <Tooltip
-                              label={`댓글 ${post.comments.length}개`}
-                              fontSize="10px"
-                              placement="top"
-                              bg="gray.800"
-                              color="white"
-                              borderRadius="md"
-                              px={2}
-                              py={1}
-                            >
-                              <HStack spacing={1} cursor="default">
-                                <Icon as={MdOutlineChatBubbleOutline} boxSize="14px" color="gray.500" />
-                                <Text fontSize="sm" color="gray.600">{post.comments.length}</Text>
-                              </HStack>
-                            </Tooltip>
-                            <Tooltip
-                              label={`클릭 ${formatViewCountDisplay(post.clicks || 0)}회`}
-                              fontSize="10px"
-                              placement="top"
-                              bg="gray.800"
-                              color="white"
-                              borderRadius="md"
-                              px={2}
-                              py={1}
-                            >
-                              <HStack spacing={1} cursor="default">
-                                <Icon as={MdOutlineBolt} boxSize="14px" color="gray.500" />
-                                <Text fontSize="sm" color="gray.600">
-                                  {formatViewCountDisplay(post.clicks || 0)}
-                                </Text>
-                              </HStack>
-                            </Tooltip>
-                          </HStack>
-                        </Flex>
-
-                        {/* 2행: 이름 (1행과 간격 더 줄임 - 음수 margin 적용) */}
-                        <Text fontSize="sm" mt="-3" lineHeight="1.2">{post.author.name}</Text>
-                      </VStack>
-
-                      {/* 3행: 업로드 날짜+요일 / 우측 상대시간 (정성인과 간격을 날짜-정성인 간격과 동일하게) */}
-                      <Flex w="full" align="center" mt="-3" mb="0.5">
-                        <Text fontSize="xs" color="gray.500">
-                          {`업로드: ${formatKoDate(post.createdAt)} (${getWeekdayKo(post.createdAt)})`}
-                        </Text>
-                        <Text fontSize="xs" color="gray.500" ml="auto">
-                          {formatDate(post.createdAt)}
-                        </Text>
-                      </Flex>
-                    </VStack>
-                  </Box>
-                </CardBody>
-              </Card>
+                  </>
+                }
+              >
+                {/* 행사일 → 업로더 · 업로드 시점 → 통계 */}
+                <Text fontSize="sm" fontWeight="800" color="matchday.navy" lineHeight="1.35">
+                  {`${formatKoDate(post.eventDate)} (${getWeekdayKo(post.eventDate)})`}
+                </Text>
+                <Flex align="center" justify="space-between" gap={2} mt={1}>
+                  <Text fontSize="xs" color="gray.600" fontWeight="600" noOfLines={1} minW={0}>
+                    {post.author.name}
+                    <Box as="span" color="gray.400" fontWeight="500">{` · 업로드 ${formatKoDate(post.createdAt)} (${getWeekdayKo(post.createdAt)})`}</Box>
+                  </Text>
+                  <Text fontSize="xs" color="gray.400" flexShrink={0}>{formatDate(post.createdAt)}</Text>
+                </Flex>
+                <HStack spacing={3} mt={2.5} pt={2.5} borderTop="1px solid" borderColor="gray.100">
+                  <MediaStat icon={AiFillHeart} iconColor="red.400" value={post.likes} label={`좋아요 ${post.likes}개`} />
+                  <MediaStat icon={MdOutlineChatBubbleOutline} value={post.comments.length} label={`댓글 ${post.comments.length}개`} />
+                  <MediaStat icon={MdOutlineBolt} value={formatViewCountDisplay(post.clicks || 0)} label={`클릭 ${formatViewCountDisplay(post.clicks || 0)}회`} />
+                </HStack>
+              </MediaCard>
             );
           })}
           </SimpleGrid>
@@ -1764,14 +1673,15 @@ export default function PhotoGalleryPage() {
       {/* 업로드 모달 */}
       <Modal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} size="xl">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader borderBottom="1px solid" borderColor="gray.100" py={3}>
-            <HStack spacing={2}>
-              <Icon as={MdOutlinePhotoCamera} boxSize="18px" color="brand.600" />
-              <Text fontSize="md" fontWeight="bold">사진 업로드</Text>
-            </HStack>
+        <ModalContent className="fccg-member" mx={{ base: 3, md: 'auto' }} borderRadius="xl" overflow="hidden">
+          <ModalHeader className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" pt={4} pb={3.5}>
+            <PitchLines opacity={0.08} />
+            <Box position="relative" pr={8}>
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">UPLOAD</Text>
+              <Text fontSize="md" fontWeight="800" mt={1}>사진 업로드</Text>
+            </Box>
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color="white" top={3.5} />
           <ModalBody pb={6}>
             <VStack spacing={4}>
               {/* 파일 선택 영역 */}
@@ -1900,14 +1810,15 @@ export default function PhotoGalleryPage() {
       {/* 편집 모달 */}
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)}>
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader borderBottom="1px solid" borderColor="gray.100" py={3}>
-            <HStack spacing={2}>
-              <Icon as={MdOutlineEdit} boxSize="18px" color="brand.600" />
-              <Text fontSize="md" fontWeight="bold">포스트 편집</Text>
-            </HStack>
+        <ModalContent className="fccg-member" mx={{ base: 3, md: 'auto' }} borderRadius="xl" overflow="hidden">
+          <ModalHeader className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" pt={4} pb={3.5}>
+            <PitchLines opacity={0.08} />
+            <Box position="relative" pr={8}>
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">EDIT</Text>
+              <Text fontSize="md" fontWeight="800" mt={1}>포스트 편집</Text>
+            </Box>
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color="white" top={3.5} />
           <ModalBody pb={6}>
             <VStack spacing={4}>
               <FormControl>
@@ -1979,8 +1890,8 @@ export default function PhotoGalleryPage() {
       {/* 상세 보기 모달 */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="4xl">
         <ModalOverlay />
-        <ModalContent>
-          <ModalCloseButton />
+        <ModalContent className="fccg-member" mx={{ base: 3, md: 'auto' }} borderRadius="xl" overflow="hidden">
+          <ModalCloseButton zIndex={3} bg="blackAlpha.600" color="white" borderRadius="full" _hover={{ bg: 'blackAlpha.700' }} />
           <ModalBody p={0}>
             {selectedPost && (() => {
               const images = selectedPost.multiplePhotos && selectedPost.multiplePhotos.length > 1 
@@ -2010,24 +1921,24 @@ export default function PhotoGalleryPage() {
               };
               
               return (
-                <Flex direction={{ base: 'column', lg: isLandscape ? 'row' : 'row' }} h={isLandscape ? "60vh" : "80vh"}>
+                <Flex direction={{ base: 'column', lg: isLandscape ? 'row' : 'row' }} h={{ base: 'auto', lg: isLandscape ? "60vh" : "80vh" }}>
                 {/* 이미지 영역 */}
-                <Box flex={isLandscape ? 2 : 1} position="relative">
+                <Box flex={isLandscape ? 2 : 1} position="relative" h={{ base: '45vh', lg: 'auto' }} flexShrink={0} bg="black">
                   {/* 이벤트 타입 배지 (썸네일과 동일) */}
                   <Badge 
                     position="absolute" 
                     top={2} 
                     left={2} 
-                    bg={selectedPost.eventType === '매치' ? 'blue.500' : 
-                         (selectedPost.eventType === '자체' || selectedPost.eventType?.includes('ì') || selectedPost.eventType?.includes('자체')) ? 'green.500' : 
-                         selectedPost.eventType === '회식' ? 'red.500' : 'gray.500'}
+                    bg={selectedPost.eventType === '매치' ? 'brand.500' :
+                         (selectedPost.eventType === '자체' || selectedPost.eventType?.includes('ì') || selectedPost.eventType?.includes('자체')) ? 'matchday.navy' :
+                         selectedPost.eventType === '회식' ? 'orange.400' : 'gray.500'}
                     color="white" 
                     zIndex={2}
                     fontSize="xs"
                     fontWeight="bold"
                     px={2}
                     py={1}
-                    borderRadius="md"
+                    borderRadius="sm"
                   >
                     {selectedPost.eventType?.includes('ì') || selectedPost.eventType?.includes('자체') ? '자체' : selectedPost.eventType}
                   </Badge>
@@ -2396,9 +2307,15 @@ export default function PhotoGalleryPage() {
         setSelectedDownloadImages([]);
       }} size="lg">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>다운로드할 사진 선택</ModalHeader>
-          <ModalCloseButton />
+        <ModalContent className="fccg-member" mx={{ base: 3, md: 'auto' }} borderRadius="xl" overflow="hidden">
+          <ModalHeader className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" pt={4} pb={3.5}>
+            <PitchLines opacity={0.08} />
+            <Box position="relative" pr={8}>
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">DOWNLOAD</Text>
+              <Text fontSize="md" fontWeight="800" mt={1}>다운로드할 사진 선택</Text>
+            </Box>
+          </ModalHeader>
+          <ModalCloseButton color="white" top={3.5} />
           <ModalBody>
             {selectedPost && selectedPost.multiplePhotos && (
               <VStack spacing={4}>
