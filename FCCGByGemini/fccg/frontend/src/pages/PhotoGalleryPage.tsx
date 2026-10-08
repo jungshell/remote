@@ -1671,7 +1671,7 @@ export default function PhotoGalleryPage() {
       )}
 
       {/* 업로드 모달 */}
-      <Modal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} size="xl">
+      <Modal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} size="xl" scrollBehavior="inside">
         <ModalOverlay />
         <ModalContent className="fccg-member" mx={{ base: 3, md: 'auto' }} borderRadius="xl" overflow="hidden">
           <ModalHeader className="fccg-matchday" position="relative" overflow="hidden" bg="matchday.navy" color="white" pt={4} pb={3.5}>
@@ -1888,7 +1888,7 @@ export default function PhotoGalleryPage() {
       </Modal>
 
       {/* 상세 보기 모달 */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="4xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="4xl" scrollBehavior="inside">
         <ModalOverlay />
         <ModalContent className="fccg-member" mx={{ base: 3, md: 'auto' }} borderRadius="xl" overflow="hidden">
           <ModalCloseButton zIndex={3} bg="blackAlpha.600" color="white" borderRadius="full" _hover={{ bg: 'blackAlpha.700' }} />

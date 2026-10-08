@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Box, Spinner, Center } from '@chakra-ui/react';
 import { useAuthStore } from './store/auth';
-import { Header, ChatbotWidget } from './components';
+import { Header } from './components';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AccessibilityProvider } from './components/AccessibilityProvider';
 import { PWAInstallPrompt, PWAStatus } from './components/PWAInstallPrompt';
@@ -163,9 +163,7 @@ function AppLayout() {
       
       {/* 전역 알림 시스템 */}
       <GlobalNotification />
-      
-      {/* 챗봇은 로컬 환경에서만 노출 */}
-      {!hideHeader && <ChatbotWidget />}
+
     </Box>
   );
 }

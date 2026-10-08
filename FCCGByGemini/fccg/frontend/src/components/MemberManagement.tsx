@@ -590,8 +590,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                       {['이름', '이메일', '등급', '상태', '가입일'].map(h => (
                         <Th key={h} textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3}>{h}</Th>
                       ))}
-                      {/* 작업 열 pr: desktop(lg+) 우하단 챗봇 버튼(right 24px + 48px)과 겹치지 않도록 이 열에만 여백 */}
-                      <Th textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3} textAlign="right" pr={{ base: 4, lg: 12 }}>작업</Th>
+                      <Th textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3} textAlign="right">작업</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -639,8 +638,8 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                     </Flex>
                     <Flex justify="space-between" align="center" mt={3} gap={2}>
                       <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" sx={{ fontVariantNumeric: 'tabular-nums' }}>가입 {formatJoinedShort(member.createdAt)}</Text>
-                      {/* 터치 영역 44px, 아이콘은 18px 유지. pr: 관리자 모바일 챗봇 edge dock(우측 38px)과 겹치지 않게 */}
-                      <HStack spacing={1} flexShrink={0} pr={{ base: 3, lg: 0 }}>
+                      {/* 터치 영역 44px, 아이콘은 18px 유지 */}
+                      <HStack spacing={1} flexShrink={0}>
                         <IconButton aria-label="회원 정보 보기" icon={<Icon as={LuEye} boxSize="18px" />} minW="44px" h="44px" variant="ghost" color="gray.600" _hover={{ bg: 'gray.100' }} onClick={() => openView(member)} />
                         <IconButton aria-label={editTooltip(member)} icon={<Icon as={LuPencil} boxSize="18px" />} minW="44px" h="44px" variant="ghost" color="brand.500" isDisabled={editLocked(member)} onClick={() => handleEditMember(member)} />
                         {isSuperAdmin && (

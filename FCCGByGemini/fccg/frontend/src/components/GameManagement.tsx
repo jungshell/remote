@@ -1262,8 +1262,7 @@ export default function GameManagement({ games, onGamesChange, userList, onGameD
               {([['일시', '24%'], ['장소', 'auto'], ['유형', '10%'], ['인원', '10%'], ['생성자', '12%']] as const).map(([h, w]) => (
                 <Th key={h} w={w} textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3}>{h}</Th>
               ))}
-              {/* 작업 열 pr: desktop(lg+) 우하단 챗봇 버튼(right 24px + 48px)과 겹치지 않도록 이 열에만 여백 */}
-              <Th w="18%" textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3} textAlign="right" pr={{ base: 4, lg: 12 }}>작업</Th>
+              <Th w="18%" textStyle="scoreLabel" fontSize="10px" color="gray.500" py={3} textAlign="right">작업</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -1315,8 +1314,7 @@ export default function GameManagement({ games, onGamesChange, userList, onGameD
                     <Icon as={LuUsers} boxSize={3.5} flexShrink={0} />
                     <Text noOfLines={1}><Text as="span" fontFamily="display" fontWeight="700" color={isPast ? 'gray.500' : 'matchday.navy'}>{participantCountOf(game)}</Text>명 · {creatorLabel(game)}</Text>
                   </HStack>
-                  {/* pr: 관리자 모바일 챗봇 edge dock(우측 38px)과 겹치지 않게 */}
-                  <Box flexShrink={0} pr={{ base: 3, lg: 0 }}>{renderActions(game, 'md')}</Box>
+                  <Box flexShrink={0}>{renderActions(game, 'md')}</Box>
                 </Flex>
               </Box>
             </Flex>

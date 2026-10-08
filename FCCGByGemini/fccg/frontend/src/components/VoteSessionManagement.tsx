@@ -366,7 +366,7 @@ const VoteSessionManagement: React.FC<VoteSessionManagementProps> = ({
       )}
 
       {/* 세션 생성 모달 */}
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} size="lg">
+      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} size="lg" scrollBehavior="inside">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>새 투표 세션 생성</ModalHeader>

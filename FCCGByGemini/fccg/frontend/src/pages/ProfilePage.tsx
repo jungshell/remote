@@ -74,8 +74,7 @@ export default function ProfilePage() {
     <Box className="fccg-matchday fccg-member" bg="gray.50" minH="100vh" px={{ base: 4, md: 6 }} pt={{ base: '100px', md: '112px' }} pb={12}>
       <Box maxW="960px" mx="auto">
         <AdminPageHeader eyebrow="MY PROFILE" title="내 프로필" description="선수 정보와 계정 설정을 관리합니다." />
-        {/* 우하단 고정 챗봇(폭 72px)과 폼 버튼이 스크롤 중 겹치지 않도록 xl 미만에서 우측 여백 확보 */}
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 4, md: 6 }} mt={{ base: 5, md: 6 }} pr={{ base: '56px', xl: 0 }} alignItems="start">
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 4, md: 6 }} mt={{ base: 5, md: 6 }} alignItems="start">
           {/* 좌: identity + 참여 기록 */}
           <VStack align="stretch" spacing={4}>
             <PlayerIdentity user={user} eyebrow="PLAYER PROFILE" />

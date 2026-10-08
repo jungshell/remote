@@ -38,7 +38,6 @@ import { getUnifiedVoteDataNew } from '../api/auth';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
-import { MOBILE_CHATBOT_SAFE_RIGHT } from '../constants/designTokens';
 import { AdminPageHeader, DateBlock, LiveDot, PanelHeader, PitchLines } from '../components/admin/MatchDay';
 import { LuCalendarX, LuChevronRight, LuClock, LuMapPin, LuUsers } from 'react-icons/lu';
 import { MdOutlineSportsSoccer } from 'react-icons/md';
@@ -1906,7 +1905,7 @@ export default function SchedulePageV2() {
 
         toast({
           title: '재투표',
-          description: '날짜를 다시 선택해 투표해주세요. 새 투표 저장 전까지 기존 투표는 유지됩니다.',
+          description: '기존 선택을 지웠습니다. 날짜를 새로 선택해 투표해주세요.',
           status: 'success',
           duration: 2000,
           isClosable: true,
@@ -1934,6 +1933,25 @@ export default function SchedulePageV2() {
 
 
   // 사용자가 이미 투표했는지 확인하는 함수
+  // 재투표 중에는 화면에서 내 기존 표를 뺀 상태로 보여준다 (표시 전용 — 서버의 기존 투표는 새 투표 저장 시 교체된다).
+  const myRevoteDays = useMemo<string[]>(() => {
+    if (!isRevoting || !user) return [];
+    const me = unifiedVoteData?.activeSession?.participants?.find((p: any) => Number(p.userId) === Number(user.id));
+    return Array.isArray(me?.selectedDays) ? me.selectedDays : [];
+  }, [isRevoting, user, unifiedVoteData]);
+
+  const hideMyRevoteVote = (results: Record<string, any>) => {
+    if (myRevoteDays.length === 0 || !user) return results;
+    const out: Record<string, any> = { ...results };
+    myRevoteDays.forEach((day) => {
+      const r = out[day];
+      if (!r) return;
+      const participants = (r.participants || []).filter((p: any) => Number(p.userId) !== Number(user.id));
+      out[day] = { ...r, participants, count: Math.max(0, (r.count || 0) - 1) };
+    });
+    return out;
+  };
+
   const hasUserVoted = () => {
     if (!user || isRevoting) return false;
     // 1) 통합 데이터 우선 (서버 진실값)
@@ -2592,8 +2610,8 @@ export default function SchedulePageV2() {
     <Box
       bg="white"
       px={{ base: 3, md: 4 }}
-      pt={{ base: 4, md: 5 }}
-      pb={{ base: 2, md: 3 }}
+      pt={{ base: 3, md: 4 }}
+      pb={{ base: 2, md: 2 }}
       borderRadius="xl"
       border="1px solid"
       borderColor="gray.200"
@@ -2621,9 +2639,11 @@ export default function SchedulePageV2() {
               key={schedule.date}
               position="relative"
               px={{ base: 4, md: 6 }}
-              py={0}
+              py={{ base: '6px', md: '5px' }}
               minH="auto"
               h="auto"
+              // 브라우저 기본 <p> 여백(1em) 대신 행 높이를 명시해 목록을 촘촘하게 한다
+              sx={{ '& p': { my: 0 } }}
             >
               <Flex justify="space-between" align="center" py={{ base: '-1px', md: '-1px' }} px={0} lineHeight={1}>
                 <Flex align="center" gap={{ base: 1, md: 1.5 }} flex="1" minW="0">
@@ -3091,14 +3111,14 @@ export default function SchedulePageV2() {
         <Flex direction="column" minH="100vh" bg="gray.50" overflowX="hidden" w="100%" maxW="1400px">
         {/* 메인 컨텐츠 */}
           {/* 페이지 헤더 + NEXT MATCH */}
-          <Box className="fccg-matchday" px={{ base: 2, md: 4 }} pt={{ base: 4, md: 6 }}>
-            <AdminPageHeader eyebrow="SCHEDULE" title="일정" description="다음 경기, 이번 주 일정, 다음 주 투표를 한 번에 확인하세요." />
-            <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="xl" mt={{ base: 4, md: 5 }}>
+          <Box className="fccg-matchday" px={{ base: 2, md: 4 }} pt={{ base: 3, md: 4 }}>
+            <AdminPageHeader eyebrow="SCHEDULE" title="일정" />
+            <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="xl" mt={{ base: 3, md: 3 }}>
               <PitchLines opacity={0.08} />
               {nextMatch && nextMatchKey ? (
-                <Flex position="relative" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} gap={{ base: 4, md: 6 }} px={{ base: 4, md: 6 }} py={{ base: 4, md: 5 }}>
+                <Flex position="relative" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} gap={{ base: 3, md: 6 }} px={{ base: 4, md: 6 }} py={{ base: 3, md: 3 }}>
                   <Flex align="center" gap={{ base: 4, md: 6 }} flex={1} minW={0}>
-                    <DateBlock date={new Date(`${nextMatchKey}T00:00:00`)} flexShrink={0} />
+                    <DateBlock date={new Date(`${nextMatchKey}T00:00:00`)} flexShrink={0} py={2} sx={{ '& > p:nth-of-type(2)': { fontSize: '44px' } }} />
                     <Box minW={0}>
                       <Flex align="center" gap={2} wrap="wrap">
                         <LiveDot />
@@ -3108,8 +3128,8 @@ export default function SchedulePageV2() {
                           <Box as="span" px={2} py="1px" borderRadius="sm" bg="whiteAlpha.200" fontSize="11px" fontWeight="700">{nextMatch.eventType}</Box>
                         )}
                       </Flex>
-                      <Text textStyle="statNumber" fontSize={{ base: '40px', md: '52px' }} mt={2}>{nextMatch.time || '시간 미정'}</Text>
-                      <Flex mt={2} gap={{ base: 3, md: 5 }} wrap="wrap" color="whiteAlpha.800" fontSize="sm">
+                      <Text textStyle="statNumber" fontSize={{ base: '36px', md: '44px' }} mt={1}>{nextMatch.time || '시간 미정'}</Text>
+                      <Flex mt={1} gap={{ base: 3, md: 5 }} wrap="wrap" color="whiteAlpha.800" fontSize="sm">
                         <Flex align="center" gap={1.5} minW={0}>
                           <Icon as={LuMapPin} boxSize="14px" flexShrink={0} />
                           <Text noOfLines={1}>{nextMatch.location || '장소 미정'}</Text>
@@ -3237,14 +3257,12 @@ export default function SchedulePageV2() {
           <Box
             w={{ base: '100%', lg: '360px', xl: '400px' }}
             p={{ base: 2, md: 4 }}
-            // 모바일에서는 전역 챗봇 버튼(우하단 고정, ChatbotWidget)이 리스트 마지막
-            // 항목을 가리지 않도록 버튼 높이만큼 안전 여백을 확보한다.
-            pb={{ base: '96px', md: 4 }}
+            pb={{ base: 4, md: 4 }}
             overflowX="hidden"
             boxSizing="border-box"
             justifySelf={{ base: 'stretch', lg: 'end' }}
           >
-            <VStack spacing={{ base: 4, md: 6 }} align="stretch">
+            <VStack spacing={{ base: 3, md: 4 }} align="stretch">
               {/* 이번주 일정 */}
               {renderThisWeekSchedule()}
 
@@ -3253,8 +3271,8 @@ export default function SchedulePageV2() {
                 <Box
                   bg="white"
                 px={{ base: 3, md: 4 }}
-                pt={{ base: 4, md: 5 }}
-                pb={{ base: 4, md: 5 }}
+                pt={{ base: 3, md: 4 }}
+                pb={{ base: 3, md: 4 }}
                   borderRadius="xl"
                   border="1px solid"
                   borderColor="gray.200"
@@ -3382,9 +3400,11 @@ export default function SchedulePageV2() {
                               borderColor={selectedDays.includes(vote.date) ? 'brand.400' : 'transparent'}
                               bg={selectedDays.includes(vote.date) ? 'brand.50' : isHoliday ? 'red.50' : 'transparent'}
                               px={{ base: 4, md: 6 }}
-                              py={0}
+                              py={{ base: '9px', md: '8px' }}
                               minH="auto"
                               h="auto"
+                              // 브라우저 기본 <p> 여백(1em) 대신 행 높이를 명시해 목록을 촘촘하게 한다
+                              sx={{ '& p': { my: 0 } }}
                             onClick={() => {
                                 if (isVoteClosed) return;
                                 if (isHoliday) {
@@ -3505,7 +3525,7 @@ export default function SchedulePageV2() {
                     }
                     
                     const activeSession = unifiedVoteData.activeSession;
-                    const results = activeSession.results || {};
+                    const results = hideMyRevoteVote(activeSession.results || {});
                     const now = new Date();
                   const currentDay = now.getDay();
                     let daysUntilMonday;
@@ -3549,9 +3569,11 @@ export default function SchedulePageV2() {
                             borderColor={selectedDays.includes(dateString) ? 'brand.400' : 'transparent'}
                             bg={selectedDays.includes(dateString) ? 'brand.50' : isDisabled ? 'red.50' : 'transparent'}
                             px={{ base: 4, md: 6 }}
-                            py={0}
+                            py={{ base: '9px', md: '8px' }}
                             minH="auto"
                             h="auto"
+                            // 브라우저 기본 <p> 여백(1em) 대신 행 높이를 명시해 목록을 촘촘하게 한다
+                            sx={{ '& p': { my: 0 } }}
                             onClick={() => {
                               if (isVoteClosed) return;
                               if (isDisabled) {
@@ -3685,9 +3707,11 @@ export default function SchedulePageV2() {
                     borderColor={selectedDays.includes('불참') ? "brand.400" : "transparent"}
                     bg={selectedDays.includes('불참') ? "brand.50" : "transparent"}
                   px={{ base: 4, md: 6 }}
-                  py={0}
+                  py={{ base: '9px', md: '8px' }}
                   minH="auto"
                   h="auto"
+                  // 브라우저 기본 <p> 여백(1em) 대신 행 높이를 명시해 목록을 촘촘하게 한다
+                  sx={{ '& p': { my: 0 } }}
                     onClick={() => {
                       // 투표 마감된 경우 선택 불가
                       if (isVoteClosed) return;
@@ -3781,7 +3805,7 @@ export default function SchedulePageV2() {
                           return false;
                         }).length;
                         const byResults = voteResults?.voteResults?.['불참'] || 0;
-                        return Math.max(byVotes, byResults);
+                        return Math.max(0, Math.max(byVotes, byResults) - (myRevoteDays.includes('불참') ? 1 : 0));
                       })()}명
                     </Badge>
                     </Tooltip>
@@ -3792,7 +3816,17 @@ export default function SchedulePageV2() {
                 {/* 버튼들 */}
                 <VStack spacing={{ base: 2, md: 3 }} align="stretch">
                   {/* 투표마감, 투표현황, 투표하기를 한 줄에 배치 */}
-                  <Flex gap={2} align="stretch" direction="column" wrap="nowrap" mt={3}>
+                  <Flex gap={2} align="stretch" direction="column" wrap="nowrap" mt={2} sx={{ '& > p': { my: 0 } }}>
+                    {isRevoting && !isVoteClosed && (
+                      <Flex align="center" justify="space-between" gap={2} px={3} py={2} borderRadius="md" bg="orange.50" border="1px solid" borderColor="orange.200">
+                        <Text fontSize="xs" color="orange.800" lineHeight="short">
+                          기존 투표를 취소하고 새로 투표합니다. 새 투표를 저장하기 전까지는 기존 투표가 유지됩니다.
+                        </Text>
+                        <Button size="xs" variant="ghost" colorScheme="orange" flexShrink={0} onClick={() => { setIsRevoting(false); setSelectedDays([]); }}>
+                          재투표 취소
+                        </Button>
+                      </Flex>
+                    )}
                     {/* 투표마감 시간 - 마감 시 숨김 */}
                   {!isVoteClosed && (unifiedVoteData?.activeSession || voteResults?.voteSession) && (
                       <Text
@@ -3810,9 +3844,6 @@ export default function SchedulePageV2() {
                     <Grid
                       gap={2}
                       w="100%"
-                      // 전역 ChatbotWidget(우하단 고정)이 스크롤 위치와 무관하게 이 버튼 열과 같은
-                      // 우측 컬럼에 떠 있으므로, 챗봇 폭만큼 오른쪽 여백을 모든 폭에서 확보해 겹치지 않게 한다.
-                      pr={MOBILE_CHATBOT_SAFE_RIGHT}
                       templateColumns={
                         isAdmin
                           ? "minmax(0,1fr) minmax(0,1fr) 40px"

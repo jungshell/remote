@@ -20,7 +20,7 @@ import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import YouTube from 'react-youtube';
 import { getApiBaseUrl } from '../config/api';
 import { ensureApiBaseUrl } from '../constants';
-import { Z_INDEX, EVENT_TYPE_COLORS, MOTION, MOBILE_CHATBOT_SAFE_RIGHT } from '../constants/designTokens';
+import { Z_INDEX, EVENT_TYPE_COLORS, MOTION } from '../constants/designTokens';
 
 const getKstDateKey = (dateLike: string | Date) => {
   const date = new Date(dateLike);
@@ -2180,12 +2180,6 @@ export default function MainDashboard() {
       w="100%"
       pt={20}
       overflowX="hidden"
-      sx={{
-        '@media (min-width: 1280px) and (min-height: 820px) and (max-resolution: 1.25dppx)': {
-          height: '100vh',
-          overflowY: 'hidden',
-        },
-      }}
     >
       {/* 음악 on/off 버튼 (드래그 가능한 플로팅 버튼) */}
       <IconButton
@@ -2217,7 +2211,7 @@ export default function MainDashboard() {
           align={{ base: 'flex-start', md: 'center' }}
           gap={{ base: 2, md: 4 }}
           w="full"
-          maxW="1400px"
+          maxW={{ base: '1400px', '2xl': '1680px' }}
           mx="auto"
           px={{ base: 4, md: 5, lg: 6 }}
           pt={{ base: 3, lg: 1 }}
@@ -2251,12 +2245,12 @@ export default function MainDashboard() {
 
       <Flex
         direction={{ base: 'column', md: 'row' }}
-        gap={{ base: 5, lg: 7 }}
+        gap={{ base: 4, lg: 5 }}
         px={{ base: 4, md: 5, lg: 6 }}
-        pt={{ base: 4, lg: 3 }}
-        pb={8}
+        pt={{ base: 4, lg: 2 }}
+        pb={{ base: 5, md: 4 }}
         w="full"
-        maxW="1400px"
+        maxW={{ base: '1400px', '2xl': '1680px' }}
         mx="auto"
         align="stretch"
         overflowX="hidden"
@@ -2270,10 +2264,8 @@ export default function MainDashboard() {
           borderRadius="xl"
           border="1px solid"
           borderColor={nextMatchDisplay?.isGameDay ? 'matchday.volt' : 'transparent'}
-          h={{ base: 'auto', md: '520px' }}
-          minH={{ base: '330px', md: '520px' }}
-          alignSelf={{ base: 'auto', md: 'flex-start' }}
-          maxW={{ base: '100%', md: '430px' }}
+          minH="330px"
+          maxW={{ base: '100%', md: '430px', '2xl': '500px' }}
           color="white"
           bg="matchday.navy"
           display="flex"
@@ -2428,18 +2420,13 @@ export default function MainDashboard() {
           minW={0}
           direction="column"
           bg="white"
-          p={{ base: 4, md: 5 }}
+          p={{ base: 3, md: 4 }}
           borderRadius="xl"
           border="1px solid"
           borderColor="gray.200"
-          alignSelf={{ base: 'auto', md: 'flex-start' }}
-          h={{ base: 'auto', md: '520px' }}
         >
-          <Flex align="flex-end" justify="space-between" gap={3} mb={{ base: 3, md: 4 }} flexShrink={0}>
-            <Box minW={0}>
-              <Text fontSize="lg" fontWeight="800" color="matchday.navy" letterSpacing="-0.01em">경기 하이라이트</Text>
-              <Text textStyle="scoreLabel" fontSize="10px" color="brand.500" mt={1}>FCCG HIGHLIGHTS</Text>
-            </Box>
+          <Flex align="center" justify="space-between" gap={3} mb={{ base: 2, md: 3 }} flexShrink={0}>
+            <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="800" color="matchday.navy" letterSpacing="-0.01em">경기 하이라이트</Text>
             <Button
               size="sm"
               variant="ghost"
@@ -2460,9 +2447,8 @@ export default function MainDashboard() {
             borderRadius="lg"
             overflow="hidden"
             bg="matchday.navy"
-            aspectRatio={{ base: '16/9', md: 'auto' }}
-            flex={{ base: 'none', md: 1 }}
-            minH={0}
+            aspectRatio="16/9"
+            flexShrink={0}
             maxW="100%"
             display="block"
             boxSizing="border-box"
@@ -2547,11 +2533,17 @@ export default function MainDashboard() {
               />
             )}
           </Box>
-          <Box mt={{ base: 3, md: 3 }} flexShrink={0}>
-            <Text fontSize={{ base: 'sm', md: 'md' }} fontWeight="800" color="matchday.navy" noOfLines={1}>
+          <Flex
+            mt={{ base: 2, md: 3 }}
+            flexShrink={0}
+            direction={{ base: 'column', md: 'row' }}
+            align={{ base: 'stretch', md: 'center' }}
+            gap={{ base: 2, md: 4 }}
+          >
+            <Text flex="1" minW={0} fontSize={{ base: 'sm', md: 'md' }} fontWeight="800" color="matchday.navy" noOfLines={1}>
               {currentVideo.title}
             </Text>
-            <Flex align="center" justify="center" gap={3} mt={{ base: 3, md: 2 }}>
+            <Flex align="center" justify="center" gap={3} flexShrink={0}>
               <IconButton
                 icon={<ChevronLeftIcon boxSize={5} />}
                 aria-label="이전"
@@ -2584,7 +2576,7 @@ export default function MainDashboard() {
                 _hover={{ bg: 'brand.50', borderColor: 'brand.200' }}
               />
             </Flex>
-          </Box>
+          </Flex>
         </Flex>
       </Flex>
 
@@ -2597,15 +2589,13 @@ export default function MainDashboard() {
       )}
 
       {/* 하단 통계 카드 */}
-      {/* 통계 카드는 모두 버튼이라, 우하단 고정 챗봇 폭만큼 우측 여백을 둬 스크롤 중에도 겹치지 않게 한다 */}
       <SimpleGrid
         columns={{ base: 2, lg: 4 }}
-        spacing={4}
-        mb={{ base: 6, lg: 4 }}
-        pl={{ base: 4, md: 5, lg: 6 }}
-        pr={MOBILE_CHATBOT_SAFE_RIGHT}
+        spacing={{ base: 3, md: 4 }}
+        mb={{ base: 5, lg: 1 }}
+        px={{ base: 4, md: 5, lg: 6 }}
         w="full"
-        maxW="1400px"
+        maxW={{ base: '1400px', '2xl': '1680px' }}
         mx="auto"
         overflowX="hidden"
       >
@@ -2614,8 +2604,9 @@ export default function MainDashboard() {
             {bottomInfoData.map((info, idx) => (
               <Card
                 key={idx}
-                p={{ base: 4, md: 5 }}
-                minH="119px"
+                px={{ base: 3.5, md: 4 }}
+                py={{ base: 3, md: 3.5 }}
+                minH={{ base: '92px', md: '96px' }}
                 borderRadius="xl"
                 boxShadow="none"
                 border="1px solid"
@@ -2646,8 +2637,9 @@ export default function MainDashboard() {
                 clickable
                 key={idx}
                 aria-label={`${info.title} 상세 보기`}
-                p={{ base: 4, md: 5 }}
-                minH="119px"
+                px={{ base: 3.5, md: 4 }}
+                py={{ base: 3, md: 3.5 }}
+                minH={{ base: '92px', md: '96px' }}
                 borderRadius="xl"
                 boxShadow="none"
                 border="1px solid"

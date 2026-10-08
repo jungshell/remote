@@ -204,8 +204,7 @@ export const ICON_SIZE = {
 export const Z_INDEX = {
   HEADER: 100,
   FLOATING_WIDGET: 1000, // 대시보드 음악 버튼 등 페이지 내 드래그 가능한 위젯
-  CHATBOT: 1200,
-  HELP_BUTTON: 1210, // 챗봇 버튼보다 살짝 위, 서로 겹칠 때도 항상 클릭 가능하도록
+  HELP_BUTTON: 1210,
   MODAL: 1400,
   TOOLTIP: 1800,
   NOTIFICATION: 9999, // 전역 알림은 모달 위에서도 항상 보여야 한다
@@ -227,22 +226,11 @@ export const MOTION = {
   },
 } as const;
 
-// 모바일에서 전역 ChatbotWidget(우하단 고정, ChatbotWidget.tsx)이 차지하는 가로 폭.
-// right 16px + 버튼 48px + 여유 8px. 스크롤 위치와 무관하게 항상 겹치면 안 되는
-// 우측 하단 액션 영역(예: 일정 페이지의 "투표하기" 버튼 열)에서 이 값만큼
-// 오른쪽 여백을 확보하면, 세로 스크롤 오프셋과 상관없이 챗봇과 절대 겹치지 않는다.
-export const MOBILE_CHATBOT_SAFE_RIGHT = '72px';
-
-// 관리자 Shell 치수 — Header(고정), 관리자 모바일 title bar, 데스크톱 사이드바, 챗봇 위치가 같은 값을 공유한다.
-// 챗봇은 관리자 화면에서 콘텐츠 영역 밖(데스크톱: 사이드바 하단 칸 / 모바일: title bar 우측 dock)에만 놓여
-// 페이지별 여백 없이도 어떤 버튼과도 겹치지 않는다.
+// 관리자 Shell 치수 — Header(고정), 관리자 모바일 title bar, 데스크톱 사이드바가 같은 값을 공유한다.
 export const ADMIN_SHELL = {
   HEADER_H: 80, // Header.tsx 고정 높이
   SIDEBAR_W: 280,
-  SIDEBAR_CHATBOT_SLOT_H: 80, // 사이드바 하단, 원형 챗봇 버튼 전용 칸
   MOBILE_BAR_H: 64, // 관리자 모바일 title bar
-  DOCK_W: 38,
-  DOCK_H: 46,
 } as const;
 
 // 반응형 브레이크포인트

@@ -3158,8 +3158,7 @@ export default function AdminPageNew() {
     <Box minH="100vh" bg="gray.50" pt={`${ADMIN_SHELL.HEADER_H + (isMobile ? ADMIN_SHELL.MOBILE_BAR_H : 0)}px`}>
       {isMobile && (
         <>
-          {/* 모바일 title bar: 우측 끝 DOCK_W 영역은 챗봇 edge dock 자리(ChatbotWidget이 같은 높이에 고정).
-              앱 래퍼의 overflow-x: hidden 때문에 sticky가 동작하지 않아 fixed + 상단 여백으로 고정한다. */}
+          {/* 모바일 title bar: 앱 래퍼의 overflow-x: hidden 때문에 sticky가 동작하지 않아 fixed + 상단 여백으로 고정한다. */}
           <Flex
             className="fccg-matchday fccg-admin"
             position="fixed"
@@ -3170,7 +3169,7 @@ export default function AdminPageNew() {
             h={`${ADMIN_SHELL.MOBILE_BAR_H}px`}
             bg="white"
             pl={{ base: 4, md: 6 }}
-            pr={`${ADMIN_SHELL.DOCK_W + 12}px`}
+            pr={{ base: 4, md: 6 }}
             borderBottom="1px solid"
             borderColor="gray.200"
             boxShadow="sm"
@@ -3240,8 +3239,6 @@ export default function AdminPageNew() {
             <Box flex={1} minH={0} overflowY="auto">
               {renderSidebarContent()}
             </Box>
-            {/* 원형 챗봇 버튼 전용 칸 (ChatbotWidget이 이 위치에 고정) — 메뉴가 스크롤돼도 겹치지 않는다 */}
-            <Box h={`${ADMIN_SHELL.SIDEBAR_CHATBOT_SLOT_H}px`} flexShrink={0} borderTop="1px" borderColor="gray.200" bg="gray.50" />
           </Flex>
         )}
 
@@ -3388,13 +3385,13 @@ export default function AdminPageNew() {
                       />
                       <Box position="absolute" top={{ base: '-30%', md: '-60%' }} right={{ base: '6%', md: '33%' }} w={{ base: '4px', md: '6px' }} h={{ base: '95%', md: '220%' }} transform="rotate(18deg)" bg="matchday.volt" opacity={0.85} pointerEvents="none" />
 
-                      <Flex position="relative" direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} gap={{ base: 5, md: 8 }} px={{ base: 5, md: 8 }} pt={{ base: 6, md: 8 }} pb={{ base: 5, md: 8 }}>
+                      <Flex position="relative" direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} gap={{ base: 5, md: 8 }} px={{ base: 5, md: 8 }} pt={{ base: 5, md: 6 }} pb={{ base: 5, md: 6 }}>
                         <Flex align="center" gap={{ base: 3.5, md: 5 }}>
                           <Box display={{ base: 'block', md: 'none' }}><CggShieldTemp size={48} /></Box>
                           <Box display={{ base: 'none', md: 'block' }}><CggShieldTemp size={68} /></Box>
                           <Box>
                             <Text textStyle="scoreLabel" color="whiteAlpha.700">FC CGG ADMIN</Text>
-                            <Text fontFamily="display" fontWeight="700" fontSize={{ base: '27px', md: '44px', xl: '52px' }} lineHeight={{ base: '1.02', md: '0.95' }} letterSpacing="-0.005em" mt={{ base: 1, md: 2 }} textTransform="uppercase">
+                            <Text fontFamily="display" fontWeight="700" fontSize={{ base: '27px', md: '38px', xl: '44px' }} lineHeight={{ base: '1.02', md: '0.95' }} letterSpacing="-0.005em" mt={{ base: 1, md: 2 }} textTransform="uppercase">
                               Match Day<br />Command Center
                             </Text>
                           </Box>
@@ -3598,7 +3595,7 @@ export default function AdminPageNew() {
 
                   {/* ACTION CENTER: 운영 작업 대기열 */}
                   <Box w="100%" bg="white" borderRadius="xl" border="1px solid" borderColor={actionRequiredCount > 0 ? 'matchday.navy' : 'gray.200'} overflow="hidden">
-                    <Flex justify="space-between" align="center" px={{ base: 5, md: 6 }} py={4} bg={actionRequiredCount > 0 ? 'matchday.navy' : 'white'} color={actionRequiredCount > 0 ? 'white' : 'matchday.navy'}>
+                    <Flex justify="space-between" align="center" px={{ base: 5, md: 6 }} py={actionRequiredCount > 0 ? 4 : 3} bg={actionRequiredCount > 0 ? 'matchday.navy' : 'white'} color={actionRequiredCount > 0 ? 'white' : 'matchday.navy'}>
                       <Box>
                         <Text fontSize="lg" fontWeight="800">지금 처리할 것</Text>
                         <Text textStyle="scoreLabel" fontSize="10px" color={actionRequiredCount > 0 ? 'whiteAlpha.600' : 'brand.500'} mt={1}>ACTION CENTER</Text>
@@ -3609,9 +3606,9 @@ export default function AdminPageNew() {
                       </HStack>
                     </Flex>
 
-                    <Box px={{ base: 5, md: 6 }} py={4}>
+                    <Box px={{ base: 5, md: 6 }} pt={actionRequiredCount > 0 ? 4 : 0} pb={actionRequiredCount > 0 ? 4 : 3}>
                       {actionRequiredCount === 0 ? (
-                        <HStack spacing={3} py={2}>
+                        <HStack spacing={3} py={0}>
                           <Icon as={LuCircleCheck} boxSize={5} color="green.500" />
                           <Text color="gray.600" fontSize="sm">모든 요청을 처리했어요 🎉</Text>
                         </HStack>
@@ -4271,7 +4268,7 @@ export default function AdminPageNew() {
                     </Flex>
 
                     {activityMetrics.members.length > 0 ? (
-                      <VStack spacing={2} align="stretch" maxH="420px" overflowY="auto">
+                      <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={2}>
                         {activityMetrics.members.map((member) => (
                           <Box key={member.id} px={4} py={3} border="1px solid" borderColor="gray.200" borderRadius="md">
                             <HStack spacing={2} mb={2}>
@@ -4301,7 +4298,7 @@ export default function AdminPageNew() {
                             </SimpleGrid>
                           </Box>
                         ))}
-                      </VStack>
+                      </SimpleGrid>
                     ) : (
                       <AdminEmptyState icon={MdOutlineGroups} title="회원 활동 데이터가 없습니다." description="경기 참여나 투표 기록이 쌓이면 이곳에 표시됩니다." />
                     )}
