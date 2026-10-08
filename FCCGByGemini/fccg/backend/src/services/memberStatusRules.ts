@@ -28,42 +28,40 @@ function reactivatedAt(member: StatusTrackedMember): Date | null {
   return member.status === 'ACTIVE' && member.statusChangedAt ? member.statusChangedAt : null;
 }
 
-/** 가입일(또는 관리자 복구일) 이후·최근 3개월 완료 세션 기준 투표 미참여 평가 */
-export function evaluateVoteParticipation(
+type CompletedSession = { id: number; weekStartDate: Date; votes: { userId: number }[] };
+
+/** 가입일(또는 관리자 복구일) 이후 완료 세션 기준 미참여 통계 (진행 중 세션은 호출부에서 제외) */
+export function voteMissStats(
   member: { id: number; createdAt: Date } & StatusTrackedMember,
-  completedSessions: Array<{ id: number; weekStartDate: Date; votes: { userId: number }[] }>,
-  _now: Date
-): StatusCheckResult {
+  completedSessions: CompletedSession[]
+) {
   const memberStart = laterOf(member.createdAt, reactivatedAt(member));
   const sessions = completedSessions.filter((s) => s.weekStartDate >= memberStart);
-
-  if (sessions.length === 0) {
-    return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-  }
-
   const missedFlags = sessions.map((s) => !s.votes.some((v) => v.userId === member.id));
-  const totalMissed = missedFlags.filter(Boolean).length;
-
-  // 최근 세션부터 연속 미참여
   let consecutiveFromEnd = 0;
   for (let i = missedFlags.length - 1; i >= 0; i--) {
     if (missedFlags[i]) consecutiveFromEnd++;
     else break;
   }
+  return { sessionCount: sessions.length, totalMissed: missedFlags.filter(Boolean).length, consecutiveFromEnd };
+}
 
-  if (sessions.length >= CONSECUTIVE_VOTE_MISS_LIMIT && consecutiveFromEnd >= CONSECUTIVE_VOTE_MISS_LIMIT) {
+/**
+ * 자동 INACTIVE의 유일한 기준: 완료된 투표 세션 4회 연속 미참여.
+ * (3개월 6회 미참여는 상태 변경 없이 관리자 경고로만 쓴다 — evaluateMemberWarnings)
+ */
+export function evaluateVoteParticipation(
+  member: { id: number; createdAt: Date } & StatusTrackedMember,
+  completedSessions: CompletedSession[],
+  _now: Date
+): StatusCheckResult {
+  const { sessionCount, consecutiveFromEnd } = voteMissStats(member, completedSessions);
+
+  if (sessionCount >= CONSECUTIVE_VOTE_MISS_LIMIT && consecutiveFromEnd >= CONSECUTIVE_VOTE_MISS_LIMIT) {
     return {
       shouldDeactivate: true,
       shouldSuspend: false,
-      reason: `투표 ${CONSECUTIVE_VOTE_MISS_LIMIT}회 연속 미참여 (최근 ${consecutiveFromEnd}회 연속, 대상 세션 ${sessions.length}개)`,
-    };
-  }
-
-  if (sessions.length >= TOTAL_VOTE_MISS_LIMIT && totalMissed >= TOTAL_VOTE_MISS_LIMIT) {
-    return {
-      shouldDeactivate: true,
-      shouldSuspend: false,
-      reason: `3개월간 투표 ${TOTAL_VOTE_MISS_LIMIT}회 이상 미참여 (미참여 ${totalMissed}/${sessions.length})`,
+      reason: `투표 ${CONSECUTIVE_VOTE_MISS_LIMIT}회 연속 미참여 (최근 ${consecutiveFromEnd}회 연속, 대상 세션 ${sessionCount}개)`,
     };
   }
 
@@ -190,4 +188,42 @@ export function decideAutoStatus(
   }
 
   return { status, reason };
+}
+
+export type MemberWarning = {
+  code: 'VOTE_MISS_3M' | 'NO_GAME_90D' | 'PRE_DEACTIVATION';
+  label: string;
+  detail: string;
+};
+
+/**
+ * 관리자 참고용 경고 (상태 변경·권한 제한·알림 없음).
+ * - VOTE_MISS_3M: 최근 3개월 완료 투표 6회 이상 미참여
+ * - PRE_DEACTIVATION: 완료 투표 3회 연속 미참여 → 다음 완료 투표도 미참여 시 자동 INACTIVE
+ * - NO_GAME_90D: 90일 실경기 참여 없음 (회식·경기 수 부족 등 데이터 한계로 자동 제재에는 쓰지 않음)
+ */
+export function evaluateMemberWarnings(
+  member: { id: number; name: string; createdAt: Date } & StatusTrackedMember,
+  completedSessions: CompletedSession[],
+  realGames: Parameters<typeof evaluateGameParticipation>[1],
+  now: Date,
+  rulesStartAt: Date
+): MemberWarning[] {
+  const warnings: MemberWarning[] = [];
+  const { sessionCount, totalMissed, consecutiveFromEnd } = voteMissStats(member, completedSessions);
+
+  if (sessionCount >= TOTAL_VOTE_MISS_LIMIT && totalMissed >= TOTAL_VOTE_MISS_LIMIT) {
+    warnings.push({ code: 'VOTE_MISS_3M', label: '투표 주의', detail: `최근 3개월 투표 미참여 ${totalMissed}회` });
+  }
+  if (consecutiveFromEnd === CONSECUTIVE_VOTE_MISS_LIMIT - 1 && sessionCount >= CONSECUTIVE_VOTE_MISS_LIMIT - 1) {
+    warnings.push({
+      code: 'PRE_DEACTIVATION',
+      label: '비활성 예정',
+      detail: `최근 완료 투표 ${consecutiveFromEnd}회 연속 미참여 → 다음 완료 투표도 미참여 시 비활성`,
+    });
+  }
+  if (evaluateGameParticipation(member, realGames, now, rulesStartAt).shouldDeactivate) {
+    warnings.push({ code: 'NO_GAME_90D', label: '경기 활동 없음', detail: '최근 90일 경기 참여 없음' });
+  }
+  return warnings;
 }

@@ -170,6 +170,20 @@ export const getUnifiedVoteDataNew = () => request('/unified-vote-data');
 
 export const getAdminVoteSessionsSummary = () => request('/votes/sessions/summary');
 
+// 관리자 참고용 회원 경고 (읽기 전용: 투표 주의·비활성 예정·경기 활동 없음)
+export type MemberWarning = { code: 'VOTE_MISS_3M' | 'NO_GAME_90D' | 'PRE_DEACTIVATION'; label: string; detail: string };
+export type MemberInsights = {
+  generatedAt: string;
+  members: Array<{ memberId: number; name: string; warnings: MemberWarning[] }>;
+  warningCount: number;
+  preDeactivationCount: number;
+};
+export const getMemberInsights = () => request('/admin/member-insights') as Promise<MemberInsights>;
+
+// 메일 transport 확인 (실제 발송 없음 — Gmail OAuth 토큰 확인만)
+export const verifyMailTransport = () =>
+  request('/admin/mail-diagnostics/verify', { method: 'POST' }) as Promise<{ success: boolean; mode: string; error?: string; sent: false }>;
+
 export const getSavedVoteResults = (sessionId: number) => 
   request(`/votes/results?sessionId=${sessionId}`);
 

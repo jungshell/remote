@@ -31,10 +31,11 @@ import {
   useToast,
   Flex,
   Icon,
-  Tooltip
+  Tooltip,
+  Wrap
 } from '@chakra-ui/react';
 import { LuEye, LuKeyRound, LuPencil, LuSearch, LuSearchX, LuUserPlus, LuUserX, LuUsers } from 'react-icons/lu';
-import { updateMember, deleteMember, resetMemberPassword, getValidToken } from '../api/auth';
+import { updateMember, deleteMember, resetMemberPassword, getValidToken, getMemberInsights, type MemberWarning } from '../api/auth';
 import { useAuthStore } from '../store/auth';
 import { getApiUrl } from '../config/api';
 import { AdminEmptyState, AdminPageHeader, AdminPanel, StatBlock, StatStrip, StatusBadge } from './admin/MatchDay';
@@ -47,7 +48,15 @@ interface Member {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
   createdAt?: string;
+  statusChangedAt?: string | null;
+  statusChangeReason?: string | null;
 }
+
+type MemberFilter = 'ALL' | 'NORMAL' | 'WARN' | Member['status'];
+
+// 상태 변경 출처 표시 (기존 statusChangeReason 기반 — 별도 이력 테이블 없음)
+const statusChangeSource = (reason?: string | null) =>
+  !reason ? '' : reason.includes('관리자') ? '관리자 변경' : reason.includes('탈퇴') ? '탈퇴 처리' : '자동 판정';
 
 interface MemberManagementProps {
   userList: Member[];
@@ -76,7 +85,41 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
   
   const toast = useToast();
   // 표시 전용 상태 필터 (검색 결과 filteredMembers 위에 한 번 더 거른다)
-  const [statusFilter, setStatusFilter] = useState<'ALL' | Member['status']>('ALL');
+  const [statusFilter, setStatusFilter] = useState<MemberFilter>('ALL');
+  // 관리자 참고용 경고 (상태 변경 아님 — 서버 계산 결과 표시만)
+  const [warningsByMember, setWarningsByMember] = useState<Record<number, MemberWarning[]>>({});
+  React.useEffect(() => {
+    let alive = true;
+    getMemberInsights()
+      .then((r) => {
+        if (!alive) return;
+        const map: Record<number, MemberWarning[]> = {};
+        (r?.members || []).forEach((m) => { map[m.memberId] = m.warnings; });
+        setWarningsByMember(map);
+      })
+      .catch(() => { /* 경고는 보조 정보 — 실패해도 회원 관리는 그대로 동작 */ });
+    return () => { alive = false; };
+  }, [userList]);
+  const hasWarning = (m: Member) => (warningsByMember[m.id]?.length ?? 0) > 0;
+  const WarningTags = ({ id }: { id: number }) => {
+    const ws = warningsByMember[id];
+    if (!ws?.length) return null;
+    return (
+      <Wrap spacing={1} mt={1}>
+        {ws.map((w) => {
+          const urgent = w.code === 'PRE_DEACTIVATION';
+          return (
+            <Tooltip key={w.code} label={w.detail} hasArrow>
+              <Box as="span" px={1.5} py="1px" borderRadius="sm" fontSize="10px" fontWeight="700" whiteSpace="nowrap"
+                bg={urgent ? 'red.50' : 'orange.50'} color={urgent ? 'red.600' : 'orange.700'} border="1px solid" borderColor={urgent ? 'red.100' : 'orange.100'}>
+                {w.code === 'NO_GAME_90D' ? '⚽' : '⚠'} {w.label}
+              </Box>
+            </Tooltip>
+          );
+        })}
+      </Wrap>
+    );
+  };
   
   // 전역 사용자 정보 업데이트를 위한 store
   const { user, setUser } = useAuthStore();
@@ -467,10 +510,15 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
   };
   const displayedMembers = statusFilter === 'ALL'
     ? filteredMembers
-    : filteredMembers.filter(m => m.status === statusFilter);
-  const filterChips: { key: 'ALL' | Member['status']; label: string; count: number }[] = [
+    : statusFilter === 'WARN'
+      ? filteredMembers.filter(hasWarning)
+      : statusFilter === 'NORMAL'
+        ? filteredMembers.filter(m => m.status === 'ACTIVE' && !hasWarning(m))
+        : filteredMembers.filter(m => m.status === statusFilter);
+  const filterChips: { key: MemberFilter; label: string; count: number }[] = [
     { key: 'ALL', label: '전체', count: userList.length },
-    { key: 'ACTIVE', label: '활성', count: statusCounts.ACTIVE },
+    { key: 'NORMAL', label: '정상', count: userList.filter(m => m.status === 'ACTIVE' && !hasWarning(m)).length },
+    { key: 'WARN', label: '주의', count: userList.filter(hasWarning).length },
     { key: 'INACTIVE', label: '비활성', count: statusCounts.INACTIVE },
     { key: 'SUSPENDED', label: '정지', count: statusCounts.SUSPENDED },
     // /members 응답은 탈퇴(DELETED) 회원을 제외하므로, 실제로 있을 때만 보조 필터를 노출
@@ -596,7 +644,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                   <Tbody>
                     {displayedMembers.map((member) => (
                       <Tr key={member.id} _hover={{ bg: 'gray.50' }}>
-                        <Td py={3}><Text fontWeight="700" color="matchday.navy">{member.name}</Text></Td>
+                        <Td py={3}><Text fontWeight="700" color="matchday.navy">{member.name}</Text><WarningTags id={member.id} /></Td>
                         <Td py={3}><Text fontSize="sm" color="gray.600">{member.email || '-'}</Text></Td>
                         <Td py={3}><StatusBadge kind="role" value={member.role} /></Td>
                         <Td py={3}><StatusBadge kind="status" value={member.status} /></Td>
@@ -630,6 +678,7 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                       <Box minW={0}>
                         <Text fontWeight="800" fontSize="md" color="matchday.navy" noOfLines={1}>{member.name}</Text>
                         <Text fontSize="sm" color="gray.500" noOfLines={1}>{member.email || '-'}</Text>
+                        <WarningTags id={member.id} />
                       </Box>
                       <HStack spacing={1.5} flexShrink={0}>
                         <StatusBadge kind="role" value={member.role} />
@@ -776,6 +825,29 @@ export default function MemberManagement({ userList, onUserListChange }: MemberM
                   { label: 'EMAIL', value: <Text>{selectedMember.email}</Text> },
                   { label: 'ROLE', value: <StatusBadge kind="role" value={selectedMember.role} /> },
                   { label: 'STATUS', value: <StatusBadge kind="status" value={selectedMember.status} /> },
+                  {
+                    label: 'STATUS HISTORY',
+                    value: selectedMember.statusChangedAt ? (
+                      <Text fontSize="sm" color="gray.700">
+                        {new Date(selectedMember.statusChangedAt).toLocaleString('ko-KR')}
+                        {statusChangeSource(selectedMember.statusChangeReason) && ` · ${statusChangeSource(selectedMember.statusChangeReason)}`}
+                        {selectedMember.statusChangeReason && <Text as="span" display="block" color="gray.500" fontSize="xs" mt={0.5}>{selectedMember.statusChangeReason}</Text>}
+                      </Text>
+                    ) : <Text fontSize="sm" color="gray.500">변경 기록 없음</Text>,
+                  },
+                  ...(warningsByMember[selectedMember.id]?.length ? [{
+                    label: 'WARNINGS',
+                    value: (
+                      <VStack align="stretch" spacing={1}>
+                        {warningsByMember[selectedMember.id].map((w) => (
+                          <Text key={w.code} fontSize="sm" color={w.code === 'PRE_DEACTIVATION' ? 'red.600' : 'orange.700'}>
+                            {w.code === 'NO_GAME_90D' ? '⚽' : '⚠'} {w.label} — {w.detail}
+                          </Text>
+                        ))}
+                        <Text fontSize="xs" color="gray.400">참고용 경고이며 회원 상태·권한에는 영향을 주지 않습니다.</Text>
+                      </VStack>
+                    ),
+                  }] : []),
                   { label: 'JOINED', value: <Text>{formatJoined(selectedMember.createdAt)}</Text> },
                 ].map(row => (
                   <Box key={row.label}>

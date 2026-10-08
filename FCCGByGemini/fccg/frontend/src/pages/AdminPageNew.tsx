@@ -69,7 +69,7 @@ import {
 import { AdminEmptyState, AdminPageHeader, AdminPanel, CggShieldTemp, DateBlock, EASE_EXPO_OUT, LiveDot, PanelHeader, PitchLines, StatBlock, StatStrip, StatusBadge } from '../components/admin/MatchDay';
 import { ADMIN_SHELL, GRADIENTS } from '../constants/designTokens';
 import { normalizeEventType } from '../utils/eventTypeNormalizer';
-import { getValidToken, getMemberStats, type Game } from '../api/auth';
+import { getValidToken, getMemberStats, getMemberInsights, verifyMailTransport, type Game, type MemberInsights } from '../api/auth';
 import MemberManagement from '../components/MemberManagement';
 import { API_ENDPOINTS, ensureApiBaseUrl } from '../constants';
 import { getApiBaseUrl } from '../config/api';
@@ -90,6 +90,8 @@ interface ExtendedMember {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'MEMBER';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
   createdAt?: string;
+  statusChangedAt?: string | null;
+  statusChangeReason?: string | null;
 }
 
 interface Player {
@@ -352,6 +354,18 @@ export default function AdminPageNew() {
   // 최근 활동 및 투표 관리 상태
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [showAllActivity, setShowAllActivity] = useState(false);
+  // 대시보드 운영 상태 strip (읽기 전용: 회원 경고 계산 · 메일 transport 확인 — 실제 발송 없음)
+  const [opsInsights, setOpsInsights] = useState<MemberInsights | null>(null);
+  const [mailHealth, setMailHealth] = useState<{ ok: boolean; mode: string } | null>(null);
+  useEffect(() => {
+    if (selectedMenu !== 'dashboard') return;
+    let alive = true;
+    getMemberInsights().then((r) => { if (alive) setOpsInsights(r); }).catch(() => {});
+    verifyMailTransport()
+      .then((r) => { if (alive) setMailHealth({ ok: !!r?.success, mode: r?.mode || 'none' }); })
+      .catch(() => { if (alive) setMailHealth({ ok: false, mode: 'none' }); });
+    return () => { alive = false; };
+  }, [selectedMenu]);
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteWarnings, setVoteWarnings] = useState<{userId: number, userName: string, warningCount: number, lastWarningDate: string}[]>([]);
   // 최근 발송 알림 상세 보기 모달 상태
@@ -469,7 +483,9 @@ export default function AdminPageNew() {
               email: member.email || '',
               role: member.role || 'MEMBER',
               status: member.status || 'ACTIVE',
-              createdAt: member.createdAt
+              createdAt: member.createdAt,
+              statusChangedAt: member.statusChangedAt ?? null,
+              statusChangeReason: member.statusChangeReason ?? null
             }));
             
             console.log('📋 변환된 회원 데이터:', convertedMembers);
@@ -3470,6 +3486,21 @@ export default function AdminPageNew() {
                       <StatBlock label="ACTION" caption="처리 필요" value={actionRequiredCount} unit="건" highlight={actionRequiredCount > 0} />
                     </SimpleGrid>
                   </Box>
+
+                  {/* 운영 상태 strip — 한 줄 요약 (회원 상태 · 주의 회원 · 메일) */}
+                  <Flex w="100%" wrap="wrap" align="center" gap={{ base: 2, md: 4 }} px={{ base: 4, md: 5 }} py={2.5} bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" fontSize="sm">
+                    <Text textStyle="scoreLabel" fontSize="10px" color="gray.500">SYSTEM</Text>
+                    <Text color="gray.700">회원 <Text as="b" color="matchday.navy">정상 {userList.filter(u => u.status === 'ACTIVE').length}</Text> · 비활성 {userList.filter(u => u.status === 'INACTIVE').length} · 정지 {userList.filter(u => u.status === 'SUSPENDED').length}</Text>
+                    <Text color="gray.300">|</Text>
+                    <Button variant="link" size="sm" fontWeight="600" color={opsInsights?.warningCount ? 'orange.600' : 'gray.600'} onClick={() => setSelectedMenu('users')}>
+                      주의 {opsInsights ? opsInsights.warningCount : '–'}명{opsInsights?.preDeactivationCount ? ` (비활성 예정 ${opsInsights.preDeactivationCount})` : ''}
+                    </Button>
+                    <Text color="gray.300">|</Text>
+                    <HStack spacing={1.5}>
+                      <Box w="7px" h="7px" borderRadius="full" bg={!mailHealth ? 'gray.300' : mailHealth.ok ? 'green.500' : 'red.500'} />
+                      <Text color="gray.700">메일 {!mailHealth ? '확인 중' : mailHealth.ok ? `${mailHealth.mode === 'gmail-api' ? 'Gmail API' : mailHealth.mode === 'smtp-fallback' ? 'SMTP(대체)' : mailHealth.mode} 정상` : '오류 — 알림 관리에서 확인'}</Text>
+                    </HStack>
+                  </Flex>
 
                   {/* NEXT MATCH + VOTE STATUS */}
                   <SimpleGrid columns={{ base: 1, xl: 5 }} spacing={4} w="100%">

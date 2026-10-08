@@ -717,13 +717,15 @@ router.get('/members', optionalAuthenticateToken, async (req, res) => {
         attendance: true,
         createdAt: true,
         updatedAt: true,
-        lastLoginAt: true
+        lastLoginAt: true,
+        statusChangedAt: true,
+        statusChangeReason: true
       },
       orderBy: { name: 'asc' }
     });
     const members = canSeePrivateMemberFields
       ? memberRows
-      : memberRows.map(({ email, createdAt, updatedAt, lastLoginAt, ...publicMember }) => publicMember);
+      : memberRows.map(({ email, createdAt, updatedAt, lastLoginAt, statusChangedAt, statusChangeReason, ...publicMember }) => publicMember);
     
     console.log('📊 /members API - 조회된 회원 수:', members.length);
     console.log('📊 /members API - 회원 목록:', members.map(m => ({ id: m.id, name: m.name, role: m.role, status: m.status })));
@@ -3559,12 +3561,8 @@ router.put('/members/:id', authenticateToken, requireAdmin, async (req, res) => 
       }
     });
 
-    if (requestedStatus === 'INACTIVE' || requestedStatus === 'SUSPENDED') {
-      const removed = await deleteVotesForUserInIncompleteSessions(memberId);
-      if (removed > 0) {
-        console.log('🧹 회원 비활성/정지 → 미완료 세션 투표 삭제:', { memberId, removed });
-      }
-    }
+    // 상태 변경은 기존 Vote row를 삭제하지 않는다. 포함/제외는 집계 단계(filterVotesForResultsDisplay)에서
+    // 회원 상태·statusChangedAt·vote.createdAt으로 판단한다.
 
     res.json({
       success: true,

@@ -4,7 +4,7 @@ import cors from 'cors';
 import cron from 'node-cron';
 import authRoutes from './routes/auth_simple';
 import holidayRoutes from './routes/holiday';
-import { calculateVoteAttendanceDetails, calculateGameAttendanceDetails, checkMemberStatusRules } from './controllers/authController';
+import { calculateVoteAttendanceDetails, calculateGameAttendanceDetails, checkMemberStatusRules, getMemberStatusInsights } from './controllers/authController';
 import * as authController from './controllers/authController';
 import bodyParser from 'body-parser';
 import axios from 'axios';
@@ -1061,6 +1061,19 @@ app.post('/api/admin/check-member-status', authenticateToken, async (req, res) =
   }
 });
 console.log('✅ 회원 상태 체크 API 등록 완료: /api/admin/check-member-status');
+
+// 관리자 참고용 회원 경고 (읽기 전용: 투표 주의·비활성 예정·경기 활동 없음). 상태 변경·알림 없음.
+app.get('/api/auth/admin/member-insights', authenticateToken, async (req: any, res) => {
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
+  }
+  try {
+    res.json({ success: true, ...(await getMemberStatusInsights()) });
+  } catch (error) {
+    console.error('회원 경고 조회 오류:', error);
+    res.status(500).json({ success: false, error: '회원 경고 조회 중 오류가 발생했습니다.' });
+  }
+});
 
 
 // 간단한 테스트 API
