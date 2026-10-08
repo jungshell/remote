@@ -125,6 +125,30 @@ interface Player {
             }
 
 
+// 최근 활동 한 줄 요약 — 메일 provider 원문(긴 오류·URL)은 대시보드에 그대로 노출하지 않는다 (원문은 hover title로 확인)
+const ACTIVITY_SUMMARY_MAX = 6;
+const summarizeActivity = (description: string): { title: string; detail?: string } => {
+  const text = String(description || '');
+  const emailError = text.match(/^이메일 알림 발송 오류:\s*(.*)$/s) || text.match(/^알림 발송 실패:\s*(.*)$/s);
+  if (emailError) {
+    const raw = emailError[1];
+    const reason =
+      /535|Username and Password not accepted|Invalid login|BadCredentials/i.test(raw) ? 'SMTP 인증 오류 (앱 비밀번호 확인 필요)'
+      : /invalid_grant|OAuth token check failed|unauthorized_client/i.test(raw) ? 'Gmail 인증 토큰 오류'
+      : /timeout|timed out|ETIMEDOUT/i.test(raw) ? '연결 시간 초과'
+      : /HTTP 503|Service Unavailable/i.test(raw) ? '메일 발송 서버 응답 실패 (503)'
+      : /HTTP 5\d\d/i.test(raw) ? '서버 오류'
+      : /Failed to fetch|NetworkError|network/i.test(raw) ? '네트워크 오류'
+      : /환경변수|not configured/i.test(raw) ? '메일 설정 누락'
+      : raw.replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) || '알 수 없는 오류';
+    return { title: '이메일 발송 실패', detail: reason };
+  }
+  const emailOk = text.match(/^이메일 알림 발송 성공:\s*(.*?)\s*\(성공:\s*(\d+)건, 실패:\s*(\d+)건\)/);
+  if (emailOk) return { title: '이메일 발송 완료', detail: `${emailOk[1]} · 성공 ${emailOk[2]}건${emailOk[3] !== '0' ? ` · 실패 ${emailOk[3]}건` : ''}` };
+  const short = text.replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim();
+  return { title: short.length > 80 ? `${short.slice(0, 80)}…` : short };
+};
+
 // 최근 활동 타입 정의
             interface ActivityLog {
               id: string;
@@ -327,6 +351,7 @@ export default function AdminPageNew() {
 
   // 최근 활동 및 투표 관리 상태
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [showAllActivity, setShowAllActivity] = useState(false);
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteWarnings, setVoteWarnings] = useState<{userId: number, userName: string, warningCount: number, lastWarningDate: string}[]>([]);
   // 최근 발송 알림 상세 보기 모달 상태
@@ -3069,7 +3094,7 @@ export default function AdminPageNew() {
     return (
       <VStack spacing={0} align="stretch">
         {!onNavigate && (
-          <Box px={6} pt={6} pb={5} borderBottom="1px" borderColor="gray.200">
+          <Box px={6} pt={6} pb={5} borderBottom="1px" borderColor="gray.200" sx={{ '@media (max-height: 700px)': { paddingTop: '16px', paddingBottom: '12px' } }}>
             <Flex align="center" gap={2}>
               <Box w="16px" h="3px" bg="brand.500" borderRadius="full" />
               <Text textStyle="scoreLabel" color="brand.500">ADMIN CONSOLE</Text>
@@ -3385,13 +3410,13 @@ export default function AdminPageNew() {
                       />
                       <Box position="absolute" top={{ base: '-30%', md: '-60%' }} right={{ base: '6%', md: '33%' }} w={{ base: '4px', md: '6px' }} h={{ base: '95%', md: '220%' }} transform="rotate(18deg)" bg="matchday.volt" opacity={0.85} pointerEvents="none" />
 
-                      <Flex position="relative" direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} gap={{ base: 5, md: 8 }} px={{ base: 5, md: 8 }} pt={{ base: 5, md: 6 }} pb={{ base: 5, md: 6 }}>
+                      <Flex position="relative" direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} gap={{ base: 5, md: 8 }} px={{ base: 5, md: 8 }} pt={{ base: 5, md: 6 }} pb={{ base: 5, md: 6 }} sx={{ '@media (min-width: 48em) and (max-height: 820px)': { paddingTop: '16px', paddingBottom: '16px' } }}>
                         <Flex align="center" gap={{ base: 3.5, md: 5 }}>
                           <Box display={{ base: 'block', md: 'none' }}><CggShieldTemp size={48} /></Box>
                           <Box display={{ base: 'none', md: 'block' }}><CggShieldTemp size={68} /></Box>
                           <Box>
                             <Text textStyle="scoreLabel" color="whiteAlpha.700">FC CGG ADMIN</Text>
-                            <Text fontFamily="display" fontWeight="700" fontSize={{ base: '27px', md: '38px', xl: '44px' }} lineHeight={{ base: '1.02', md: '0.95' }} letterSpacing="-0.005em" mt={{ base: 1, md: 2 }} textTransform="uppercase">
+                            <Text fontFamily="display" fontWeight="700" fontSize={{ base: '27px', md: '38px', xl: '44px' }} lineHeight={{ base: '1.02', md: '0.95' }} letterSpacing="-0.005em" mt={{ base: 1, md: 2 }} textTransform="uppercase" sx={{ '@media (min-width: 48em) and (max-height: 820px)': { fontSize: '32px' } }}>
                               Match Day<br />Command Center
                             </Text>
                           </Box>
@@ -3760,9 +3785,13 @@ export default function AdminPageNew() {
                           <Text color="gray.500" fontSize="sm">아직 활동 내역이 없습니다.</Text>
                         </Flex>
                       ) : (
-                        <Box maxH="360px" overflowY="auto" pr={1}>
-                          {activityLogs.slice(0, 20).map((log, i, arr) => {
+                        <Box>
+                          {activityLogs.slice(0, showAllActivity ? 30 : ACTIVITY_SUMMARY_MAX).map((log, i, arr) => {
                             const meta = ACTIVITY_META[log.action] || { label: '기타', icon: LuHistory, color: 'gray.400' };
+                            const summary = summarizeActivity(log.description);
+                            const isMailFail = summary.title === '이메일 발송 실패';
+                            const tagLabel = isMailFail ? '메일 오류' : summary.title === '이메일 발송 완료' ? '메일' : meta.label;
+                            const tagColor = isMailFail ? 'red.500' : meta.color;
                             const ts = new Date(log.timestamp);
                             return (
                               <Flex key={log.id} gap={3} align="stretch">
@@ -3780,17 +3809,25 @@ export default function AdminPageNew() {
                                   </Flex>
                                   {i < arr.length - 1 && <Box w="2px" flex={1} bg="gray.100" my={1} />}
                                 </Flex>
-                                <Box flex={1} minW={0} pb={4}>
-                                  <Text fontSize="sm" color="gray.800" lineHeight={1.4}>
+                                <Box flex={1} minW={0} pb={3} title={log.description}>
+                                  <Text fontSize="sm" color="gray.800" lineHeight={1.4} noOfLines={1}>
                                     <Text as="span" fontWeight="bold" color="matchday.navy">{log.userName}</Text>
                                     <Text as="span" color="gray.400"> · </Text>
-                                    {log.description}
+                                    {summary.title}
                                   </Text>
-                                  <Text display={{ base: 'none', md: 'block' }} textStyle="scoreLabel" fontSize="10px" fontFamily="body" letterSpacing="0.02em" color={meta.color} mt={1}>{meta.label}</Text>
+                                  {summary.detail && (
+                                    <Text fontSize="xs" color="gray.500" lineHeight={1.4} mt={0.5} noOfLines={1}>{summary.detail}</Text>
+                                  )}
+                                  <Text display={{ base: 'none', md: 'block' }} textStyle="scoreLabel" fontSize="10px" fontFamily="body" letterSpacing="0.02em" color={tagColor} mt={1}>{tagLabel}</Text>
                                 </Box>
                               </Flex>
                             );
                           })}
+                          {activityLogs.length > ACTIVITY_SUMMARY_MAX && (
+                            <Button size="xs" variant="ghost" color="brand.600" ml="64px" onClick={() => setShowAllActivity((v) => !v)}>
+                              {showAllActivity ? '최근 활동만 보기' : `전체 로그 보기 (${Math.min(activityLogs.length, 30)}건)`}
+                            </Button>
+                          )}
                         </Box>
                       )}
                     </Box>

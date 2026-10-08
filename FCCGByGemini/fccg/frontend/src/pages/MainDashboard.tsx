@@ -2449,7 +2449,9 @@ export default function MainDashboard() {
             bg="matchday.navy"
             aspectRatio="16/9"
             flexShrink={0}
-            maxW="100%"
+            // 데스크톱: 실제 브라우저 높이(650~800px)에서도 하단 통계 카드까지 첫 화면에 들어오도록 영상 높이를 화면 높이에 맞춘다 (비율은 16:9 유지)
+            maxW={{ base: '100%', md: 'min(100%, max(640px, calc((100vh - 412px) * 16 / 9)))' }}
+            mx="auto"
             display="block"
             boxSizing="border-box"
             sx={{

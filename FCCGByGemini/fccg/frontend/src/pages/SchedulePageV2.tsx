@@ -3112,7 +3112,10 @@ export default function SchedulePageV2() {
         {/* 메인 컨텐츠 */}
           {/* 페이지 헤더 + NEXT MATCH */}
           <Box className="fccg-matchday" px={{ base: 2, md: 4 }} pt={{ base: 3, md: 4 }}>
-            <AdminPageHeader eyebrow="SCHEDULE" title="일정" />
+            {/* 데스크톱은 상단 내비게이션에 '일정'이 이미 활성 표시되므로 페이지 제목을 생략해 첫 화면 높이를 확보한다 */}
+            <Box display={{ base: 'block', lg: 'none' }}>
+              <AdminPageHeader eyebrow="SCHEDULE" title="일정" />
+            </Box>
             <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="xl" mt={{ base: 3, md: 3 }}>
               <PitchLines opacity={0.08} />
               {nextMatch && nextMatchKey ? (
@@ -3263,9 +3266,7 @@ export default function SchedulePageV2() {
             justifySelf={{ base: 'stretch', lg: 'end' }}
           >
             <VStack spacing={{ base: 3, md: 4 }} align="stretch">
-              {/* 이번주 일정 */}
-              {renderThisWeekSchedule()}
-
+              {/* 다음주 일정투표 — 지금 행동(투표)이 필요한 카드를 먼저 보여 '투표하기'가 첫 화면에 들어오게 한다 */}
               {/* 다음주 일정투표 - 섹션은 항상 표시. 지금 행동(투표)이 필요한 카드라는 것을
                   "이번주 일정"(단순 열람) 대비 상단 브랜드 컬러 악센트로 구분한다. */}
                 <Box
@@ -3939,6 +3940,9 @@ export default function SchedulePageV2() {
                   </Flex>
                 </VStack>
               </Box>
+
+              {/* 이번주 일정 */}
+              {renderThisWeekSchedule()}
             </VStack>
           </Box>
         </Grid>

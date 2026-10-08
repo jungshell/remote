@@ -5930,7 +5930,17 @@ router.get('/profile', authenticateToken, async (req, res) => {
     
     const voteDetails = {
       participated: participatedSessions,
-      total: totalSessions
+      total: totalSessions,
+      // Player Passport "최근 투표"·연속 투표 표시용 (본인 투표만, 최신 주차 순)
+      sessions: voteSessions.map(session => ({
+        id: session.id,
+        weekStartDate: session.weekStartDate,
+        isActive: session.isActive,
+        isCompleted: session.isCompleted,
+        userParticipated: session.votes.length > 0,
+        selectedDays: session.votes[0] ? parseVoteDays(session.votes[0].selectedDays) : [],
+        createdAt: session.createdAt
+      }))
     };
     
     // 경기 참여 상세 정보 계산 (직접 구현)

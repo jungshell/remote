@@ -26,10 +26,12 @@ export const getPlayerRecord = (user: User) => {
   const voteRate =
     voteTotal > 0 ? Math.round((voteParticipated / voteTotal) * 100) : null;
   const voteSessions = [...(user.voteDetails?.sessions || [])].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    (a, b) => new Date(b.weekStartDate).getTime() - new Date(a.weekStartDate).getTime(),
   );
+  // 진행 중인데 아직 투표하지 않은 세션은 '미참여'가 아니므로 연속 기록 계산에서 건너뛴다
+  const counted = voteSessions[0]?.isActive && !voteSessions[0].userParticipated ? voteSessions.slice(1) : voteSessions;
   let consecutiveVotes = 0;
-  for (const session of voteSessions) {
+  for (const session of counted) {
     if (!session.userParticipated) break;
     consecutiveVotes += 1;
   }

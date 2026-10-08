@@ -21,6 +21,7 @@ export interface User {
       isActive: boolean;
       isCompleted: boolean;
       userParticipated: boolean;
+      selectedDays?: string[];
       createdAt: string;
     }>;
   };

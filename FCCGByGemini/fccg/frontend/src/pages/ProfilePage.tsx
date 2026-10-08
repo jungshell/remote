@@ -71,10 +71,10 @@ export default function ProfilePage() {
   const { gameParticipated, gameTotal, voteParticipated, voteTotal, attendanceRate, voteRate } = getPlayerRecord(user);
 
   return (
-    <Box className="fccg-matchday fccg-member" bg="gray.50" minH="100vh" px={{ base: 4, md: 6 }} pt={{ base: '100px', md: '112px' }} pb={12}>
+    <Box className="fccg-matchday fccg-member" bg="gray.50" minH="100vh" px={{ base: 4, md: 6 }} pt={{ base: '96px', md: '100px' }} pb={{ base: 8, md: 10 }}>
       <Box maxW="960px" mx="auto">
-        <AdminPageHeader eyebrow="MY PROFILE" title="내 프로필" description="선수 정보와 계정 설정을 관리합니다." />
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 4, md: 6 }} mt={{ base: 5, md: 6 }} alignItems="start">
+        <AdminPageHeader eyebrow="MY PROFILE" title="내 프로필" />
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 4, md: 5 }} mt={{ base: 4, md: 4 }} alignItems="start">
           {/* 좌: identity + 참여 기록 */}
           <VStack align="stretch" spacing={4}>
             <PlayerIdentity user={user} eyebrow="PLAYER PROFILE" />

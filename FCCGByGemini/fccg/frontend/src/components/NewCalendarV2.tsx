@@ -120,6 +120,10 @@ const CalendarGrid = styled.div`
   min-height: 500px;
   box-sizing: border-box;
   flex-shrink: 0;
+
+  @media (min-width: 769px) and (max-height: 820px) {
+    min-height: 0;
+  }
   
   @media (max-width: 1024px) {
     height: auto;
@@ -219,6 +223,14 @@ const DayCell = styled.div.withConfig({
     height: 88px;
     min-height: 88px;
     max-height: 88px;
+  }
+
+  // 실제 데스크톱 브라우저 높이(650~800px)에서는 셀을 낮춰 투표 카드와 달력이 첫 화면에 더 들어오게 한다
+  @media (min-width: 769px) and (max-height: 820px) {
+    height: 92px;
+    min-height: 92px;
+    max-height: 92px;
+    padding: 6px 8px;
   }
   
   // 마지막 열의 오른쪽 테두리 제거

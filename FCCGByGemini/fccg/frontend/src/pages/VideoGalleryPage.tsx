@@ -98,6 +98,8 @@ export default function VideoGalleryPage() {
   const { user } = useAuthStore();
   const [sort, setSort] = useState('latest');
   const [currentPage, setCurrentPage] = useState(1);
+  // 모바일·태블릿: 처음 12개만 보여주고 '더 보기'로 늘린다 (목록 전체가 끝없이 길어지지 않게)
+  const [mobileLimit, setMobileLimit] = useState(12);
   const isDesktopPaged = useDesktopPagedLayout();
   const [items, setItems] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -351,12 +353,13 @@ export default function VideoGalleryPage() {
     () =>
       isDesktopPaged
         ? sortedItems.slice((currentPage - 1) * videosPerPage, currentPage * videosPerPage)
-        : sortedItems,
-    [currentPage, isDesktopPaged, sortedItems],
+        : sortedItems.slice(0, mobileLimit),
+    [currentPage, isDesktopPaged, sortedItems, mobileLimit],
   );
 
   useEffect(() => {
     setCurrentPage(1);
+    setMobileLimit(12);
   }, [sort, isDesktopPaged]);
 
   useEffect(() => {
@@ -483,8 +486,6 @@ export default function VideoGalleryPage() {
       w="100%"
       pt="80px"
       // 데스크톱 한 화면 페이지 모드: 높이를 고정하되 넘치면 안쪽에서 스크롤 (잘림 방지)
-      overflowY={isDesktopPaged ? 'auto' : 'visible'}
-      h={isDesktopPaged ? '100vh' : 'auto'}
     >
       {/* 페이지 헤더 + 정렬 */}
       <Box className="fccg-matchday" px={{ base: 4, md: 4, lg: 6 }} pt={{ base: 5, md: 6 }} pb={{ base: 4, md: 5 }} w="100%" maxW="1400px" mx="auto">
@@ -542,6 +543,11 @@ export default function VideoGalleryPage() {
             </MediaCard>
           ))}
         </SimpleGrid>
+        {!isDesktopPaged && sortedItems.length > mobileLimit && (
+          <Button mt={5} w="100%" h="44px" variant="outline" borderColor="gray.200" bg="white" color="matchday.navy" fontWeight="700" onClick={() => setMobileLimit((n) => n + 12)}>
+            더 보기 ({mobileLimit}/{sortedItems.length})
+          </Button>
+        )}
         {isDesktopPaged && totalPages > 1 && (
           <HStack justify="center" spacing={2} mt={5}>
             <IconButton

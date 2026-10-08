@@ -4,6 +4,24 @@ import type { User } from '../../store/auth';
 import { PanelHeader, RecordTile } from '../admin/MatchDay';
 import PlayerIdentity, { getPlayerRecord } from './PlayerIdentity';
 
+const DAY_INDEX: Record<string, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+
+// "10월 14일(수) 외 2일" / "불참" — 세션 주(월요일) 기준으로 요일 코드를 날짜로 바꾼다
+const formatVoteSummary = (weekStartDate: string, selectedDays: string[] = []) => {
+  if (selectedDays.includes('불참')) return '불참';
+  const dates = selectedDays
+    .filter((d) => d in DAY_INDEX)
+    .sort((a, b) => DAY_INDEX[a] - DAY_INDEX[b])
+    .map((d) => {
+      const date = new Date(weekStartDate);
+      date.setDate(date.getDate() + DAY_INDEX[d]);
+      return `${date.getMonth() + 1}월 ${date.getDate()}일(${WEEKDAY_KO[date.getDay()]})`;
+    });
+  if (dates.length === 0) return '참여';
+  return dates.length > 1 ? `${dates[0]} 외 ${dates.length - 1}일` : dates[0];
+};
+
 type PlayerPassportPanelProps = {
   user: User;
   onEditProfile: () => void;
@@ -57,15 +75,25 @@ export default function PlayerPassportPanel({
           justify="space-between"
           align="center"
         >
-          <Text color="gray.600" fontSize="sm" fontWeight="700">최근 투표</Text>
+          <Box minW={0}>
+            <Text color="gray.600" fontSize="sm" fontWeight="700">최근 투표</Text>
+            {latestVote?.userParticipated && (
+              <Text fontSize="xs" color="gray.500" mt={0.5} noOfLines={1}>
+                {formatVoteSummary(latestVote.weekStartDate, latestVote.selectedDays)}
+                {latestVote.isActive ? ' · 이번주 투표' : ''}
+              </Text>
+            )}
+          </Box>
           {(() => {
             const tone = !latestVote
               ? { label: '기록 없음', bg: 'gray.100', color: 'gray.600', border: 'transparent' }
               : latestVote.userParticipated
                 ? { label: '참여 완료', bg: 'green.50', color: 'green.700', border: 'green.100' }
-                : { label: '미참여', bg: 'orange.50', color: 'orange.700', border: 'orange.100' };
+                : latestVote.isActive
+                  ? { label: '투표 진행 중', bg: 'brand.50', color: 'brand.600', border: 'brand.100' }
+                  : { label: '미참여', bg: 'orange.50', color: 'orange.700', border: 'orange.100' };
             return (
-              <Box as="span" px={2} py="2px" borderRadius="sm" bg={tone.bg} color={tone.color} border="1px solid" borderColor={tone.border} fontSize="11px" fontWeight="700">
+              <Box as="span" flexShrink={0} px={2} py="2px" borderRadius="sm" bg={tone.bg} color={tone.color} border="1px solid" borderColor={tone.border} fontSize="11px" fontWeight="700">
                 {tone.label}
               </Box>
             );
