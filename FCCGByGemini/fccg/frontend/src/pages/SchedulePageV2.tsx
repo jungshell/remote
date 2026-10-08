@@ -34,7 +34,7 @@ import NewCalendarV2 from '../components/NewCalendarV2';
 import { ArrowUpIcon, SmallCloseIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../store/auth';
 import { WarningIcon } from '@chakra-ui/icons';
-import { getUnifiedVoteDataNew, deleteVote } from '../api/auth';
+import { getUnifiedVoteDataNew } from '../api/auth';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
@@ -257,6 +257,8 @@ export default function SchedulePageV2() {
   
   // UI 상태 (데이터와 분리)
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  // 재투표 선택 중: 서버의 기존 투표는 새 투표 저장(POST, 서버에서 원자적 교체) 전까지 유지한다.
+  const [isRevoting, setIsRevoting] = useState(false);
   const [showVoteStatus, setShowVoteStatus] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<{ text: string; user: string; date: string }[]>([]);
@@ -1581,6 +1583,7 @@ export default function SchedulePageV2() {
 
         // 투표 완료 후 선택된 날짜 초기화
         setSelectedDays([]);
+        setIsRevoting(false);
         
         // 헤더의 투표율 업데이트를 위한 이벤트 발생
         window.dispatchEvent(new CustomEvent('voteSubmitted', {
@@ -1693,7 +1696,8 @@ export default function SchedulePageV2() {
         console.error('❌ 투표 API 실패:', errorData);
         toast({
           title: '투표 실패',
-          description: errorData.error || '투표 처리 중 오류가 발생했습니다.',
+          // 인증 미들웨어(403 정지/비활성)는 message 필드로 응답한다.
+          description: errorData.error || errorData.message || '투표 처리 중 오류가 발생했습니다.',
           status: 'error',
           duration: 3000,
           isClosable: true,
@@ -1896,56 +1900,13 @@ export default function SchedulePageV2() {
 
       // 현재 활성 세션 확인
       if (unifiedVoteData?.activeSession && unifiedVoteData.activeSession.isActive) {
-        await deleteVote(user.id);
-        
-        // 로컬 상태 초기화
+        // 기존 투표를 먼저 삭제하지 않는다. 새 투표가 저장되지 않으면 기존 투표가 그대로 남는다.
+        setIsRevoting(true);
         setSelectedDays([]);
-        
-        // 헤더의 투표율 업데이트를 위한 이벤트 발생
-        window.dispatchEvent(new CustomEvent('voteSubmitted', {
-          detail: { 
-            userId: user.id,
-            sessionId: unifiedVoteData.activeSession.id,
-            action: 'delete'
-          }
-        }));
-        
-        // 로컬 상태 즉시 업데이트 (투표 삭제)
-        setVoteResults(prev => {
-          if (!prev || !prev.voteSession) return prev;
-          
-          const updatedVotes = prev.voteSession.votes.filter((v: any) => v.userId !== user.id);
-          
-          return {
-            ...prev,
-            voteSession: {
-              ...prev.voteSession,
-              votes: updatedVotes
-            }
-          };
-        });
-        
-        // 강제 리렌더링을 위한 상태 업데이트
-        setAppData(prev => ({
-          ...prev,
-          lastUpdated: new Date()
-        }));
-        
-        // 투표 결과 새로고침 (백그라운드에서)
-        setTimeout(async () => {
-          try {
-            await loadAllData();
-            // 투표 데이터 변경 이벤트 발생
-            window.dispatchEvent(new CustomEvent('voteDataChanged'));
-            console.log('✅ 투표 데이터 변경 이벤트 발생');
-          } catch (error) {
-            console.error('❌ 데이터 새로고침 실패:', error);
-          }
-        }, 100);
-        
+
         toast({
-          title: '투표가 초기화되었습니다',
-          description: '다시 투표해주세요.',
+          title: '재투표',
+          description: '날짜를 다시 선택해 투표해주세요. 새 투표 저장 전까지 기존 투표는 유지됩니다.',
           status: 'success',
           duration: 2000,
           isClosable: true,
@@ -1974,7 +1935,7 @@ export default function SchedulePageV2() {
 
   // 사용자가 이미 투표했는지 확인하는 함수
   const hasUserVoted = () => {
-    if (!user) return false;
+    if (!user || isRevoting) return false;
     // 1) 통합 데이터 우선 (서버 진실값)
     const unifiedParticipants = unifiedVoteData?.activeSession?.participants;
     if (Array.isArray(unifiedParticipants)) {

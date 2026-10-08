@@ -1846,7 +1846,7 @@ async function runWeeklyScheduler() {
       },
       include: {
         votes: {
-          include: { user: { select: { name: true, status: true } } }
+          include: { user: { select: { name: true, status: true, statusChangedAt: true } } }
         }
       },
       orderBy: { weekStartDate: 'desc' }

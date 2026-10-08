@@ -9,6 +9,14 @@ import { getHolidaysByYear } from '../utils/holidayApi';
 import { getJwtSecret } from '../utils/jwtSecret';
 import { sendMail } from '../utils/mailTransport';
 import { MEMBER_STATUS_LABELS, MEMBER_STATUS_RELEASE_GUIDE } from '../utils/memberStatusGuide';
+import {
+  MS_DAY,
+  VOTE_LOOKBACK_DAYS,
+  evaluateVoteParticipation,
+  evaluateGameParticipation,
+  evaluateLoginActivity,
+  decideAutoStatus,
+} from '../services/memberStatusRules';
 
 // 투표 데이터 파일 경로
 const VOTE_DATA_FILE = path.join(__dirname, '../../voteData.json');
@@ -37,12 +45,6 @@ const saveVoteData = (voteData: any[]) => {
 
 const prisma = new PrismaClient();
 
-const MS_DAY = 24 * 60 * 60 * 1000;
-const VOTE_LOOKBACK_DAYS = 90;
-const GAME_LOOKBACK_DAYS = 90;
-const LOGIN_SUSPEND_DAYS = 60;
-const CONSECUTIVE_VOTE_MISS_LIMIT = 4;
-const TOTAL_VOTE_MISS_LIMIT = 6;
 // 기존 기록은 소급 제재하지 않고, 이 시각 이후 기록부터 새 규칙을 적용한다.
 const MEMBER_STATUS_RULES_START_AT = new Date(
   process.env.MEMBER_STATUS_RULES_START_AT || '2026-07-16T06:46:00.000Z'
@@ -51,12 +53,6 @@ const MEMBER_STATUS_RULES_START_AT = new Date(
 if (Number.isNaN(MEMBER_STATUS_RULES_START_AT.getTime())) {
   throw new Error('MEMBER_STATUS_RULES_START_AT이 올바른 ISO 날짜가 아닙니다.');
 }
-
-type StatusCheckResult = {
-  shouldDeactivate: boolean;
-  shouldSuspend: boolean;
-  reason: string;
-};
 
 type StatusChangeRecord = {
   memberId: number;
@@ -69,8 +65,10 @@ type StatusChangeRecord = {
 
 /**
  * 회원 상태 자동 변경 (DB 투표·경기·로그인 기준)
- * - ACTIVE → INACTIVE: 최근 완료 투표 4회 연속 미참여, 또는 3개월 내 6회 미참여, 또는 3개월 실경기 0회 참석
- * - ACTIVE/INACTIVE → SUSPENDED: 60일 이상 미로그인 (가입 60일 미만·관리자 제외)
+ * - ACTIVE → INACTIVE: 최근 완료 투표 4회 연속 미참여, 또는 3개월 내 6회 미참여
+ *   (3개월 실경기 0회 참석 규칙은 정책 검토 전까지 자동 변경에서 보류 — decideAutoStatus 참고)
+ * - ACTIVE/INACTIVE → SUSPENDED: 60일 이상 미접속(로그인·투표 모두 없음) (가입 60일 미만·관리자 제외)
+ * - 관리자가 ACTIVE로 복구한 회원은 복구 시점(statusChangedAt) 이후 기록만 판정한다.
  */
 export const checkMemberStatusRules = async (options?: { dryRun?: boolean }) => {
   const dryRun = options?.dryRun === true;
@@ -93,8 +91,17 @@ export const checkMemberStatusRules = async (options?: { dryRun?: boolean }) => 
         role: true,
         lastLoginAt: true,
         createdAt: true,
+        statusChangedAt: true,
       },
     });
+
+    // 재로그인 없이 장기 토큰으로 투표하는 회원도 접속 활동으로 인정하기 위한 마지막 투표 시각
+    const lastVotes = await prisma.vote.groupBy({
+      by: ['userId'],
+      where: { userId: { in: allMembers.map((m) => m.id) } },
+      _max: { createdAt: true },
+    });
+    const lastVoteAtByUser = new Map(lastVotes.map((v) => [v.userId, v._max.createdAt]));
 
     const threeMonthsAgo = new Date(now.getTime() - VOTE_LOOKBACK_DAYS * MS_DAY);
     const analysisStart =
@@ -154,31 +161,20 @@ export const checkMemberStatusRules = async (options?: { dryRun?: boolean }) => 
         MEMBER_STATUS_RULES_START_AT
       );
       const loginStatus = evaluateLoginActivity(
-        member,
+        { ...member, lastVoteAt: lastVoteAtByUser.get(member.id) ?? null },
         now,
         MEMBER_STATUS_RULES_START_AT
       );
 
-      let newStatus = member.status;
-      let reason = '';
+      const { status: newStatus, reason } = decideAutoStatus(
+        member.status,
+        voteStatus,
+        gameStatus,
+        loginStatus
+      );
 
-      if (member.status === 'ACTIVE') {
-        if (voteStatus.shouldDeactivate) {
-          newStatus = 'INACTIVE';
-          reason = voteStatus.reason;
-        } else if (gameStatus.shouldDeactivate) {
-          newStatus = 'INACTIVE';
-          reason = gameStatus.reason;
-        }
-      }
-
-      // 정지가 비활성보다 우선 (장기 미접속)
-      if (
-        (member.status === 'ACTIVE' || member.status === 'INACTIVE' || newStatus === 'INACTIVE') &&
-        loginStatus.shouldSuspend
-      ) {
-        newStatus = 'SUSPENDED';
-        reason = loginStatus.reason;
+      if (gameStatus.shouldDeactivate && newStatus === member.status) {
+        console.log(`⏸️ [경기 규칙 보류] ${member.name}(${member.id}): ${gameStatus.reason}`);
       }
 
       if (newStatus === member.status) continue;
@@ -242,131 +238,6 @@ export const checkMemberStatusRules = async (options?: { dryRun?: boolean }) => 
   }
 };
 
-/** 가입일 이후·최근 3개월 완료 세션 기준 투표 미참여 평가 */
-function evaluateVoteParticipation(
-  member: { id: number; createdAt: Date },
-  completedSessions: Array<{ id: number; weekStartDate: Date; votes: { userId: number }[] }>,
-  _now: Date
-): StatusCheckResult {
-  const memberStart = member.createdAt;
-  const sessions = completedSessions.filter((s) => s.weekStartDate >= memberStart);
-
-  if (sessions.length === 0) {
-    return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-  }
-
-  const missedFlags = sessions.map((s) => !s.votes.some((v) => v.userId === member.id));
-  const totalMissed = missedFlags.filter(Boolean).length;
-
-  // 최근 세션부터 연속 미참여
-  let consecutiveFromEnd = 0;
-  for (let i = missedFlags.length - 1; i >= 0; i--) {
-    if (missedFlags[i]) consecutiveFromEnd++;
-    else break;
-  }
-
-  if (sessions.length >= CONSECUTIVE_VOTE_MISS_LIMIT && consecutiveFromEnd >= CONSECUTIVE_VOTE_MISS_LIMIT) {
-    return {
-      shouldDeactivate: true,
-      shouldSuspend: false,
-      reason: `투표 ${CONSECUTIVE_VOTE_MISS_LIMIT}회 연속 미참여 (최근 ${consecutiveFromEnd}회 연속, 대상 세션 ${sessions.length}개)`,
-    };
-  }
-
-  if (sessions.length >= TOTAL_VOTE_MISS_LIMIT && totalMissed >= TOTAL_VOTE_MISS_LIMIT) {
-    return {
-      shouldDeactivate: true,
-      shouldSuspend: false,
-      reason: `3개월간 투표 ${TOTAL_VOTE_MISS_LIMIT}회 이상 미참여 (미참여 ${totalMissed}/${sessions.length})`,
-    };
-  }
-
-  return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-}
-
-/** 최근 3개월 실경기 참석 여부 (Attendance YES 또는 명단 포함) */
-function evaluateGameParticipation(
-  member: { id: number; name: string; createdAt: Date },
-  realGames: Array<{
-    id: number;
-    date: Date;
-    selectedMembers: string;
-    memberNames: string;
-    attendances: { userId: number }[];
-  }>,
-  now: Date,
-  rulesStartAt: Date
-): StatusCheckResult {
-  const monitoringStart =
-    member.createdAt > rulesStartAt ? member.createdAt : rulesStartAt;
-  const monitoredDays = (now.getTime() - monitoringStart.getTime()) / MS_DAY;
-
-  // "3개월 미참여"는 실제 관찰기간 90일이 지난 뒤에만 판정한다.
-  if (monitoredDays < GAME_LOOKBACK_DAYS) {
-    return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-  }
-
-  const games = realGames.filter((g) => g.date >= monitoringStart);
-
-  // 판단할 경기가 없으면 참석 부족으로 제재하지 않음
-  if (games.length === 0) {
-    return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-  }
-
-  const participated = games.some((g) => {
-    if (g.attendances.some((a) => a.userId === member.id)) return true;
-    try {
-      const selected = JSON.parse(g.selectedMembers || '[]');
-      const names = JSON.parse(g.memberNames || '[]');
-      const roster = [...(Array.isArray(selected) ? selected : []), ...(Array.isArray(names) ? names : [])];
-      return roster.some((n) => typeof n === 'string' && n.trim() === member.name.trim());
-    } catch {
-      return false;
-    }
-  });
-
-  if (!participated) {
-    return {
-      shouldDeactivate: true,
-      shouldSuspend: false,
-      reason: `3개월간 축구경기 미참여 (대상 경기 ${games.length}경기)`,
-    };
-  }
-
-  return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-}
-
-/** 60일 이상 미로그인 → 정지 (가입 60일 미만은 제외) */
-function evaluateLoginActivity(
-  member: { lastLoginAt: Date | null; createdAt: Date },
-  now: Date,
-  rulesStartAt: Date
-): StatusCheckResult {
-  // 규칙 기준일 이전의 미로그인 기간은 소급 계산하지 않는다.
-  const monitoringStart =
-    member.createdAt > rulesStartAt ? member.createdAt : rulesStartAt;
-  const accountAgeDays = (now.getTime() - monitoringStart.getTime()) / MS_DAY;
-  if (accountAgeDays < LOGIN_SUSPEND_DAYS) {
-    return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-  }
-
-  const lastActivity = member.lastLoginAt || member.createdAt;
-  const referenceLogin =
-    lastActivity > monitoringStart ? lastActivity : monitoringStart;
-  const idleDays = (now.getTime() - referenceLogin.getTime()) / MS_DAY;
-
-  if (idleDays >= LOGIN_SUSPEND_DAYS) {
-    return {
-      shouldDeactivate: false,
-      shouldSuspend: true,
-      reason: member.lastLoginAt
-        ? `${LOGIN_SUSPEND_DAYS}일 이상 로그인 없음 (약 ${Math.floor(idleDays)}일)`
-        : `가입 후 ${LOGIN_SUSPEND_DAYS}일 이상 로그인 기록 없음`,
-    };
-  }
-
-  return { shouldDeactivate: false, shouldSuspend: false, reason: '' };
-}
 
 const escapeHtml = (text: string) =>
   String(text ?? '')

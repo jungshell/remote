@@ -262,18 +262,27 @@ export function voteDayToMonFriAbsentKeyForSession(
 
 /**
  * 관리자 결과·자동일정 집계 시 비활성(INACTIVE)·정지(SUSPENDED) 회원 제외.
+ * 단, 상태 변경(statusChangedAt) 이전 ACTIVE 시점에 행사한 표는 유효하므로 유지한다
+ * (나중에 상태가 바뀌었다고 지난 투표 결과가 사라지지 않도록).
  * user 관계가 없으면 레거시 호환으로 해당 행은 집계에 포함한다.
  */
-export function filterVotesForResultsDisplay<T extends { user?: { status?: string } | null }>(
-  votes: T[] | undefined | null
-): T[] {
+export function filterVotesForResultsDisplay<
+  T extends {
+    createdAt?: Date | string | null;
+    user?: { status?: string; statusChangedAt?: Date | string | null } | null;
+  }
+>(votes: T[] | undefined | null): T[] {
   if (!votes?.length) return [];
   return votes.filter((v) => {
     const u = v.user;
     if (u == null) return true;
     const s = u.status;
     // DELETED(탈퇴) 회원의 표는 row는 보존하되 현재 집계에서는 항상 제외 (재개된 세션 포함)
-    if (s === 'INACTIVE' || s === 'SUSPENDED' || s === 'DELETED') return false;
+    if (s === 'DELETED') return false;
+    if (s === 'INACTIVE' || s === 'SUSPENDED') {
+      if (!v.createdAt || !u.statusChangedAt) return false;
+      return new Date(v.createdAt).getTime() < new Date(u.statusChangedAt).getTime();
+    }
     return true;
   });
 }

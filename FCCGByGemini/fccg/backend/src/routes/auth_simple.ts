@@ -1793,7 +1793,7 @@ router.get('/admin/vote-sessions/results', authenticateToken, requireAdmin, asyn
         votes: {
           include: {
             user: {
-              select: { id: true, name: true, status: true }
+              select: { id: true, name: true, status: true, statusChangedAt: true }
             }
           }
         }
@@ -1877,7 +1877,7 @@ router.get('/votes/results', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true, status: true }
+              select: { id: true, name: true, status: true, statusChangedAt: true }
             }
           }
         }
@@ -1990,7 +1990,7 @@ router.get('/votes/unified', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true, status: true }
+              select: { id: true, name: true, status: true, statusChangedAt: true }
             }
           }
         }
@@ -2042,7 +2042,7 @@ router.get('/votes/unified', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true, status: true }
+              select: { id: true, name: true, status: true, statusChangedAt: true }
             }
           }
         }
@@ -2255,7 +2255,7 @@ router.post('/votes/aggregate/save', authenticateToken, requireAdmin, async (req
       where: { id: parseInt(sessionId) },
       include: {
         votes: {
-          include: { user: { select: { name: true, status: true } } }
+          include: { user: { select: { name: true, status: true, statusChangedAt: true } } }
         }
       }
     });
@@ -2491,7 +2491,7 @@ router.post('/vote-sessions/:id/close', authenticateToken, requireAdmin, async (
       // 2) 최신 투표 결과로 재생성
       const votes = await prisma.vote.findMany({ 
         where: { voteSessionId: sessionId },
-        include: { user: { select: { name: true, status: true } } }
+        include: { user: { select: { name: true, status: true, statusChangedAt: true } } }
       });
       const { counts, participantsByDay } = aggregateVotesByWeekday(votes, weekStart);
 
@@ -2857,7 +2857,7 @@ router.get('/unified-vote-data', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true, status: true }
+              select: { id: true, name: true, status: true, statusChangedAt: true }
             }
           }
         }
@@ -2905,7 +2905,7 @@ router.get('/unified-vote-data', async (req, res) => {
           votes: {
             include: {
               user: {
-                select: { id: true, name: true, status: true }
+                select: { id: true, name: true, status: true, statusChangedAt: true }
               }
             }
           }
@@ -2972,7 +2972,7 @@ router.get('/unified-vote-data', async (req, res) => {
         votes: {
           include: {
             user: {
-              select: { id: true, name: true, status: true }
+              select: { id: true, name: true, status: true, statusChangedAt: true }
             }
           }
         }
@@ -3540,7 +3540,11 @@ router.put('/members/:id', authenticateToken, requireAdmin, async (req, res) => 
         name,
         email,
         role: requestedRole,
-        status: requestedStatus
+        status: requestedStatus,
+        // 상태가 바뀐 시각 기록 — 자동 규칙이 복구 이전 기록으로 즉시 재제재하지 않도록 기준점이 된다.
+        ...(requestedStatus !== targetMember.status
+          ? { statusChangedAt: new Date(), statusChangeReason: '관리자 상태 변경' }
+          : {})
       },
       select: {
         id: true,
