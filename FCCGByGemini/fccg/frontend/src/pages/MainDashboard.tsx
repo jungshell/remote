@@ -8,7 +8,7 @@ import {
   type NextMatchState,
 } from '../components/dashboard/NextMatchStatusCard';
 import { Card } from '../components/common';
-import { LiveDot, PitchLines } from '../components/admin/MatchDay';
+import { LiveDot, PitchLines, SweepLine, reveal } from '../components/admin/MatchDay';
 import { VideoPoster } from '../components/media/MediaUI';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -1265,6 +1265,8 @@ export default function MainDashboard() {
   // 재생이 시작된(또는 사용자가 poster를 누른) 영상 id — 그 전에는 썸네일 poster를 먼저 보여준다 (표시 전용)
   const [revealedVideoId, setRevealedVideoId] = useState<string | null>(null);
   const currentVideo = youtubeVideos[videoIdx] || fallbackVideos[0] || { id: 'AAftIIK3MOg', title: '기본 영상' };
+  // 하이라이트 재생 중에는 주변 카드 대비를 살짝 낮춰 영상에 집중시킨다 (표시 전용)
+  const isHighlightPlaying = revealedVideoId === currentVideo.id;
   
   // 삭제된/비공개 영상 감지 시 다음 영상으로 단순 이동
   const handleVideoError = useCallback(() => {
@@ -2126,6 +2128,8 @@ export default function MainDashboard() {
       dateLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일 ${dayName}요일`,
       timeLabel,
       dateTimeLabel: `${gameDate.getMonth() + 1}월 ${gameDate.getDate()}일(${dayName}) · ${timeLabel}`,
+      // 중계 스코어보드 표기: 10.14 WED
+      scoreDate: `${String(gameDate.getMonth() + 1).padStart(2, '0')}.${String(gameDate.getDate()).padStart(2, '0')} ${['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][gameDate.getDay()]}`,
       location,
       eventType,
       isGameDay,
@@ -2258,9 +2262,11 @@ export default function MainDashboard() {
         {/* 다음 경기 핵심 카드 */}
         <Box
           flex={{ base: '1', md: '0 0 32%' }}
+          opacity={isHighlightPlaying ? 0.85 : 1}
+          transition="opacity 300ms ease"
           position="relative"
           overflow="hidden"
-          p={{ base: 5, md: 5, lg: 6 }}
+          p={{ base: 5, md: 5, lg: 5 }}
           borderRadius="xl"
           border="1px solid"
           borderColor={nextMatchDisplay?.isGameDay ? 'matchday.volt' : 'transparent'}
@@ -2281,6 +2287,11 @@ export default function MainDashboard() {
               </Text>
             </HStack>
             {!nextMatchDisplay && <NextMatchPill state={nextMatchState} />}
+            {nextMatchDisplay && (
+              <Badge bg="whiteAlpha.200" color="white" borderRadius="sm" px={2.5} py={1}>
+                {nextMatchDisplay.eventType}
+              </Badge>
+            )}
           </HStack>
 
           {nextMatchDisplay ? (
@@ -2294,37 +2305,48 @@ export default function MainDashboard() {
               mt={3}
               justify="space-between"
             >
-              <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full">
-                <HStack w="full" justify="space-between">
-                <Badge
-                  bg="whiteAlpha.200"
-                  color="white"
-                  borderRadius="sm"
-                  px={2.5}
-                  py={1}
+              {/* 프리매치 스코어보드: D-day · 날짜 · 킥오프 (중계 그래픽) */}
+              <Box w="full" sx={reveal(0)}>
+                <Flex
+                  align="flex-end"
+                  justify="space-between"
+                  gap={4}
+                  py={1.5}
+                  bgGradient="radial(circle at 22% 60%, rgba(215,255,58,0.10), transparent 26%)"
                 >
-                  {nextMatchDisplay.eventType}
-                </Badge>
-                <Badge bg="matchday.volt" color="matchday.navy" borderRadius="sm" px={2.5} py={1} fontWeight="800">
-                  {nextMatchDisplay.isGameDay ? nextMatchDisplay.gameDayCountdown : nextMatchDisplay.badge}
-                </Badge>
-                </HStack>
+                  <Box minW={0}>
+                    <Text m={0} textStyle="scoreLabel" fontSize="10px" color="whiteAlpha.600">
+                      {nextMatchDisplay.isGameDay ? 'MATCHDAY' : 'KICK OFF IN'}
+                    </Text>
+                    <Text textStyle="statNumber" fontSize={{ base: '48px', lg: '64px' }} color="matchday.volt" mt={1.5} mb={0} whiteSpace="nowrap">
+                      {nextMatchDisplay.badge}
+                    </Text>
+                  </Box>
+                  <Box textAlign="right" minW={0}>
+                    <Text m={0} textStyle="scoreLabel" fontSize="10px" color="whiteAlpha.700">{nextMatchDisplay.scoreDate}</Text>
+                    <Text
+                      textStyle="statNumber"
+                      fontSize={/^\d{1,2}:\d{2}$/.test(nextMatchDisplay.timeLabel) ? { base: '36px', lg: '48px' } : 'lg'}
+                      color="white"
+                      mt={1.5}
+                      mb={0}
+                      whiteSpace="nowrap"
+                    >
+                      {nextMatchDisplay.timeLabel}
+                    </Text>
+                  </Box>
+                </Flex>
+                <SweepLine opacity={0.85} />
+                {nextMatchDisplay.isGameDay && (
+                  <Text mt={1.5} fontSize="xs" fontWeight="800" color="matchday.volt">{nextMatchDisplay.gameDayCountdown}</Text>
+                )}
                 {matchWeather?.available && (
-                  <Tag size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7" border="1px solid rgba(254,229,0,0.34)">
+                  <Tag mt={2.5} size="sm" bg="rgba(254,229,0,0.18)" color="#FFF7B7" border="1px solid rgba(254,229,0,0.34)">
                     {getWeatherIcon(matchWeather.code)} {matchWeather.summary} · {matchWeather.temperature}° · 비 {matchWeather.precipitationProbability}%
                   </Tag>
                 )}
-                <Text
-                fontSize={{ base: '2xl', lg: '3xl' }}
-                fontWeight="800"
-                letterSpacing="-0.02em"
-                lineHeight="1.15"
-                whiteSpace="nowrap"
-                >
-                  {nextMatchDisplay.isGameDay ? `오늘 · ${nextMatchDisplay.timeLabel}` : nextMatchDisplay.dateTimeLabel}
-                </Text>
-              </VStack>
-              <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full">
+              </Box>
+              <VStack align="start" spacing={{ base: 3, md: 2.5 }} w="full" sx={reveal(120)}>
                 <Box w="full">
                 <Text fontSize="xs" color="whiteAlpha.600" fontWeight="700">
                   장소
@@ -2419,18 +2441,24 @@ export default function MainDashboard() {
           flex={2}
           minW={0}
           direction="column"
-          bg="white"
+          position="relative"
+          overflow="hidden"
+          bg="matchday.navy"
           p={{ base: 3, md: 4 }}
           borderRadius="xl"
-          border="1px solid"
-          borderColor="gray.200"
+          sx={reveal(60)}
         >
-          <Flex align="center" justify="space-between" gap={3} mb={{ base: 2, md: 3 }} flexShrink={0}>
-            <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="800" color="matchday.navy" letterSpacing="-0.01em">경기 하이라이트</Text>
+          <PitchLines opacity={0.05} />
+          <Flex position="relative" align="center" justify="space-between" gap={3} mb={{ base: 2, md: 3 }} flexShrink={0}>
+            <HStack spacing={2.5} minW={0}>
+              <Text textStyle="scoreLabel" fontSize="10px" color="matchday.volt">HIGHLIGHTS</Text>
+              <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="800" color="white" letterSpacing="-0.01em" noOfLines={1}>경기 하이라이트</Text>
+            </HStack>
             <Button
               size="sm"
               variant="ghost"
-              color="brand.600"
+              color="whiteAlpha.800"
+              _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
               fontWeight="700"
               rightIcon={<ChevronRightIcon />}
               onClick={() => navigate('/gallery/videos')}
@@ -2444,9 +2472,10 @@ export default function MainDashboard() {
             key={currentVideo.id}
             w="100%"
             position="relative"
-            borderRadius="lg"
+            borderRadius="md"
             overflow="hidden"
-            bg="matchday.navy"
+            bg="black"
+            boxShadow="0 18px 40px rgba(0,0,0,0.35)"
             aspectRatio="16/9"
             flexShrink={0}
             // 데스크톱: 실제 브라우저 높이(650~800px)에서도 하단 통계 카드까지 첫 화면에 들어오도록 영상 높이를 화면 높이에 맞춘다 (비율은 16:9 유지)
@@ -2532,17 +2561,23 @@ export default function MainDashboard() {
                 aria-label={`${currentVideo.title} 영상 보기`}
                 onClick={() => setRevealedVideoId(currentVideo.id)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRevealedVideoId(currentVideo.id); } }}
+                sx={{
+                  '& > img': { transition: 'transform 300ms cubic-bezier(.16,1,.3,1)' },
+                  '&:hover > img, &:focus-visible > img': { transform: 'scale(1.02)' },
+                  '@media (prefers-reduced-motion: reduce)': { '& > img': { transition: 'none' }, '&:hover > img': { transform: 'none' } },
+                }}
               />
             )}
           </Box>
           <Flex
+            position="relative"
             mt={{ base: 2, md: 3 }}
             flexShrink={0}
             direction={{ base: 'column', md: 'row' }}
             align={{ base: 'stretch', md: 'center' }}
             gap={{ base: 2, md: 4 }}
           >
-            <Text flex="1" minW={0} fontSize={{ base: 'sm', md: 'md' }} fontWeight="800" color="matchday.navy" noOfLines={1}>
+            <Text flex="1" minW={0} fontSize={{ base: 'sm', md: 'md' }} fontWeight="800" color="white" noOfLines={1}>
               {currentVideo.title}
             </Text>
             <Flex align="center" justify="center" gap={3} flexShrink={0}>
@@ -2554,13 +2589,13 @@ export default function MainDashboard() {
                 h="44px"
                 minW="44px"
                 borderRadius="full"
-                bg="white"
-                color="matchday.navy"
+                bg="whiteAlpha.100"
+                color="white"
                 border="1px solid"
-                borderColor="gray.200"
-                _hover={{ bg: 'brand.50', borderColor: 'brand.200' }}
+                borderColor="whiteAlpha.300"
+                _hover={{ bg: 'whiteAlpha.200', borderColor: 'whiteAlpha.500' }}
               />
-              <Text textStyle="scoreLabel" color="gray.500" minW="48px" textAlign="center">
+              <Text textStyle="scoreLabel" color="whiteAlpha.700" minW="48px" textAlign="center">
                 {String(Math.min(videoIdx, Math.max(youtubeVideos.length - 1, 0)) + 1).padStart(2, '0')} / {String(Math.max(youtubeVideos.length, 1)).padStart(2, '0')}
               </Text>
               <IconButton
@@ -2571,11 +2606,11 @@ export default function MainDashboard() {
                 h="44px"
                 minW="44px"
                 borderRadius="full"
-                bg="white"
-                color="matchday.navy"
+                bg="whiteAlpha.100"
+                color="white"
                 border="1px solid"
-                borderColor="gray.200"
-                _hover={{ bg: 'brand.50', borderColor: 'brand.200' }}
+                borderColor="whiteAlpha.300"
+                _hover={{ bg: 'whiteAlpha.200', borderColor: 'whiteAlpha.500' }}
               />
             </Flex>
           </Flex>
@@ -2594,6 +2629,8 @@ export default function MainDashboard() {
       <SimpleGrid
         columns={{ base: 2, lg: 4 }}
         spacing={{ base: 3, md: 4 }}
+        opacity={isHighlightPlaying ? 0.85 : 1}
+        transition="opacity 300ms ease"
         mb={{ base: 5, lg: 1 }}
         px={{ base: 4, md: 5, lg: 6 }}
         w="full"

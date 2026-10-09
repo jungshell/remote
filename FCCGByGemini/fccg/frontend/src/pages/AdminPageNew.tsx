@@ -66,7 +66,7 @@ import {
   LuArrowRight, LuBan, LuBellRing, LuCalendarPlus, LuCircleCheck, LuCircleX, LuHistory, LuLogIn, LuLogOut,
   LuMapPin, LuMegaphone, LuPanelLeft, LuPencil, LuTriangleAlert, LuUserCheck, LuUserCog, LuUsers, LuVote
 } from 'react-icons/lu';
-import { AdminEmptyState, AdminPageHeader, AdminPanel, CggShieldTemp, DateBlock, EASE_EXPO_OUT, LiveDot, PanelHeader, PitchLines, StatBlock, StatStrip, StatusBadge } from '../components/admin/MatchDay';
+import { AdminEmptyState, AdminPageHeader, AdminPanel, CggShieldTemp, DateBlock, EASE_EXPO_OUT, LiveDot, PanelHeader, PitchLines, StatBlock, StatStrip, StatusBadge, reveal } from '../components/admin/MatchDay';
 import { ADMIN_SHELL, GRADIENTS } from '../constants/designTokens';
 import { normalizeEventType } from '../utils/eventTypeNormalizer';
 import { getValidToken, getMemberStats, getMemberInsights, verifyMailTransport, type Game, type MemberInsights } from '../api/auth';
@@ -3536,7 +3536,7 @@ export default function AdminPageNew() {
                       </Flex>
 
                       {nextGame && nextGameDate ? (
-                        <Flex position="relative" direction={{ base: 'column', sm: 'row' }} gap={{ base: 4, md: 6 }} align={{ base: 'stretch', sm: 'center' }}>
+                        <Flex position="relative" direction={{ base: 'column', sm: 'row' }} gap={{ base: 4, md: 6 }} align={{ base: 'stretch', sm: 'center' }} sx={reveal(80)}>
                           <DateBlock date={nextGameDate} alignSelf={{ base: 'flex-start', sm: 'center' }} />
                           <Box flex={1} minW={0}>
                             <Text textStyle="scoreLabel" color="whiteAlpha.700">KICK OFF</Text>

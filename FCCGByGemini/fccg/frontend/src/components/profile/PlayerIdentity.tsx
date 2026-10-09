@@ -1,6 +1,6 @@
 import { Avatar, Box, Flex, Text } from '@chakra-ui/react';
 import type { User } from '../../store/auth';
-import { PitchLines } from '../admin/MatchDay';
+import { PitchLines, reveal } from '../admin/MatchDay';
 
 export const roleLabel: Record<string, string> = {
   SUPER_ADMIN: '총괄관리자',
@@ -42,8 +42,24 @@ export const getPlayerRecord = (user: User) => {
 // 선수 identity 카드 (Match Day 남색 + 경기장 라인). 선수 패널·프로필 상단에서 공통 사용.
 export default function PlayerIdentity({ user, eyebrow }: { user: User; eyebrow: string }) {
   return (
-    <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="xl" px={5} py={{ base: 5, md: 6 }}>
+    <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="xl" px={5} py={{ base: 5, md: 6 }} sx={reveal(0)}>
       <PitchLines opacity={0.08} />
+      {/* 선수 등록 카드: 등번호처럼 큰 이니셜 워터마크 + 상단 라임 라인 */}
+      <Text
+        aria-hidden="true"
+        position="absolute"
+        right={3}
+        bottom="-28px"
+        textStyle="statNumber"
+        fontSize="132px"
+        lineHeight="1"
+        color="whiteAlpha.100"
+        pointerEvents="none"
+        userSelect="none"
+      >
+        {user.name?.charAt(0)}
+      </Text>
+      <Box position="absolute" left={0} right={0} top={0} h="3px" bg="matchday.volt" opacity={0.9} />
       <Flex position="relative" align="center" gap={4}>
         <Avatar
           name={user.name}

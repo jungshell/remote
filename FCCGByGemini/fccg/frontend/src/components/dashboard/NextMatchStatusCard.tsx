@@ -1,4 +1,5 @@
-﻿import { Box, Button, HStack, Text, VStack } from '@chakra-ui/react';
+﻿import { Box, Button, Flex, HStack, Text, VStack } from '@chakra-ui/react';
+import { SweepLine } from '../admin/MatchDay';
 import { keyframes } from '@emotion/react';
 import React, { useEffect, useState } from 'react';
 import {
@@ -38,15 +39,7 @@ const fadeUp = keyframes`
   to   { opacity: 1; transform: translateY(0); }
 `;
 
-const float = keyframes`
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-3px); }
-`;
 
-const pillPulse = keyframes`
-  0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.025); }
-`;
 
 // ── Pill ──────────────────────────────────────────────────────────────────────
 
@@ -119,15 +112,7 @@ export function NextMatchPill({ state }: { state: NextMatchState }) {
       flexShrink={0}
       display="inline-flex"
       alignItems="center"
-      sx={
-        cfg.pulse
-          ? {
-              gap: '3px',
-              animation: `${pillPulse} 3s ease-in-out infinite`,
-              '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-            }
-          : { gap: '3px' }
-      }
+      sx={{ gap: '3px' }}
     >
       <Icon size={10} />
       {cfg.label}
@@ -230,7 +215,7 @@ function VoteProgressBar({
   return (
     <Box w="full">
       {/* Large animated % with label */}
-      <Text
+      <Text mt={0}
         textStyle="statNumber"
         fontSize="32px"
         color={pctColor}
@@ -251,7 +236,7 @@ function VoteProgressBar({
       </Box>
 
       {/* Participant count */}
-      <Text
+      <Text mb={0}
         mt={1}
         fontSize="10px"
         fontWeight="700"
@@ -318,20 +303,35 @@ export function NextMatchStatusCard({
         opacity={0.08}
         pointerEvents="none"
         color="white"
-        sx={{
-          animation: `${float} 4s ease-in-out infinite`,
-          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-        }}
       >
         <IconComp size={96} />
       </Box>
 
+      {/* 대기 스코어버그: 경기 확정 전에도 중계 그래픽 톤 유지 */}
+      <Box w="full" mb={{ base: 2, md: 3 }}>
+        <Flex align="flex-end" justify="space-between" gap={3} py={{ base: 1, md: 2 }}>
+          <Box minW={0}>
+            <Text m={0} textStyle="scoreLabel" fontSize="10px" color={showDeadline ? 'matchday.volt' : 'whiteAlpha.600'}>
+              {showDeadline ? 'VOTE CLOSES IN' : 'WAITING FOR FIXTURE'}
+            </Text>
+            <Text textStyle="statNumber" fontSize={{ base: '32px', md: '40px', lg: '44px' }} mt={1} mb={0} color={showDeadline ? 'matchday.volt' : 'whiteAlpha.300'}>
+              {showDeadline ? (deadlineDaysLeft === 0 ? 'D-DAY' : `D-${deadlineDaysLeft}`) : 'D-?'}
+            </Text>
+          </Box>
+          <Box textAlign="right" aria-hidden="true">
+            <Text m={0} textStyle="scoreLabel" fontSize="10px" color="whiteAlpha.400">--.-- ---</Text>
+            <Text textStyle="statNumber" fontSize={{ base: '26px', md: '32px', lg: '36px' }} mt={1} mb={0} color="whiteAlpha.300">--:--</Text>
+          </Box>
+        </Flex>
+        <SweepLine opacity={showDeadline ? 0.85 : 0.35} />
+      </Box>
+
       {/* Title */}
-      <Text
-        fontSize={{ base: '2xl', lg: '3xl' }}
+      <Text m={0}
+        fontSize={{ base: 'xl', lg: '2xl' }}
         fontWeight="800"
         letterSpacing="-0.02em"
-        lineHeight="1.15"
+        lineHeight="1.2"
         color="white"
       >
         {content.title1}
@@ -342,38 +342,22 @@ export function NextMatchStatusCard({
       {/* Description with visual hierarchy */}
       <Box mt={2}>
         {descLines[0] && (
-          <Text fontSize="sm" color="rgba(255,255,255,0.75)" lineHeight="1.7">
+          <Text m={0} fontSize="sm" color="rgba(255,255,255,0.75)" lineHeight="1.7">
             {descLines[0]}
           </Text>
         )}
         {descLines[1] && (
-          <Text fontSize="xs" color="rgba(255,255,255,0.45)" lineHeight="1.7" mt={0.5}>
+          <Text fontSize="xs" color="rgba(255,255,255,0.45)" lineHeight="1.7" mt={0.5} mb={0}>
             {descLines[1]}
           </Text>
         )}
       </Box>
 
       {/* Sub-info */}
-      {(showDeadline || showLastGame) && (
+      {showLastGame && (
         <HStack mt={1.5} spacing={3} flexWrap="wrap" align="center">
-          {showDeadline && (
-            <Box
-              px={2}
-              py="2px"
-              borderRadius="sm"
-              border="1px solid transparent"
-              bg="matchday.volt"
-              fontSize="10px"
-              fontWeight="800"
-              color="matchday.navy"
-              letterSpacing="0.05em"
-              lineHeight="1.6"
-            >
-              {deadlineDaysLeft === 0 ? '오늘 마감' : `D-${deadlineDaysLeft}`}
-            </Box>
-          )}
           {showLastGame && (
-            <Text fontSize="xs" fontWeight="600" color="rgba(255,255,255,0.45)">
+            <Text m={0} fontSize="xs" fontWeight="600" color="rgba(255,255,255,0.45)">
               최근 경기 · {lastGameLabel}
             </Text>
           )}
@@ -385,7 +369,7 @@ export function NextMatchStatusCard({
         <Box w="full" mt={2.5}>
           <VoteProgressBar votedCount={votedCount} totalMembers={totalMembers} state={state} />
           {state === 'VOTED' && (
-            <Text mt={1.5} fontSize="xs" fontWeight="600" color="rgba(134,239,172,0.7)">
+            <Text mt={1.5} mb={0} fontSize="xs" fontWeight="600" color="rgba(134,239,172,0.7)">
               ✔ 참여해주셔서 감사합니다.
             </Text>
           )}

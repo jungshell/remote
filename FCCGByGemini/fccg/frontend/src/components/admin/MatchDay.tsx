@@ -11,6 +11,57 @@ const livePulse = keyframes`
   50% { opacity: .35; transform: scale(.7); }
 `;
 
+// ── Broadcast motion kit (1회성, 150~450ms, 반복 애니메이션 없음, reduced-motion 시 정지) ──
+const riseIn = keyframes`
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+`;
+const sweepIn = keyframes`
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+`;
+const REDUCED = '@media (prefers-reduced-motion: reduce)';
+
+// 순차 등장: sx={reveal(120)}
+export const reveal = (delayMs = 0) => ({
+  animation: `${riseIn} 360ms ${EASE_EXPO_OUT} ${delayMs}ms both`,
+  [REDUCED]: { animation: 'none' },
+});
+
+// 중계 그래픽 하단 라인 스윕 (등장 시 1회)
+export const SweepLine: React.FC<BoxProps> = (props) => (
+  <Box
+    h="2px"
+    bg="matchday.volt"
+    transformOrigin="left center"
+    animation={`${sweepIn} 450ms ${EASE_EXPO_OUT} 120ms both`}
+    sx={{ [REDUCED]: { animation: 'none' } }}
+    aria-hidden="true"
+    {...props}
+  />
+);
+
+// 숫자 카운트업 (스코어보드 느낌, 400ms). reduced-motion이면 바로 최종값
+export const CountUp: React.FC<{ value: number; durationMs?: number }> = ({ value, durationMs = 400 }) => {
+  const [shown, setShown] = React.useState(value);
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setShown(value);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / durationMs);
+      setShown(Math.round(value * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, durationMs]);
+  return <>{shown}</>;
+};
+
 // 경기장 라인 모티프 (터치라인·하프라인·센터서클·페널티박스). 부모는 position: relative 여야 한다.
 export const PitchLines: React.FC<{ opacity?: number; color?: string }> = ({ opacity = 0.09, color = '#ffffff' }) => (
   <Box
@@ -254,7 +305,9 @@ export const RecordTile: React.FC<{
   unit?: string | undefined;
   caption?: string | undefined;
   accent?: boolean | undefined;
-} & BoxProps> = ({ label, value, unit, caption, accent, ...rest }) => (
+  /** 0~100: 참여율 바 (등장 시 1회 채움) */
+  progress?: number | null | undefined;
+} & BoxProps> = ({ label, value, unit, caption, accent, progress, ...rest }) => (
   <Box
     bg={accent ? 'brand.50' : 'white'}
     border="1px solid"
@@ -263,6 +316,9 @@ export const RecordTile: React.FC<{
     px={4}
     py={3.5}
     minW={0}
+    transition={`transform 150ms ${EASE_EXPO_OUT}, border-color 150ms ease`}
+    _hover={{ transform: 'translateY(-1px)', borderColor: accent ? 'brand.300' : 'gray.300' }}
+    sx={{ [REDUCED]: { transition: 'none', '&:hover': { transform: 'none' } } }}
     {...rest}
   >
     <Text fontSize="xs" fontWeight="700" color={accent ? 'brand.600' : 'gray.500'} noOfLines={1}>{label}</Text>
@@ -270,6 +326,19 @@ export const RecordTile: React.FC<{
       <Text textStyle="statNumber" fontSize={{ base: '32px', md: '36px' }} color={accent ? 'brand.600' : 'matchday.navy'}>{value}</Text>
       {unit && <Text fontSize="xs" fontWeight="700" color="gray.500">{unit}</Text>}
     </Flex>
+    {typeof progress === 'number' && (
+      <Box h="4px" mt={2} borderRadius="full" bg={accent ? 'brand.100' : 'gray.100'} overflow="hidden" role="presentation">
+        <Box
+          h="100%"
+          w={`${Math.max(0, Math.min(100, progress))}%`}
+          bg={accent ? 'brand.500' : 'matchday.navy'}
+          borderRadius="full"
+          transformOrigin="left center"
+          animation={`${sweepIn} 450ms ${EASE_EXPO_OUT} 150ms both`}
+          sx={{ [REDUCED]: { animation: 'none' } }}
+        />
+      </Box>
+    )}
     {caption && <Text fontSize="xs" color="gray.500" mt={1} lineHeight="1.4" noOfLines={2}>{caption}</Text>}
   </Box>
 );

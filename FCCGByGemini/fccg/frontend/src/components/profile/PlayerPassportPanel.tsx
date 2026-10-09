@@ -1,7 +1,7 @@
 import { Box, Button, Flex, HStack, Icon, SimpleGrid, Text, VStack } from '@chakra-ui/react';
 import { MdOutlineEdit, MdOutlineEmail } from 'react-icons/md';
 import type { User } from '../../store/auth';
-import { PanelHeader, RecordTile } from '../admin/MatchDay';
+import { CountUp, RecordTile, reveal } from '../admin/MatchDay';
 import PlayerIdentity, { getPlayerRecord } from './PlayerIdentity';
 
 const DAY_INDEX: Record<string, number> = { MON: 0, TUE: 1, WED: 2, THU: 3, FRI: 4 };
@@ -34,38 +34,42 @@ export default function PlayerPassportPanel({
   const { gameParticipated, gameTotal, voteParticipated, voteTotal, attendanceRate, voteRate, consecutiveVotes, latestVote } = getPlayerRecord(user);
 
   return (
-    <VStack className="fccg-matchday fccg-member" align="stretch" spacing={6} color="gray.900">
-      <PlayerIdentity user={user} eyebrow="PLAYER PASSPORT" />
+    <VStack className="fccg-matchday fccg-member" align="stretch" spacing={4} color="gray.900">
+      <PlayerIdentity user={user} eyebrow="FC CGG · PLAYER PASSPORT" />
 
-      <Box>
-        <PanelHeader label="MY RECORD" title="내 기록" />
+      {/* 1. 참여 (스코어보드 숫자 + 참여율 바) */}
+      <Box sx={reveal(60)}>
+        <Text textStyle="scoreLabel" fontSize="10px" color="brand.500" mb={2}>MY RECORD</Text>
         <SimpleGrid columns={2} spacing={3}>
           <RecordTile
             accent
             label="경기 출석"
-            value={attendanceRate === null ? '—' : attendanceRate}
+            value={attendanceRate === null ? '—' : <CountUp value={attendanceRate} />}
             unit={attendanceRate === null ? undefined : '%'}
+            progress={attendanceRate}
             caption={gameTotal > 0 ? `${gameParticipated}/${gameTotal}경기` : '참여 기록이 쌓이면 표시됩니다'}
           />
           <RecordTile
             accent
             label="투표 참여"
-            value={voteRate === null ? '—' : voteRate}
+            value={voteRate === null ? '—' : <CountUp value={voteRate} />}
             unit={voteRate === null ? undefined : '%'}
+            progress={voteRate}
             caption={voteTotal > 0 ? `${voteParticipated}/${voteTotal}회` : '투표 기록이 쌓이면 표시됩니다'}
           />
         </SimpleGrid>
       </Box>
 
-      <Box>
-        <PanelHeader label="ACTIVITY" title="활동 요약" />
+      {/* 2. 현재 활동 */}
+      <Box sx={reveal(120)}>
+        <Text textStyle="scoreLabel" fontSize="10px" color="brand.500" mb={2}>ACTIVITY</Text>
         <SimpleGrid columns={3} spacing={2}>
-          <RecordTile label="참석 경기" value={gameParticipated} unit="회" px={3} />
-          <RecordTile label="투표 참여" value={voteParticipated} unit="회" px={3} />
-          <RecordTile label="연속 투표" value={consecutiveVotes} unit="회" px={3} />
+          <RecordTile label="참석 경기" value={<CountUp value={gameParticipated} />} unit="회" px={3} py={3} />
+          <RecordTile label="투표 참여" value={<CountUp value={voteParticipated} />} unit="회" px={3} py={3} />
+          <RecordTile label="연속 투표" value={<CountUp value={consecutiveVotes} />} unit="회" px={3} py={3} />
         </SimpleGrid>
         <Flex
-          mt={3}
+          mt={2}
           bg="white"
           border="1px solid"
           borderColor="gray.200"
@@ -74,6 +78,7 @@ export default function PlayerPassportPanel({
           py={3}
           justify="space-between"
           align="center"
+          gap={3}
         >
           <Box minW={0}>
             <Text color="gray.600" fontSize="sm" fontWeight="700">최근 투표</Text>
@@ -101,7 +106,8 @@ export default function PlayerPassportPanel({
         </Flex>
       </Box>
 
-      <HStack spacing={2} color="gray.500" px={1}>
+      {/* 3. 계정 */}
+      <HStack spacing={2} color="gray.500" px={1} sx={reveal(180)}>
         <Icon as={MdOutlineEmail} boxSize="14px" flexShrink={0} />
         <Text fontSize="sm" wordBreak="break-all">{user.email}</Text>
       </HStack>

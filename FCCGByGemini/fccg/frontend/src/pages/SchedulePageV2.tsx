@@ -38,7 +38,7 @@ import { getUnifiedVoteDataNew } from '../api/auth';
 import { eventBus, EVENT_TYPES } from '../utils/eventBus';
 import { API_ENDPOINTS } from '../constants';
 import { getApiBaseUrl, getApiUrl } from '../config/api';
-import { AdminPageHeader, DateBlock, LiveDot, PanelHeader, PitchLines } from '../components/admin/MatchDay';
+import { AdminPageHeader, DateBlock, LiveDot, PanelHeader, PitchLines, SweepLine, reveal } from '../components/admin/MatchDay';
 import { LuCalendarX, LuChevronRight, LuClock, LuMapPin, LuUsers } from 'react-icons/lu';
 import { MdOutlineSportsSoccer } from 'react-icons/md';
 import { EditIcon, DeleteIcon } from '@chakra-ui/icons';
@@ -3119,7 +3119,8 @@ export default function SchedulePageV2() {
             <Box position="relative" overflow="hidden" bg="matchday.navy" color="white" borderRadius="xl" mt={{ base: 3, md: 3 }}>
               <PitchLines opacity={0.08} />
               {nextMatch && nextMatchKey ? (
-                <Flex position="relative" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} gap={{ base: 3, md: 6 }} px={{ base: 4, md: 6 }} py={{ base: 3, md: 3 }}>
+                <Flex position="relative" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }} gap={{ base: 3, md: 6 }} px={{ base: 4, md: 6 }} py={{ base: 3, md: 3 }} sx={reveal(0)}>
+                  <SweepLine position="absolute" left={0} right={0} bottom={0} opacity={0.7} />
                   <Flex align="center" gap={{ base: 4, md: 6 }} flex={1} minW={0}>
                     <DateBlock date={new Date(`${nextMatchKey}T00:00:00`)} flexShrink={0} py={2} sx={{ '& > p:nth-of-type(2)': { fontSize: '44px' } }} />
                     <Box minW={0}>
