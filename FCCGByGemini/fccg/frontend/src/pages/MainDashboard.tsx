@@ -1266,7 +1266,25 @@ export default function MainDashboard() {
   const [revealedVideoId, setRevealedVideoId] = useState<string | null>(null);
   const currentVideo = youtubeVideos[videoIdx] || fallbackVideos[0] || { id: 'AAftIIK3MOg', title: '기본 영상' };
   // 하이라이트 재생 중에는 주변 카드 대비를 살짝 낮춰 영상에 집중시킨다 (표시 전용)
-  const isHighlightPlaying = revealedVideoId === currentVideo.id;
+  // 자동재생(muted)은 사용자 의도가 아니므로, 사용자가 플레이어와 상호작용한 영상의 재생일 때만 켠다
+  const [focusVideoId, setFocusVideoId] = useState<string | null>(null);
+  const intentVideoIdRef = useRef<string | null>(null);
+  const highlightPlayingRef = useRef(false);
+  const highlightBoxRef = useRef<HTMLDivElement | null>(null);
+  const isHighlightPlaying = focusVideoId === currentVideo.id;
+  const markHighlightIntent = useCallback(() => {
+    intentVideoIdRef.current = currentVideo.id;
+    if (highlightPlayingRef.current) setFocusVideoId(currentVideo.id);
+  }, [currentVideo.id]);
+  useEffect(() => {
+    // iframe 안쪽 클릭/키보드 입력은 부모로 오지 않는다 → 포커스가 플레이어 iframe으로 넘어가면(window blur) 사용자 상호작용으로 본다
+    const onBlur = () => window.setTimeout(() => {
+      const el = document.activeElement;
+      if (el?.tagName === 'IFRAME' && highlightBoxRef.current?.contains(el)) markHighlightIntent();
+    }, 0);
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+  }, [markHighlightIntent]);
   
   // 삭제된/비공개 영상 감지 시 다음 영상으로 단순 이동
   const handleVideoError = useCallback(() => {
@@ -2470,6 +2488,7 @@ export default function MainDashboard() {
           </Flex>
           <Box
             key={currentVideo.id}
+            ref={highlightBoxRef}
             w="100%"
             position="relative"
             borderRadius="md"
@@ -2542,6 +2561,12 @@ export default function MainDashboard() {
                 // -1: 비디오 시작 전, 0: 종료, 1: 재생 중, 2: 일시정지, 3: 버퍼링, 5: 큐에 추가됨
                 if (event.data === 1) {
                   applyYoutubeBestQuality(event.target);
+                  highlightPlayingRef.current = true;
+                  if (intentVideoIdRef.current === currentVideo.id) setFocusVideoId(currentVideo.id);
+                }
+                if (event.data === 0 || event.data === 2) {
+                  highlightPlayingRef.current = false;
+                  setFocusVideoId(null);
                 }
                 if (event.data === 5) {
                   // 큐에 추가됨 상태는 비디오를 찾을 수 없을 때 발생
@@ -2559,8 +2584,8 @@ export default function MainDashboard() {
                 role="button"
                 tabIndex={0}
                 aria-label={`${currentVideo.title} 영상 보기`}
-                onClick={() => setRevealedVideoId(currentVideo.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRevealedVideoId(currentVideo.id); } }}
+                onClick={() => { setRevealedVideoId(currentVideo.id); markHighlightIntent(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRevealedVideoId(currentVideo.id); markHighlightIntent(); } }}
                 sx={{
                   '& > img': { transition: 'transform 300ms cubic-bezier(.16,1,.3,1)' },
                   '&:hover > img, &:focus-visible > img': { transform: 'scale(1.02)' },
