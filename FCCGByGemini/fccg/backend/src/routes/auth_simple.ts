@@ -2377,6 +2377,13 @@ router.post('/votes/aggregate/save', authenticateToken, requireAdmin, async (req
 });
 
 // 경기 삭제 API
+// 확정 메일 수동 재발송 (이미 확정된 경기는 수정해도 재발송되지 않음)
+router.post('/games/:id/resend-confirmation', authenticateToken, requireAdmin, async (req, res) => {
+  const game = await prisma.game.findUnique({ where: { id: parseInt(req.params.id) } });
+  if (!game) return res.status(404).json({ error: '경기를 찾을 수 없습니다.' });
+  res.json({ emailNotification: await sendGameConfirmationNotification(game) });
+});
+
 router.delete('/games/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
