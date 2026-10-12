@@ -846,7 +846,7 @@ export default function GameManagement({ games, onGamesChange, userList, onGameD
                   confirmedBy: '관리자'
                 });
                 emitDataRefreshNeeded('games');
-                const emailWasSent = result.emailNotification?.success === true;
+                const emailWasSent = result.emailNotification?.success === true || result.emailNotification?.queued === true;
                 emitAlert(
                   emailWasSent
                     ? '경기 일정이 확정되고 회원 알림이 발송되었습니다.'
@@ -885,10 +885,10 @@ export default function GameManagement({ games, onGamesChange, userList, onGameD
           // 성공 메시지
           toast({
             title: '경기 일정 확정 완료',
-            description: result.emailNotification?.success
-              ? '회원들에게 이메일 알림이 발송되었습니다.'
+            description: emailWasSent
+              ? '회원들에게 이메일 알림을 발송하고 있습니다.'
               : `일정은 확정됐지만 이메일은 발송되지 않았습니다. (${result.emailNotification?.reason || result.emailNotification?.error || '메일 설정 확인 필요'})`,
-            status: result.emailNotification?.success ? 'success' : 'warning',
+            status: emailWasSent ? 'success' : 'warning',
             duration: 5000,
             isClosable: true,
           });

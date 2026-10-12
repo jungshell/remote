@@ -36,7 +36,7 @@ import {
 import { renderGameReminderMailPng, type GameMailImageInput } from '../utils/gameReminderImage';
 import { buildVoteParticipationSummary } from '../services/voteParticipation';
 import { MemberWithdrawalError, withdrawMember } from '../services/memberWithdrawal';
-import { planParticipantUpdate, requestedParticipants, syncGameAttendance } from '../services/gameAttendanceSync';
+import { parseNames, planParticipantUpdate, requestedParticipants, syncGameAttendance } from '../services/gameAttendanceSync';
 import { randomBytes } from 'crypto';
 import { getJwtSecret } from '../utils/jwtSecret';
 import { generateTempPassword } from '../utils/password';
@@ -1348,6 +1348,7 @@ router.post('/games', authenticateToken, requireAdmin, async (req, res) => {
           sendGameConfirmationNotification(updatedGame).catch(err =>
             console.error('❌ 게임 확정 알림 백그라운드 발송 실패:', err)
           );
+          emailNotification = { queued: true };
         }
       }
 
@@ -4181,15 +4182,19 @@ function createGameConfirmationEmail(data) {
   }, 0);
   const totalCount = members.length + manualTotalCount + mercCount;
 
-  const naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(data.gameLocation)}`;
+  // "아트풋살장 2구장" → "아트풋살장": 세부 구장명이 붙으면 지도 검색이 안 됨
+  const loc = String(data.gameLocation || '').trim();
+  const mapQuery = encodeURIComponent(loc.includes(' ') ? loc.slice(0, loc.lastIndexOf(' ')) : loc);
+  const naverMapUrl = `https://map.naver.com/p/search/${mapQuery}`;
+  const kakaoMapUrl = `https://map.kakao.com/link/search/${mapQuery}`;
 
   const memberChips = members.map((name: string) =>
     `<span style="display:inline-block;background:#162B4A;color:#7BBAFF;border:1px solid #1E3D6A;border-radius:14px;padding:5px 13px;font-size:13px;font-weight:600;margin:3px 3px 3px 0;">${name}</span>`
-  ).join('');
+  ).join(' '); // Outlook은 span margin 무시 → 공백으로 칩 구분
 
   const manualChips = manuals.map((entry: string) =>
     `<span style="display:inline-block;background:#2D1600;color:#FF9A3C;border:1px solid #4A2500;border-radius:14px;padding:5px 13px;font-size:13px;font-weight:600;margin:3px 3px 3px 0;">${entry}</span>`
-  ).join('');
+  ).join(' ');
 
   const mercChip = mercCount > 0
     ? `<span style="display:inline-block;background:#1A1A1A;color:#888;border:1px solid #333;border-radius:14px;padding:5px 13px;font-size:13px;font-weight:600;margin:3px 3px 3px 0;">용병 ${mercCount}명</span>`
@@ -4219,9 +4224,9 @@ function createGameConfirmationEmail(data) {
       <!-- HERO: DATE + BIG TIME -->
       <tr>
         <td style="padding:24px 36px 20px;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#C8F135;margin-bottom:6px;">내일 경기</div>
-          <div style="font-size:32px;font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1;margin-bottom:4px;">${data.gameDate}</div>
-          <div style="font-size:72px;font-weight:900;letter-spacing:-0.04em;color:#C8F135;line-height:0.9;margin-top:16px;">${data.gameTime}</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#C8F135;margin-bottom:6px;">경기 확정</div>
+          <div style="font-size:32px;font-weight:900;letter-spacing:-0.02em;color:#fff;line-height:1.3;margin-bottom:4px;">${data.gameDate}</div>
+          <div style="font-size:72px;font-weight:900;letter-spacing:-0.04em;color:#C8F135;line-height:1.2;margin-top:8px;">${data.gameTime}</div>
         </td>
       </tr>
 
@@ -4238,6 +4243,7 @@ function createGameConfirmationEmail(data) {
                 <div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3A4E60;margin-bottom:6px;">장소</div>
                 <div style="font-size:15px;font-weight:700;color:#E8ECF0;margin-bottom:10px;">${data.gameLocation}</div>
                 <a href="${naverMapUrl}" target="_blank" style="display:inline-block;background:#03C75A;color:#fff;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:0.06em;padding:6px 12px;border-radius:5px;">네이버지도 ↗</a>
+                <a href="${kakaoMapUrl}" target="_blank" style="display:inline-block;background:#FEE500;color:#191919;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:0.06em;padding:6px 12px;border-radius:5px;">카카오맵 ↗</a>
               </td>
               <!-- 유형 -->
               <td width="40%" style="vertical-align:top;text-align:right;">
@@ -4265,7 +4271,7 @@ function createGameConfirmationEmail(data) {
             <tr>
               <td>
                 <div style="line-height:2;">
-                  ${memberChips}${manualChips}${mercChip}
+                  ${[memberChips, manualChips, mercChip].filter(Boolean).join(' ')}
                 </div>
               </td>
             </tr>
@@ -4730,19 +4736,16 @@ async function sendEmailNotification(attendances, message, gameDate, game) {
             gameTime: message.match(/시간: ([^\n]+)/)?.[1] || '미정',
             gameLocation: message.match(/장소: ([^\n]+)/)?.[1] || '미정',
             gameType: message.match(/유형: ([^\n]+)/)?.[1] || '미정',
-            participants: attendances.map(a => a.user.name).filter(Boolean),
-            manualMembers: (() => {
+            // 참가자 = 경기에 등록된 인원 (수신자 = ACTIVE 전체와 다름)
+            ...(() => {
               try {
-                if (game.memberNames) {
-                  const parsed = typeof game.memberNames === 'string' 
-                    ? JSON.parse(game.memberNames) 
-                    : game.memberNames;
-                  return Array.isArray(parsed) ? parsed : [];
-                }
-                return [];
+                const clean = (v: unknown) => parseNames(v).filter((n): n is string => typeof n === 'string' && !!n.trim() && !n.trim().startsWith('용병')).map(n => n.trim());
+                const participants = [...new Set(clean(game.selectedMembers))];
+                const manualMembers = [...new Set(clean(game.memberNames))].filter(n => !participants.includes(n));
+                return { participants, manualMembers };
               } catch (error) {
-                console.warn('⚠️ 수기입력 인원정보 파싱 오류:', error);
-                return [];
+                console.warn('⚠️ 참가자 정보 파싱 오류:', error);
+                return { participants: [], manualMembers: [] };
               }
             })(),
             mercenaryCount: game.mercenaryCount || 0,
